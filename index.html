@@ -21,34 +21,86 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useMemo, useRef, useCallback } = React;
+const { useState, useMemo, useRef, useCallback, useEffect } = React;
 
-const TIMESTAMP = "2026-04-03 22:32";
-const TOP20 = ["SNDK","MRVL","MU","AMAT","ROST","FANG","ARM","ODFL","MRNA","LRCX","KLAC","ON","SIRI","ADI","AMD","AEP","GILD","REGN","WELL","PEP"];
+// ── Datenquelle ────────────────────────────────────────────────────────────
+// Versucht zuerst rs_full.json zu laden (vom Python-Script generiert).
+// Falls nicht verfügbar → Fallback auf eingebettete Daten unten.
 
-const RS_DATA = [{"t":"SNDK","s":557,"w":{"5T":10,"10T":-2,"20T":35,"50T":45,"6M":468,"12M":null}},{"t":"MRVL","s":114,"w":{"5T":9,"10T":21,"20T":22,"50T":35,"6M":28,"12M":null}},{"t":"MU","s":86,"w":{"5T":-1,"10T":-14,"20T":1,"50T":-2,"6M":103,"12M":null}},{"t":"AMAT","s":81,"w":{"5T":-1,"10T":-3,"20T":10,"50T":15,"6M":60,"12M":null}},{"t":"ROST","s":78,"w":{"5T":0,"10T":4,"20T":6,"50T":24,"6M":45,"12M":null}},{"t":"FANG","s":76,"w":{"5T":-8,"10T":0,"20T":10,"50T":34,"6M":40,"12M":null}},{"t":"ARM","s":76,"w":{"5T":-1,"10T":12,"20T":33,"50T":31,"6M":1,"12M":null}},{"t":"ODFL","s":74,"w":{"5T":1,"10T":7,"20T":4,"50T":17,"6M":44,"12M":null}},{"t":"MRNA","s":64,"w":{"5T":-5,"10T":-5,"20T":-4,"50T":1,"6M":77,"12M":null}},{"t":"LRCX","s":63,"w":{"5T":-1,"10T":-5,"20T":12,"50T":5,"6M":52,"12M":null}},{"t":"KLAC","s":60,"w":{"5T":1,"10T":1,"20T":15,"50T":7,"6M":37,"12M":null}},{"t":"ON","s":54,"w":{"5T":3,"10T":4,"20T":12,"50T":4,"6M":31,"12M":null}},{"t":"SIRI","s":50,"w":{"5T":0,"10T":8,"20T":9,"50T":22,"6M":11,"12M":null}},{"t":"ADI","s":50,"w":{"5T":0,"10T":2,"20T":3,"50T":9,"6M":36,"12M":null}},{"t":"AMD","s":49,"w":{"5T":4,"10T":7,"20T":15,"50T":-9,"6M":31,"12M":null}},{"t":"AEP","s":48,"w":{"5T":-2,"10T":5,"20T":3,"50T":20,"6M":22,"12M":null}},{"t":"GILD","s":45,"w":{"5T":0,"10T":1,"20T":0,"50T":13,"6M":31,"12M":null}},{"t":"REGN","s":42,"w":{"5T":-1,"10T":3,"20T":3,"50T":7,"6M":30,"12M":null}},{"t":"WELL","s":40,"w":{"5T":-1,"10T":3,"20T":1,"50T":17,"6M":19,"12M":null}},{"t":"PEP","s":34,"w":{"5T":-1,"10T":4,"20T":1,"50T":15,"6M":16,"12M":null}},{"t":"NVDA","s":4,"w":{"5T":2,"10T":2,"20T":2,"50T":2,"6M":-3,"12M":null}},{"t":"AAPL","s":15,"w":{"5T":-1,"10T":3,"20T":2,"50T":9,"6M":3,"12M":null}},{"t":"NFLX","s":22,"w":{"5T":2,"10T":7,"20T":2,"50T":24,"6M":-12,"12M":null}},{"t":"META","s":-30,"w":{"5T":5,"10T":-4,"20T":-9,"50T":-6,"6M":-18,"12M":null}},{"t":"MSFT","s":-44,"w":{"5T":1,"10T":-3,"20T":-6,"50T":-11,"6M":-24,"12M":null}},{"t":"TSLA","s":-42,"w":{"5T":-4,"10T":-3,"20T":-7,"50T":-14,"6M":-14,"12M":null}},{"t":"AMZN","s":-4,"w":{"5T":1,"10T":2,"20T":1,"50T":-5,"6M":-3,"12M":null}},{"t":"CRWD","s":-27,"w":{"5T":4,"10T":-3,"20T":-5,"50T":-6,"6M":-16,"12M":null}},{"t":"COIN","s":-90,"w":{"5T":2,"10T":-14,"20T":-11,"50T":-18,"6M":-51,"12M":null}},{"t":"APP","s":-97,"w":{"5T":-3,"10T":-13,"20T":-21,"50T":-20,"6M":-40,"12M":null}},{"t":"AXON","s":-117,"w":{"5T":-8,"10T":-17,"20T":-26,"50T":-26,"6M":-40,"12M":null}},{"t":"TTD","s":-120,"w":{"5T":0,"10T":-9,"20T":-22,"50T":-34,"6M":-53,"12M":null}},{"t":"TEAM","s":-116,"w":{"5T":1,"10T":-8,"20T":-16,"50T":-41,"6M":-52,"12M":null}}];
+const FALLBACK_TIMESTAMP = "2026-04-03 22:32";
 
-const ARM_OHLCV = [{"d":"2026-01-20","o":104.86,"h":110.74,"l":104.41,"c":107.17},{"d":"2026-01-21","o":111.07,"h":117.28,"l":111.07,"c":113.92},{"d":"2026-01-22","o":120.71,"h":123.5,"l":118.65,"c":119.2},{"d":"2026-01-23","o":120.88,"h":121.85,"l":114.58,"c":116.07},{"d":"2026-01-26","o":116.35,"h":116.44,"l":114.06,"c":114.73},{"d":"2026-01-27","o":116.15,"h":117.39,"l":114.24,"c":114.88},{"d":"2026-01-28","o":115.0,"h":115.78,"l":109.06,"c":109.96},{"d":"2026-01-29","o":110.06,"h":110.4,"l":104.11,"c":108.43},{"d":"2026-01-30","o":107.09,"h":108.0,"l":105.03,"c":105.36},{"d":"2026-02-02","o":104.58,"h":108.12,"l":104.01,"c":106.93},{"d":"2026-02-03","o":108.0,"h":109.36,"l":101.57,"c":104.55},{"d":"2026-02-04","o":105.0,"h":108.18,"l":103.0,"c":104.9},{"d":"2026-02-05","o":104.48,"h":115.1,"l":100.02,"c":110.88},{"d":"2026-02-06","o":112.71,"h":124.31,"l":112.53,"c":123.7},{"d":"2026-02-09","o":120.25,"h":125.25,"l":118.25,"c":124.61},{"d":"2026-02-10","o":124.37,"h":130.9,"l":124.25,"c":125.95},{"d":"2026-02-11","o":127.51,"h":129.54,"l":125.16,"c":125.28},{"d":"2026-02-12","o":125.28,"h":128.24,"l":120.82,"c":122.19},{"d":"2026-02-13","o":120.12,"h":127.42,"l":119.7,"c":125.28},{"d":"2026-02-17","o":124.5,"h":127.0,"l":120.58,"c":126.89},{"d":"2026-02-18","o":128.6,"h":130.4,"l":126.0,"c":127.24},{"d":"2026-02-19","o":125.86,"h":126.99,"l":122.65,"c":126.93},{"d":"2026-02-20","o":125.21,"h":130.0,"l":124.96,"c":125.58},{"d":"2026-02-23","o":123.71,"h":126.71,"l":121.91,"c":123.78},{"d":"2026-02-24","o":124.6,"h":131.39,"l":124.0,"c":128.14},{"d":"2026-02-25","o":128.35,"h":133.28,"l":128.35,"c":131.74},{"d":"2026-02-26","o":131.94,"h":134.25,"l":126.66,"c":129.26},{"d":"2026-02-27","o":126.14,"h":128.89,"l":126.01,"c":127.45},{"d":"2026-03-02","o":123.32,"h":125.84,"l":121.64,"c":124.37},{"d":"2026-03-03","o":119.28,"h":122.15,"l":116.39,"c":121.72},{"d":"2026-03-04","o":122.7,"h":127.4,"l":121.74,"c":124.11},{"d":"2026-03-05","o":122.85,"h":124.35,"l":118.77,"c":120.62},{"d":"2026-03-06","o":118.12,"h":119.27,"l":113.51,"c":114.38},{"d":"2026-03-09","o":112.55,"h":118.14,"l":111.26,"c":117.63},{"d":"2026-03-10","o":117.0,"h":123.61,"l":116.99,"c":120.55},{"d":"2026-03-11","o":120.83,"h":123.2,"l":119.33,"c":120.1},{"d":"2026-03-12","o":118.22,"h":119.25,"l":114.46,"c":115.12},{"d":"2026-03-13","o":115.8,"h":118.06,"l":115.05,"c":115.75},{"d":"2026-03-16","o":119.5,"h":123.44,"l":118.38,"c":121.7},{"d":"2026-03-17","o":125.17,"h":128.8,"l":124.8,"c":127.31},{"d":"2026-03-18","o":127.81,"h":130.88,"l":127.21,"c":128.36},{"d":"2026-03-19","o":125.0,"h":130.73,"l":124.5,"c":129.82},{"d":"2026-03-20","o":136.9,"h":139.95,"l":131.42,"c":132.35},{"d":"2026-03-23","o":133.43,"h":138.85,"l":133.12,"c":136.89},{"d":"2026-03-24","o":136.0,"h":140.58,"l":133.01,"c":134.96},{"d":"2026-03-25","o":148.26,"h":166.69,"l":148.25,"c":157.07},{"d":"2026-03-26","o":157.35,"h":163.53,"l":154.35,"c":154.8},{"d":"2026-03-27","o":151.53,"h":152.75,"l":142.21,"c":144.13},{"d":"2026-03-30","o":144.1,"h":145.75,"l":136.0,"c":136.96},{"d":"2026-03-31","o":139.9,"h":151.59,"l":139.9,"c":151.28},{"d":"2026-04-01","o":154.39,"h":158.37,"l":152.3,"c":155.07},{"d":"2026-04-02","o":149.77,"h":152.07,"l":145.82,"c":149.11}];
+// Eingebettete Fallback-Daten (werden überschrieben wenn rs_full.json geladen wird)
+const FALLBACK_DATA = {
+  timestamp: FALLBACK_TIMESTAMP,
+  top20: ["SNDK","MRVL","MU","AMAT","ROST","FANG","ARM","ODFL","MRNA","LRCX","KLAC","ON","SIRI","ADI","AMD","AEP","GILD","REGN","WELL","PEP"],
+  data: [
+    {"ticker":"SNDK","score":557,"windows":{"5T":10,"10T":-2,"20T":35,"50T":45,"6M":468,"12M":null},"ohlcv":[]},
+    {"ticker":"MRVL","score":114,"windows":{"5T":9,"10T":21,"20T":22,"50T":35,"6M":28,"12M":null},"ohlcv":[]},
+    {"ticker":"MU","score":86,"windows":{"5T":-1,"10T":-14,"20T":1,"50T":-2,"6M":103,"12M":null},"ohlcv":[]},
+    {"ticker":"AMAT","score":81,"windows":{"5T":-1,"10T":-3,"20T":10,"50T":15,"6M":60,"12M":null},"ohlcv":[]},
+    {"ticker":"ROST","score":78,"windows":{"5T":0,"10T":4,"20T":6,"50T":24,"6M":45,"12M":null},"ohlcv":[]},
+    {"ticker":"FANG","score":76,"windows":{"5T":-8,"10T":0,"20T":10,"50T":34,"6M":40,"12M":null},"ohlcv":[]},
+    {"ticker":"ARM","score":76,"windows":{"5T":-1,"10T":12,"20T":33,"50T":31,"6M":1,"12M":null},"ohlcv":[
+      {"d":"2026-01-20","o":104.86,"h":110.74,"l":104.41,"c":107.17},{"d":"2026-01-21","o":111.07,"h":117.28,"l":111.07,"c":113.92},{"d":"2026-01-22","o":120.71,"h":123.5,"l":118.65,"c":119.2},{"d":"2026-01-23","o":120.88,"h":121.85,"l":114.58,"c":116.07},{"d":"2026-01-26","o":116.35,"h":116.44,"l":114.06,"c":114.73},{"d":"2026-01-27","o":116.15,"h":117.39,"l":114.24,"c":114.88},{"d":"2026-01-28","o":115.0,"h":115.78,"l":109.06,"c":109.96},{"d":"2026-01-29","o":110.06,"h":110.4,"l":104.11,"c":108.43},{"d":"2026-01-30","o":107.09,"h":108.0,"l":105.03,"c":105.36},{"d":"2026-02-02","o":104.58,"h":108.12,"l":104.01,"c":106.93},{"d":"2026-02-03","o":108.0,"h":109.36,"l":101.57,"c":104.55},{"d":"2026-02-04","o":105.0,"h":108.18,"l":103.0,"c":104.9},{"d":"2026-02-05","o":104.48,"h":115.1,"l":100.02,"c":110.88},{"d":"2026-02-06","o":112.71,"h":124.31,"l":112.53,"c":123.7},{"d":"2026-02-09","o":120.25,"h":125.25,"l":118.25,"c":124.61},{"d":"2026-02-10","o":124.37,"h":130.9,"l":124.25,"c":125.95},{"d":"2026-02-11","o":127.51,"h":129.54,"l":125.16,"c":125.28},{"d":"2026-02-12","o":125.28,"h":128.24,"l":120.82,"c":122.19},{"d":"2026-02-13","o":120.12,"h":127.42,"l":119.7,"c":125.28},{"d":"2026-02-17","o":124.5,"h":127.0,"l":120.58,"c":126.89},{"d":"2026-02-18","o":128.6,"h":130.4,"l":126.0,"c":127.24},{"d":"2026-02-19","o":125.86,"h":126.99,"l":122.65,"c":126.93},{"d":"2026-02-20","o":125.21,"h":130.0,"l":124.96,"c":125.58},{"d":"2026-02-23","o":123.71,"h":126.71,"l":121.91,"c":123.78},{"d":"2026-02-24","o":124.6,"h":131.39,"l":124.0,"c":128.14},{"d":"2026-02-25","o":128.35,"h":133.28,"l":128.35,"c":131.74},{"d":"2026-02-26","o":131.94,"h":134.25,"l":126.66,"c":129.26},{"d":"2026-02-27","o":126.14,"h":128.89,"l":126.01,"c":127.45},{"d":"2026-03-02","o":123.32,"h":125.84,"l":121.64,"c":124.37},{"d":"2026-03-03","o":119.28,"h":122.15,"l":116.39,"c":121.72},{"d":"2026-03-04","o":122.7,"h":127.4,"l":121.74,"c":124.11},{"d":"2026-03-05","o":122.85,"h":124.35,"l":118.77,"c":120.62},{"d":"2026-03-06","o":118.12,"h":119.27,"l":113.51,"c":114.38},{"d":"2026-03-09","o":112.55,"h":118.14,"l":111.26,"c":117.63},{"d":"2026-03-10","o":117.0,"h":123.61,"l":116.99,"c":120.55},{"d":"2026-03-11","o":120.83,"h":123.2,"l":119.33,"c":120.1},{"d":"2026-03-12","o":118.22,"h":119.25,"l":114.46,"c":115.12},{"d":"2026-03-13","o":115.8,"h":118.06,"l":115.05,"c":115.75},{"d":"2026-03-16","o":119.5,"h":123.44,"l":118.38,"c":121.7},{"d":"2026-03-17","o":125.17,"h":128.8,"l":124.8,"c":127.31},{"d":"2026-03-18","o":127.81,"h":130.88,"l":127.21,"c":128.36},{"d":"2026-03-19","o":125.0,"h":130.73,"l":124.5,"c":129.82},{"d":"2026-03-20","o":136.9,"h":139.95,"l":131.42,"c":132.35},{"d":"2026-03-23","o":133.43,"h":138.85,"l":133.12,"c":136.89},{"d":"2026-03-24","o":136.0,"h":140.58,"l":133.01,"c":134.96},{"d":"2026-03-25","o":148.26,"h":166.69,"l":148.25,"c":157.07},{"d":"2026-03-26","o":157.35,"h":163.53,"l":154.35,"c":154.8},{"d":"2026-03-27","o":151.53,"h":152.75,"l":142.21,"c":144.13},{"d":"2026-03-30","o":144.1,"h":145.75,"l":136.0,"c":136.96},{"d":"2026-03-31","o":139.9,"h":151.59,"l":139.9,"c":151.28},{"d":"2026-04-01","o":154.39,"h":158.37,"l":152.3,"c":155.07},{"d":"2026-04-02","o":149.77,"h":152.07,"l":145.82,"c":149.11}
+    ]},
+    {"ticker":"ODFL","score":74,"windows":{"5T":1,"10T":7,"20T":4,"50T":17,"6M":44,"12M":null},"ohlcv":[]},
+    {"ticker":"MRNA","score":64,"windows":{"5T":-5,"10T":-5,"20T":-4,"50T":1,"6M":77,"12M":null},"ohlcv":[]},
+    {"ticker":"LRCX","score":63,"windows":{"5T":-1,"10T":-5,"20T":12,"50T":5,"6M":52,"12M":null},"ohlcv":[]},
+    {"ticker":"KLAC","score":60,"windows":{"5T":1,"10T":1,"20T":15,"50T":7,"6M":37,"12M":null},"ohlcv":[]},
+    {"ticker":"ON","score":54,"windows":{"5T":3,"10T":4,"20T":12,"50T":4,"6M":31,"12M":null},"ohlcv":[]},
+    {"ticker":"SIRI","score":50,"windows":{"5T":0,"10T":8,"20T":9,"50T":22,"6M":11,"12M":null},"ohlcv":[]},
+    {"ticker":"ADI","score":50,"windows":{"5T":0,"10T":2,"20T":3,"50T":9,"6M":36,"12M":null},"ohlcv":[]},
+    {"ticker":"AMD","score":49,"windows":{"5T":4,"10T":7,"20T":15,"50T":-9,"6M":31,"12M":null},"ohlcv":[]},
+    {"ticker":"AEP","score":48,"windows":{"5T":-2,"10T":5,"20T":3,"50T":20,"6M":22,"12M":null},"ohlcv":[]},
+    {"ticker":"GILD","score":45,"windows":{"5T":0,"10T":1,"20T":0,"50T":13,"6M":31,"12M":null},"ohlcv":[]},
+    {"ticker":"REGN","score":42,"windows":{"5T":-1,"10T":3,"20T":3,"50T":7,"6M":30,"12M":null},"ohlcv":[]},
+    {"ticker":"WELL","score":40,"windows":{"5T":-1,"10T":3,"20T":1,"50T":17,"6M":19,"12M":null},"ohlcv":[]},
+    {"ticker":"PEP","score":34,"windows":{"5T":-1,"10T":4,"20T":1,"50T":15,"6M":16,"12M":null},"ohlcv":[]},
+    {"ticker":"NVDA","score":4,"windows":{"5T":2,"10T":2,"20T":2,"50T":2,"6M":-3,"12M":null},"ohlcv":[]},
+    {"ticker":"AAPL","score":15,"windows":{"5T":-1,"10T":3,"20T":2,"50T":9,"6M":3,"12M":null},"ohlcv":[]},
+    {"ticker":"NFLX","score":22,"windows":{"5T":2,"10T":7,"20T":2,"50T":24,"6M":-12,"12M":null},"ohlcv":[]},
+    {"ticker":"META","score":-30,"windows":{"5T":5,"10T":-4,"20T":-9,"50T":-6,"6M":-18,"12M":null},"ohlcv":[]},
+    {"ticker":"MSFT","score":-44,"windows":{"5T":1,"10T":-3,"20T":-6,"50T":-11,"6M":-24,"12M":null},"ohlcv":[]},
+    {"ticker":"TSLA","score":-42,"windows":{"5T":-4,"10T":-3,"20T":-7,"50T":-14,"6M":-14,"12M":null},"ohlcv":[]},
+    {"ticker":"AMZN","score":-4,"windows":{"5T":1,"10T":2,"20T":1,"50T":-5,"6M":-3,"12M":null},"ohlcv":[]},
+    {"ticker":"CRWD","score":-27,"windows":{"5T":4,"10T":-3,"20T":-5,"50T":-6,"6M":-16,"12M":null},"ohlcv":[]},
+    {"ticker":"COIN","score":-90,"windows":{"5T":2,"10T":-14,"20T":-11,"50T":-18,"6M":-51,"12M":null},"ohlcv":[]},
+    {"ticker":"APP","score":-97,"windows":{"5T":-3,"10T":-13,"20T":-21,"50T":-20,"6M":-40,"12M":null},"ohlcv":[]},
+    {"ticker":"AXON","score":-117,"windows":{"5T":-8,"10T":-17,"20T":-26,"50T":-26,"6M":-40,"12M":null},"ohlcv":[]},
+    {"ticker":"TTD","score":-120,"windows":{"5T":0,"10T":-9,"20T":-22,"50T":-34,"6M":-53,"12M":null},"ohlcv":[]},
+    {"ticker":"TEAM","score":-116,"windows":{"5T":1,"10T":-8,"20T":-16,"50T":-41,"6M":-52,"12M":null},"ohlcv":[]}
+  ]
+};
 
+// ── Strukturanalyse ─────────────────────────────────────────────────────────
+// Erkennt: Downmove-Hoch, Breakout, Retracement-Hoch nach Breakout
 function analyzeStructure(ohlcv) {
   if (!ohlcv || ohlcv.length < 10) return null;
   const n = ohlcv.length;
   const highs = ohlcv.map(d => d.h);
-  const lows = ohlcv.map(d => d.l);
+  const lows  = ohlcv.map(d => d.l);
   const closes = ohlcv.map(d => d.c);
+
+  // Swing-Hochs (3 Kerzen links + rechts)
   const swingHighs = [];
   for (let i = 3; i < n - 2; i++) {
-    if (highs[i] >= highs[i-1] && highs[i] >= highs[i-2] && highs[i] >= highs[i+1] && highs[i] >= highs[i+2]) {
+    if (highs[i] >= highs[i-1] && highs[i] >= highs[i-2] &&
+        highs[i] >= highs[i+1] && highs[i] >= highs[i+2]) {
       swingHighs.push({ idx: i, date: ohlcv[i].d, price: highs[i] });
     }
   }
+  // Swing-Tiefs
   const swingLows = [];
   for (let i = 3; i < n - 2; i++) {
-    if (lows[i] <= lows[i-1] && lows[i] <= lows[i-2] && lows[i] <= lows[i+1] && lows[i] <= lows[i+2]) {
+    if (lows[i] <= lows[i-1] && lows[i] <= lows[i-2] &&
+        lows[i] <= lows[i+1] && lows[i] <= lows[i+2]) {
       swingLows.push({ idx: i, date: ohlcv[i].d, price: lows[i] });
     }
   }
+
   const currentClose = closes[n - 1];
+
+  // Letztes Downmove-Hoch: Swing-Hoch, nach dem der Kurs mind. 5% fiel
   let lastDownmoveHigh = null;
   for (let i = swingHighs.length - 1; i >= 0; i--) {
     const sh = swingHighs[i];
@@ -56,7 +108,36 @@ function analyzeStructure(ohlcv) {
     const minAfter = Math.min(...subsLows);
     if (minAfter < sh.price * 0.95) { lastDownmoveHigh = sh; break; }
   }
-  const broken = lastDownmoveHigh && currentClose > lastDownmoveHigh.price;
+
+  // Breakout: erste Kerze die über Downmove-Hoch schließt
+  let breakoutIdx = null;
+  if (lastDownmoveHigh) {
+    for (let i = lastDownmoveHigh.idx + 1; i < n; i++) {
+      if (closes[i] > lastDownmoveHigh.price) { breakoutIdx = i; break; }
+    }
+  }
+  const broken = breakoutIdx !== null;
+
+  // Retracement-Hoch nach Breakout: höchstes Swing-Hoch NACH dem Breakout
+  // Das ist das nächste Entry-Level
+  let retracementHigh = null;
+  if (broken && breakoutIdx !== null) {
+    // Swing-Hochs die nach dem Breakout liegen
+    const postBreakoutHighs = swingHighs.filter(sh => sh.idx > breakoutIdx);
+    if (postBreakoutHighs.length > 0) {
+      // Nimm das letzte (aktuellste) Swing-Hoch nach Breakout als Retracement-Hoch
+      retracementHigh = postBreakoutHighs[postBreakoutHighs.length - 1];
+    }
+    // Falls kein Swing-Hoch nach Breakout: verwende das Hoch der Breakout-Kerze selbst
+    if (!retracementHigh) {
+      retracementHigh = { idx: breakoutIdx, date: ohlcv[breakoutIdx].d, price: highs[breakoutIdx] };
+    }
+  }
+
+  // Ist das Retracement-Hoch gebrochen? (Entry-Signal)
+  const retracementBroken = retracementHigh && currentClose > retracementHigh.price;
+
+  // Trend (letzte 2 Swing-Hochs)
   let trend = "neutral";
   if (swingHighs.length >= 2) {
     const last = swingHighs[swingHighs.length - 1];
@@ -64,16 +145,27 @@ function analyzeStructure(ohlcv) {
     if (last.price > prev.price) trend = "bullish";
     else if (last.price < prev.price) trend = "bearish";
   }
-  return { currentClose, lastDownmoveHigh, broken, trend, swingHighs: swingHighs.slice(-5), swingLows: swingLows.slice(-5), setup: broken && trend !== "bearish" };
+
+  return {
+    currentClose,
+    lastDownmoveHigh,
+    broken,
+    breakoutIdx,
+    retracementHigh,
+    retracementBroken,
+    trend,
+    swingHighs: swingHighs.slice(-6),
+    swingLows: swingLows.slice(-6),
+    setup: broken && trend !== "bearish"
+  };
 }
 
-// ── Professioneller Chart ──────────────────────────────────────────────────
+// ── Candlestick-Chart ───────────────────────────────────────────────────────
 function CandleChart({ ohlcv, structure }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
 
-  // Layout-Konstanten
-  const W = 600, H = 260;
+  const W = 600, H = 280;
   const PAD_LEFT = 52, PAD_RIGHT = 48, PAD_TOP = 18, PAD_BOTTOM = 32;
   const chartW = W - PAD_LEFT - PAD_RIGHT;
   const chartH = H - PAD_TOP - PAD_BOTTOM;
@@ -82,10 +174,9 @@ function CandleChart({ ohlcv, structure }) {
   const allH = ohlcv.map(d => d.h);
   const allL = ohlcv.map(d => d.l);
 
-  // Preis-Range mit etwas Puffer
   const rawMax = Math.max(...allH);
   const rawMin = Math.min(...allL);
-  const pad = (rawMax - rawMin) * 0.06;
+  const pad = (rawMax - rawMin) * 0.07;
   const maxP = rawMax + pad;
   const minP = rawMin - pad;
   const range = maxP - minP;
@@ -94,15 +185,12 @@ function CandleChart({ ohlcv, structure }) {
   const toX = i => PAD_LEFT + (i + 0.5) * (chartW / n);
   const barW = Math.max(2, chartW / n * 0.65);
 
-  // Y-Achsen-Ticks (5 Stufen)
+  // Y-Achsen-Ticks
   const yTicks = [];
   const step = range / 5;
-  for (let k = 0; k <= 5; k++) {
-    const val = minP + k * step;
-    yTicks.push(val);
-  }
+  for (let k = 0; k <= 5; k++) yTicks.push(minP + k * step);
 
-  // Monats-Labels für X-Achse
+  // Monats-Labels
   const monthLabels = [];
   let lastMonth = null;
   ohlcv.forEach((d, i) => {
@@ -113,16 +201,7 @@ function CandleChart({ ohlcv, structure }) {
     }
   });
 
-  // Breakout-Kerze finden (erste Kerze, die über das Downmove-Hoch schließt)
-  let breakoutIdx = null;
-  if (structure?.lastDownmoveHigh) {
-    for (let i = structure.lastDownmoveHigh.idx + 1; i < n; i++) {
-      if (ohlcv[i].c > structure.lastDownmoveHigh.price) {
-        breakoutIdx = i;
-        break;
-      }
-    }
-  }
+  const breakoutIdx = structure?.breakoutIdx ?? null;
 
   const handleMouseMove = useCallback((e) => {
     const svg = svgRef.current;
@@ -135,18 +214,15 @@ function CandleChart({ ohlcv, structure }) {
     else setHover(null);
   }, [n, chartW]);
 
-  const handleMouseLeave = () => setHover(null);
-
   const hd = hover !== null ? ohlcv[hover] : null;
 
   return (
     <div className="chart-wrap" style={{background:"#07090f",borderRadius:8,border:"1px solid #1e293b",overflow:"hidden"}}>
-      {/* Tooltip-Bar oben */}
+      {/* OHLC Tooltip-Bar */}
       <div style={{
         height:28,padding:"0 12px",display:"flex",alignItems:"center",gap:14,
         background:"#0a0f1e",borderBottom:"1px solid #1e293b",
-        fontSize:10,fontFamily:"monospace",
-        transition:"all 0.1s"
+        fontSize:10,fontFamily:"monospace"
       }}>
         {hd ? (
           <>
@@ -155,33 +231,28 @@ function CandleChart({ ohlcv, structure }) {
             <span>H <span style={{color:"#4ade80"}}>{hd.h.toFixed(2)}</span></span>
             <span>L <span style={{color:"#f87171"}}>{hd.l.toFixed(2)}</span></span>
             <span>C <span style={{color:hd.c>=hd.o?"#4ade80":"#f87171",fontWeight:700}}>{hd.c.toFixed(2)}</span></span>
-            <span style={{color:"#475569",marginLeft:"auto"}}>
-              {hd.c>=hd.o?"▲":"▼"} {((hd.c-hd.o)/hd.o*100).toFixed(2)}%
-            </span>
+            <span style={{color:"#475569",marginLeft:"auto"}}>{hd.c>=hd.o?"▲":"▼"} {((hd.c-hd.o)/hd.o*100).toFixed(2)}%</span>
           </>
         ) : (
           <span style={{color:"#334155"}}>Hover für OHLC-Details</span>
         )}
       </div>
 
-      <svg
-        ref={svgRef}
-        width="100%"
-        viewBox={`0 0 ${W} ${H}`}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{cursor:"crosshair"}}
-      >
+      <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setHover(null)}
+        style={{cursor:"crosshair"}}>
         <defs>
-          {/* Breakout-Zone Gradient */}
           <linearGradient id="breakoutGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.12"/>
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.13"/>
             <stop offset="100%" stopColor="#22c55e" stopOpacity="0.01"/>
           </linearGradient>
-          {/* Downmove-Zone Gradient */}
           <linearGradient id="downGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.06"/>
+            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.07"/>
             <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0"/>
+          </linearGradient>
+          <linearGradient id="retGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.10"/>
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.01"/>
           </linearGradient>
         </defs>
 
@@ -193,100 +264,113 @@ function CandleChart({ ohlcv, structure }) {
           const y = toY(val);
           return (
             <g key={k}>
-              <line x1={PAD_LEFT} x2={PAD_LEFT + chartW} y1={y} y2={y}
-                stroke="#1a2235" strokeWidth="0.8"/>
-              <text x={PAD_LEFT - 5} y={y + 3.5} textAnchor="end"
-                fill="#334155" fontSize="9" fontFamily="monospace">
+              <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={y} y2={y} stroke="#1a2235" strokeWidth="0.8"/>
+              <text x={PAD_LEFT-5} y={y+3.5} textAnchor="end" fill="#334155" fontSize="9" fontFamily="monospace">
                 {val.toFixed(0)}
               </text>
             </g>
           );
         })}
 
-        {/* X-Achsen Monats-Labels */}
+        {/* Monats-Labels */}
         {monthLabels.map(({ i, label }) => (
           <g key={i}>
-            <line x1={toX(i)} x2={toX(i)} y1={PAD_TOP} y2={PAD_TOP + chartH}
-              stroke="#131c2e" strokeWidth="1" strokeDasharray="2,4"/>
-            <text x={toX(i)} y={PAD_TOP + chartH + 14} textAnchor="middle"
-              fill="#334155" fontSize="8.5" fontFamily="monospace">{label}</text>
+            <line x1={toX(i)} x2={toX(i)} y1={PAD_TOP} y2={PAD_TOP+chartH} stroke="#131c2e" strokeWidth="1" strokeDasharray="2,4"/>
+            <text x={toX(i)} y={PAD_TOP+chartH+14} textAnchor="middle" fill="#334155" fontSize="8.5" fontFamily="monospace">{label}</text>
           </g>
         ))}
 
-        {/* Downmove-Zone: Hintergrund-Schattierung vor dem Breakout */}
+        {/* Zone vor Breakout (gelb) */}
         {structure?.lastDownmoveHigh && breakoutIdx !== null && (
-          <rect
-            x={PAD_LEFT}
-            y={PAD_TOP}
-            width={toX(breakoutIdx) - PAD_LEFT}
-            height={chartH}
-            fill="url(#downGrad)"
-          />
+          <rect x={PAD_LEFT} y={PAD_TOP} width={toX(breakoutIdx)-PAD_LEFT} height={chartH} fill="url(#downGrad)"/>
         )}
 
-        {/* Breakout-Zone: ab der Breakout-Kerze */}
-        {breakoutIdx !== null && (
+        {/* Zone nach Breakout bis Retracement-Hoch (grün) */}
+        {breakoutIdx !== null && structure?.retracementHigh && (
           <rect
-            x={toX(breakoutIdx) - barW}
+            x={toX(breakoutIdx)-barW}
             y={PAD_TOP}
-            width={chartW - (toX(breakoutIdx) - PAD_LEFT) + barW}
+            width={toX(structure.retracementHigh.idx)-(toX(breakoutIdx)-barW)+barW}
             height={chartH}
             fill="url(#breakoutGrad)"
           />
         )}
 
-        {/* Downmove-Hoch Linie */}
+        {/* Zone nach Retracement-Hoch (blau = Entry-Zone) */}
+        {structure?.retracementHigh && (
+          <rect
+            x={toX(structure.retracementHigh.idx)}
+            y={PAD_TOP}
+            width={PAD_LEFT+chartW-toX(structure.retracementHigh.idx)}
+            height={chartH}
+            fill="url(#retGrad)"
+          />
+        )}
+
+        {/* ── Linien ── */}
+
+        {/* Downmove-Hoch Linie (gelb) */}
         {structure?.lastDownmoveHigh && (() => {
           const y = toY(structure.lastDownmoveHigh.price);
           const color = structure.broken ? "#22c55e" : "#f59e0b";
           return (
             <>
-              {/* Schattenbereich unterhalb der Linie */}
-              <rect x={PAD_LEFT} y={y} width={chartW} height={PAD_TOP+chartH-y}
-                fill={color} opacity="0.03"/>
-              {/* Hauptlinie */}
-              <line x1={PAD_LEFT} x2={PAD_LEFT + chartW} y1={y} y2={y}
-                stroke={color} strokeWidth="1.5" strokeDasharray="5,4"/>
-              {/* Label links */}
-              <rect x={PAD_LEFT - 48} y={y - 9} width={44} height={16}
-                rx="3" fill="#0a0f1e" stroke={color} strokeWidth="0.8"/>
-              <text x={PAD_LEFT - 26} y={y + 4} textAnchor="middle"
-                fill={color} fontSize="9" fontWeight="700" fontFamily="monospace">
+              <rect x={PAD_LEFT} y={y} width={chartW} height={PAD_TOP+chartH-y} fill={color} opacity="0.03"/>
+              <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={y} y2={y} stroke={color} strokeWidth="1.5" strokeDasharray="5,4"/>
+              <rect x={PAD_LEFT-48} y={y-9} width={44} height={16} rx="3" fill="#0a0f1e" stroke={color} strokeWidth="0.8"/>
+              <text x={PAD_LEFT-26} y={y+4} textAnchor="middle" fill={color} fontSize="9" fontWeight="700" fontFamily="monospace">
                 {structure.lastDownmoveHigh.price.toFixed(1)}
               </text>
-              {/* Label rechts */}
-              <rect x={PAD_LEFT + chartW + 2} y={y - 9} width={44} height={16}
-                rx="3" fill={color + "22"} stroke={color} strokeWidth="0.8"/>
-              <text x={PAD_LEFT + chartW + 24} y={y + 4} textAnchor="middle"
-                fill={color} fontSize="8" fontWeight="700" fontFamily="monospace">
+              <rect x={PAD_LEFT+chartW+2} y={y-9} width={44} height={16} rx="3" fill={color+"22"} stroke={color} strokeWidth="0.8"/>
+              <text x={PAD_LEFT+chartW+24} y={y+4} textAnchor="middle" fill={color} fontSize="8" fontWeight="700" fontFamily="monospace">
                 {structure.broken ? "✓ BOC" : "Res."}
               </text>
             </>
           );
         })()}
 
-        {/* Swing-Hoch Marker */}
+        {/* Retracement-Hoch Linie (blau, gestrichelt) */}
+        {structure?.retracementHigh && (() => {
+          const y = toY(structure.retracementHigh.price);
+          const color = structure.retracementBroken ? "#60a5fa" : "#3b82f6";
+          return (
+            <>
+              <line x1={toX(structure.retracementHigh.idx)} x2={PAD_LEFT+chartW} y1={y} y2={y}
+                stroke={color} strokeWidth="1.3" strokeDasharray="3,3"/>
+              <rect x={PAD_LEFT-48} y={y-9} width={44} height={16} rx="3" fill="#0a0f1e" stroke={color} strokeWidth="0.8"/>
+              <text x={PAD_LEFT-26} y={y+4} textAnchor="middle" fill={color} fontSize="9" fontWeight="700" fontFamily="monospace">
+                {structure.retracementHigh.price.toFixed(1)}
+              </text>
+              <rect x={PAD_LEFT+chartW+2} y={y-9} width={44} height={16} rx="3" fill={color+"22"} stroke={color} strokeWidth="0.8"/>
+              <text x={PAD_LEFT+chartW+24} y={y+4} textAnchor="middle" fill={color} fontSize="7.5" fontWeight="700" fontFamily="monospace">
+                {structure.retracementBroken ? "✓ RET" : "4H-Ret"}
+              </text>
+            </>
+          );
+        })()}
+
+        {/* Swing-Hoch Marker (Dreieck oben) */}
         {structure?.swingHighs?.map((sh, k) => {
           const x = toX(sh.idx);
           const y = toY(sh.price);
           const isDownHigh = structure.lastDownmoveHigh && sh.idx === structure.lastDownmoveHigh.idx;
+          const isRetHigh = structure.retracementHigh && sh.idx === structure.retracementHigh.idx;
           if (isDownHigh) return null;
           return (
             <g key={k}>
-              <polygon points={`${x},${y-10} ${x-4},${y-4} ${x+4},${y-4}`}
-                fill="#f59e0b" opacity="0.7"/>
+              <polygon points={`${x},${y-11} ${x-4},${y-4} ${x+4},${y-4}`}
+                fill={isRetHigh ? "#3b82f6" : "#f59e0b"} opacity="0.8"/>
             </g>
           );
         })}
 
-        {/* Swing-Tief Marker */}
+        {/* Swing-Tief Marker (Dreieck unten) */}
         {structure?.swingLows?.map((sl, k) => {
           const x = toX(sl.idx);
           const y = toY(sl.price);
           return (
             <g key={k}>
-              <polygon points={`${x},${y+10} ${x-4},${y+4} ${x+4},${y+4}`}
-                fill="#3b82f6" opacity="0.5"/>
+              <polygon points={`${x},${y+11} ${x-4},${y+4} ${x+4},${y+4}`} fill="#3b82f6" opacity="0.4"/>
             </g>
           );
         })}
@@ -294,17 +378,7 @@ function CandleChart({ ohlcv, structure }) {
         {/* Breakout-Kerze Highlight */}
         {breakoutIdx !== null && (() => {
           const x = toX(breakoutIdx);
-          return (
-            <rect
-              x={x - barW * 0.8}
-              y={PAD_TOP}
-              width={barW * 1.6}
-              height={chartH}
-              fill="#22c55e"
-              opacity="0.07"
-              rx="1"
-            />
-          );
+          return <rect x={x-barW*0.8} y={PAD_TOP} width={barW*1.6} height={chartH} fill="#22c55e" opacity="0.08" rx="1"/>;
         })()}
 
         {/* Kerzen */}
@@ -319,64 +393,43 @@ function CandleChart({ ohlcv, structure }) {
           const isHovered = hover === i;
           return (
             <g key={i}>
-              {/* Docht */}
               <line x1={x} x2={x} y1={toY(d.h)} y2={toY(d.l)}
                 stroke={color} strokeWidth={isHovered ? 1.5 : 1} opacity={isBreakout ? 1 : 0.9}/>
-              {/* Körper */}
-              <rect
-                x={x - barW / 2}
-                y={bodyTop}
-                width={barW}
-                height={bodyH}
+              <rect x={x-barW/2} y={bodyTop} width={barW} height={bodyH}
                 fill={color}
                 opacity={isBreakout ? 1 : isHovered ? 0.95 : 0.8}
                 stroke={isBreakout ? "#fff" : isHovered ? color : "none"}
-                strokeWidth={isBreakout ? 0.5 : 0}
-              />
+                strokeWidth={isBreakout ? 0.5 : 0}/>
             </g>
           );
         })}
 
-        {/* Letzter Kurs Linie */}
-        <line
-          x1={PAD_LEFT} x2={PAD_LEFT + chartW}
-          y1={toY(ohlcv[n-1].c)} y2={toY(ohlcv[n-1].c)}
-          stroke="#94a3b8" strokeWidth="0.6" strokeDasharray="2,3" opacity="0.4"
-        />
-        <rect x={PAD_LEFT + chartW + 2} y={toY(ohlcv[n-1].c) - 8} width={44} height={15}
-          rx="3" fill="#1e293b"/>
-        <text x={PAD_LEFT + chartW + 24} y={toY(ohlcv[n-1].c) + 3} textAnchor="middle"
-          fill="#94a3b8" fontSize="8.5" fontFamily="monospace">
+        {/* Letzter Kurs */}
+        <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={toY(ohlcv[n-1].c)} y2={toY(ohlcv[n-1].c)}
+          stroke="#94a3b8" strokeWidth="0.6" strokeDasharray="2,3" opacity="0.4"/>
+        <rect x={PAD_LEFT+chartW+2} y={toY(ohlcv[n-1].c)-8} width={44} height={15} rx="3" fill="#1e293b"/>
+        <text x={PAD_LEFT+chartW+24} y={toY(ohlcv[n-1].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">
           {ohlcv[n-1].c.toFixed(2)}
         </text>
 
-        {/* Hover-Crosshair */}
+        {/* Crosshair */}
         {hover !== null && (
           <>
-            <line x1={toX(hover)} x2={toX(hover)} y1={PAD_TOP} y2={PAD_TOP+chartH}
-              stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
-            <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={toY(ohlcv[hover].c)} y2={toY(ohlcv[hover].c)}
-              stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
-            {/* Preismarker Crosshair */}
-            <rect x={PAD_LEFT - 48} y={toY(ohlcv[hover].c) - 8} width={44} height={15}
-              rx="3" fill="#1e293b"/>
-            <text x={PAD_LEFT - 26} y={toY(ohlcv[hover].c) + 3} textAnchor="middle"
-              fill="#94a3b8" fontSize="8.5" fontFamily="monospace">
+            <line x1={toX(hover)} x2={toX(hover)} y1={PAD_TOP} y2={PAD_TOP+chartH} stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
+            <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={toY(ohlcv[hover].c)} y2={toY(ohlcv[hover].c)} stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
+            <rect x={PAD_LEFT-48} y={toY(ohlcv[hover].c)-8} width={44} height={15} rx="3" fill="#1e293b"/>
+            <text x={PAD_LEFT-26} y={toY(ohlcv[hover].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">
               {ohlcv[hover].c.toFixed(2)}
             </text>
           </>
         )}
 
-        {/* Chart-Rahmen */}
-        <rect x={PAD_LEFT} y={PAD_TOP} width={chartW} height={chartH}
-          fill="none" stroke="#1e293b" strokeWidth="0.8"/>
+        {/* Rahmen */}
+        <rect x={PAD_LEFT} y={PAD_TOP} width={chartW} height={chartH} fill="none" stroke="#1e293b" strokeWidth="0.8"/>
       </svg>
 
-      {/* Legende unten */}
-      <div style={{
-        padding:"6px 12px",display:"flex",gap:14,alignItems:"center",
-        background:"#0a0f1e",borderTop:"1px solid #0f172a",flexWrap:"wrap"
-      }}>
+      {/* Legende */}
+      <div style={{padding:"6px 12px",display:"flex",gap:14,alignItems:"center",background:"#0a0f1e",borderTop:"1px solid #0f172a",flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:4}}>
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4,3"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>Downmove-Hoch</span>
@@ -386,7 +439,11 @@ function CandleChart({ ohlcv, structure }) {
           <span style={{fontSize:9,color:"#64748b"}}>Breakout ✓</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <svg width="10" height="10"><polygon points="5,0 0,8 10,8" fill="#f59e0b" opacity="0.7"/></svg>
+          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#3b82f6" strokeWidth="1.3" strokeDasharray="3,3"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Retracement-Hoch (4H-Entry)</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="10" height="10"><polygon points="5,0 0,8 10,8" fill="#f59e0b" opacity="0.8"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>Swing-Hoch</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:4}}>
@@ -401,6 +458,7 @@ function CandleChart({ ohlcv, structure }) {
   );
 }
 
+// ── Hilfsfunktionen ─────────────────────────────────────────────────────────
 const WINDOWS = ["5T","10T","20T","50T","6M"];
 
 function Cell({ v }) {
@@ -408,31 +466,95 @@ function Cell({ v }) {
   return <span style={{color:v>0?"#4ade80":"#f87171",fontFamily:"monospace",fontSize:11}}>{v>0?"+":""}{v}</span>;
 }
 
+// ── Legende Tabelle ─────────────────────────────────────────────────────────
+function TableLegend() {
+  return (
+    <div style={{
+      marginBottom:10,padding:"8px 12px",
+      background:"#07090f",borderRadius:7,border:"1px solid #1a2235",
+      fontSize:10,color:"#64748b",lineHeight:1.8
+    }}>
+      <strong style={{color:"#475569",display:"block",marginBottom:4}}>Legende Tabelle</strong>
+      <span style={{marginRight:14}}>▸ = OHLCV-Daten verfügbar → Klick für Chartanalyse</span>
+      <span style={{marginRight:14}}>🔥 = Downmove-Hoch bereits gebrochen (Breakout bestätigt)</span>
+      <span>⏳ = Wartet noch auf Breakout über das Downmove-Hoch</span>
+    </div>
+  );
+}
+
+// ── Haupt-App ───────────────────────────────────────────────────────────────
 function App() {
-  const [topN, setTopN] = useState(10);
-  const [sortBy, setSortBy] = useState("score");
+  const [topN, setTopN]       = useState(10);
+  const [sortBy, setSortBy]   = useState("score");
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState("ARM");
+  const [rsData, setRsData]   = useState(null);
+  const [dataSource, setDataSource] = useState("Lade...");
+
+  // Versuche externe JSON zu laden
+  useEffect(() => {
+    fetch("rs_full.json")
+      .then(r => { if (!r.ok) throw new Error("not found"); return r.json(); })
+      .then(json => {
+        setRsData(json);
+        setDataSource(`rs_full.json · Stand ${json.timestamp}`);
+      })
+      .catch(() => {
+        setRsData(FALLBACK_DATA);
+        setDataSource(`Eingebettete Daten · Stand ${FALLBACK_DATA.timestamp}`);
+      });
+  }, []);
+
+  const allData = rsData?.data ?? [];
+  const top20   = rsData?.top20 ?? [];
+
+  // RS_DATA-kompatibles Format für Tabelle
+  const tableData = useMemo(() => allData.map(d => ({
+    t: d.ticker,
+    s: d.score,
+    w: d.windows,
+    hasOhlcv: d.ohlcv && d.ohlcv.length > 10
+  })), [allData]);
 
   const sorted = useMemo(() =>
-    [...RS_DATA].sort((a,b) => sortBy === "score" ? b.s - a.s : (b.w[sortBy]??-999) - (a.w[sortBy]??-999)),
-    [sortBy]);
+    [...tableData].sort((a,b) => sortBy === "score" ? b.s - a.s : (b.w[sortBy]??-999) - (a.w[sortBy]??-999)),
+    [tableData, sortBy]);
 
-  const rows = showAll ? sorted : sorted.slice(0, Math.max(topN+5, 15));
+  const rows = showAll ? sorted : sorted.slice(0, Math.max(topN + 5, 15));
 
-  const selectedData = RS_DATA.find(d => d.t === selected);
-  const ohlcv = selected === "ARM" ? ARM_OHLCV : null;
+  const selectedEntry = allData.find(d => d.ticker === selected);
+  const ohlcv = selectedEntry?.ohlcv?.length > 10 ? selectedEntry.ohlcv : null;
   const structure = useMemo(() => analyzeStructure(ohlcv), [ohlcv]);
+
+  // Status-Emoji für Tabelle: 🔥 wenn Breakout bestätigt, ⏳ wenn wartend
+  // Berechne Breakout-Status für alle Ticker mit OHLCV
+  const breakoutStatus = useMemo(() => {
+    const map = {};
+    allData.forEach(d => {
+      if (!d.ohlcv || d.ohlcv.length < 10) return;
+      const s = analyzeStructure(d.ohlcv);
+      if (s) map[d.ticker] = s.broken;
+    });
+    return map;
+  }, [allData]);
 
   const sel = {background:"#1e293b",border:"1px solid #334155",color:"#e2e8f0",borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer"};
 
+  if (!rsData) return (
+    <div style={{minHeight:"100vh",background:"#060b14",display:"flex",alignItems:"center",justifyContent:"center",color:"#475569",fontSize:14}}>
+      Lade Daten…
+    </div>
+  );
+
   return (
     <div style={{minHeight:"100vh",background:"#060b14",color:"#e2e8f0",fontFamily:"'Inter',system-ui,sans-serif",padding:"16px 12px"}}>
+      {/* Header */}
       <div style={{marginBottom:14}}>
         <h1 style={{margin:0,fontSize:18,fontWeight:800,color:"#f8fafc"}}>⚡ RS · QQQ</h1>
-        <p style={{margin:"2px 0 0",color:"#475569",fontSize:11}}>Outperformance vs. Nasdaq 100 · {TIMESTAMP}</p>
+        <p style={{margin:"2px 0 0",color:"#475569",fontSize:11}}>Outperformance vs. Nasdaq 100 · {dataSource}</p>
       </div>
 
+      {/* Steuerung */}
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"flex-end"}}>
         <div style={{display:"flex",flexDirection:"column",gap:2}}>
           <label style={{fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>Top N</label>
@@ -447,11 +569,18 @@ function App() {
             {WINDOWS.map(w=><option key={w} value={w}>{w}</option>)}
           </select>
         </div>
+        <div style={{marginLeft:"auto",fontSize:10,color:"#334155",alignSelf:"flex-end",paddingBottom:2}}>
+          {tableData.length} Ticker geladen
+        </div>
       </div>
 
+      {/* Legende */}
+      <TableLegend />
+
+      {/* Tabelle */}
       <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",marginBottom:12,overflowX:"auto"}}>
-        <div style={{minWidth:440}}>
-          <div style={{display:"grid",gridTemplateColumns:"22px 50px 56px repeat(5,1fr)",padding:"6px 10px",background:"#1e293b",gap:3,fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:0.5}}>
+        <div style={{minWidth:460}}>
+          <div style={{display:"grid",gridTemplateColumns:"22px 64px 56px repeat(5,1fr)",padding:"6px 10px",background:"#1e293b",gap:3,fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:0.5}}>
             <span>#</span><span>Ticker</span><span>Score</span>
             {WINDOWS.map(w=><span key={w} style={{textAlign:"center"}}>{w}</span>)}
           </div>
@@ -459,23 +588,27 @@ function App() {
             const rank = sorted.indexOf(item);
             const isTop = rank < topN;
             const isSelected = item.t === selected;
+            const hasBroken = breakoutStatus[item.t] === true;
+            const hasWaiting = breakoutStatus[item.t] === false;
+            const statusEmoji = hasBroken ? "🔥" : hasWaiting ? "⏳" : null;
             return (
               <div key={item.t}
-                onClick={() => TOP20.includes(item.t) && setSelected(item.t)}
+                onClick={() => item.hasOhlcv && setSelected(item.t)}
                 style={{
-                  display:"grid",gridTemplateColumns:"22px 50px 56px repeat(5,1fr)",
+                  display:"grid",gridTemplateColumns:"22px 64px 56px repeat(5,1fr)",
                   padding:"6px 10px",gap:3,
                   borderTop:"1px solid #0a0f1e",
                   background: isSelected ? "#1a2f4a" : isTop ? (rank%2===0?"#0d1526":"#0a1020") : "#07090f",
-                  opacity: isTop?1:0.25,
+                  opacity: isTop ? 1 : 0.25,
                   alignItems:"center",
-                  cursor: TOP20.includes(item.t) ? "pointer" : "default",
+                  cursor: item.hasOhlcv ? "pointer" : "default",
                   borderLeft: isSelected ? "2px solid #3b82f6" : "2px solid transparent",
                 }}>
                 <span style={{fontSize:10,fontWeight:700,color:rank===0?"#f59e0b":rank<3?"#94a3b8":"#334155"}}>{rank+1}</span>
-                <span style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:rank===0?"#fbbf24":isTop?"#f1f5f9":"#475569"}}>
+                <span style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:rank===0?"#fbbf24":isTop?"#f1f5f9":"#475569",display:"flex",alignItems:"center",gap:3}}>
                   {item.t}
-                  {TOP20.includes(item.t) && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}
+                  {statusEmoji && <span style={{fontSize:10}}>{statusEmoji}</span>}
+                  {item.hasOhlcv && !statusEmoji && <span style={{fontSize:8,color:"#334155"}}>▸</span>}
                 </span>
                 <span style={{fontFamily:"monospace",fontSize:11,fontWeight:600,color:item.s>0?"#4ade80":"#f87171"}}>
                   {item.s>0?"+":""}{item.s}
@@ -490,26 +623,31 @@ function App() {
             <div style={{textAlign:"center",padding:"8px",borderTop:"1px solid #0a0f1e"}}>
               <button onClick={()=>setShowAll(true)}
                 style={{background:"none",border:"1px solid #334155",color:"#64748b",borderRadius:6,padding:"4px 14px",fontSize:11,cursor:"pointer"}}>
-                Alle {RS_DATA.length} ↓
+                Alle {tableData.length} ↓
               </button>
             </div>
           )}
         </div>
       </div>
 
+      {/* Portfolio Top N */}
       <div style={{background:"#0f172a",borderRadius:10,padding:12,border:"1px solid #1e293b",marginBottom:12}}>
         <p style={{margin:"0 0 6px",fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>Portfolio · Top {topN}</p>
         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
           {sorted.slice(0,topN).map((d,i)=>(
             <span key={d.t}
-              onClick={() => TOP20.includes(d.t) && setSelected(d.t)}
+              onClick={() => d.hasOhlcv && setSelected(d.t)}
               style={{
                 background:i<3?"#1a2f4a":"#1e293b",
                 border:`1px solid ${d.t===selected?"#3b82f6":i<3?"#2563eb":"#334155"}`,
                 borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:700,
                 color:i<3?"#93c5fd":"#94a3b8",fontFamily:"monospace",
-                cursor:TOP20.includes(d.t)?"pointer":"default"
-              }}>{d.t}</span>
+                cursor:d.hasOhlcv?"pointer":"default"
+              }}>
+              {d.t}
+              {breakoutStatus[d.t]===true && <span style={{fontSize:9,marginLeft:2}}>🔥</span>}
+              {breakoutStatus[d.t]===false && <span style={{fontSize:9,marginLeft:2}}>⏳</span>}
+            </span>
           ))}
         </div>
       </div>
@@ -518,12 +656,13 @@ function App() {
       <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",padding:14,marginBottom:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <p style={{margin:0,fontSize:11,fontWeight:700,color:"#f1f5f9"}}>📊 Daily Struktur · {selected}</p>
-          {selectedData && (
-            <span style={{fontSize:11,fontFamily:"monospace",color:selectedData.s>0?"#4ade80":"#f87171"}}>
-              RS Score: {selectedData.s>0?"+":""}{selectedData.s}
+          {selectedEntry && (
+            <span style={{fontSize:11,fontFamily:"monospace",color:selectedEntry.score>0?"#4ade80":"#f87171"}}>
+              RS Score: {selectedEntry.score>0?"+":""}{selectedEntry.score}
             </span>
           )}
         </div>
+
         {ohlcv && structure ? (
           <>
             {/* Status-Badges */}
@@ -534,68 +673,114 @@ function App() {
                 color: structure.broken ? "#4ade80" : "#fbbf24",
                 borderRadius:5,padding:"3px 8px",fontSize:11,fontWeight:600
               }}>
-                {structure.broken ? "✅ Downmove-Hoch gebrochen" : "⏳ Warte auf Breakout"}
+                {structure.broken ? "🔥 Downmove-Hoch gebrochen" : "⏳ Warte auf Breakout über Downmove-Hoch"}
               </span>
               <span style={{background:"#0d1526",border:"1px solid #1e3a5f",color:"#93c5fd",borderRadius:5,padding:"3px 8px",fontSize:11}}>
                 Trend: {structure.trend === "bullish" ? "↗ Bullish" : structure.trend === "bearish" ? "↘ Bearish" : "→ Neutral"}
               </span>
-              {structure.setup && (
+              {structure.setup && structure.retracementHigh && !structure.retracementBroken && (
                 <span style={{background:"#1a2f4a",border:"1px solid #3b82f6",color:"#60a5fa",borderRadius:5,padding:"3px 8px",fontSize:11,fontWeight:600}}>
-                  ⚡ Setup aktiv → 4H Entry
+                  ⚡ Setup: Warte auf Bruch des 4H-Retracement-Hochs
+                </span>
+              )}
+              {structure.retracementBroken && (
+                <span style={{background:"#052e16",border:"1px solid #22c55e",color:"#4ade80",borderRadius:5,padding:"3px 8px",fontSize:11,fontWeight:600}}>
+                  ✅ Retracement-Hoch gebrochen → Entry aktiv
                 </span>
               )}
             </div>
 
-            {/* Key Levels */}
-            {structure.lastDownmoveHigh && (
-              <div style={{
-                marginBottom:12,padding:"7px 10px",
-                background:"#07090f",borderRadius:6,border:"1px solid #1a2235",
-                display:"flex",gap:16,flexWrap:"wrap",fontSize:11
-              }}>
-                <span>
-                  <span style={{color:"#475569"}}>Downmove-Hoch </span>
-                  <span style={{fontFamily:"monospace",fontWeight:700,color:structure.broken?"#4ade80":"#f59e0b"}}>
-                    ${structure.lastDownmoveHigh.price.toFixed(2)}
-                  </span>
-                  <span style={{color:"#334155",marginLeft:5,fontSize:10}}>({structure.lastDownmoveHigh.date})</span>
-                </span>
-                <span>
-                  <span style={{color:"#475569"}}>Aktuell </span>
-                  <span style={{fontFamily:"monospace",fontWeight:700,color:"#f1f5f9"}}>${structure.currentClose.toFixed(2)}</span>
-                </span>
-                {structure.broken && (
+            {/* Key Levels – klar beschriftet */}
+            <div style={{
+              marginBottom:12,padding:"8px 12px",
+              background:"#07090f",borderRadius:6,border:"1px solid #1a2235",
+              display:"flex",gap:0,flexWrap:"wrap",fontSize:11,flexDirection:"column"
+            }}>
+              <div style={{fontWeight:700,color:"#475569",marginBottom:5,fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>Key Levels</div>
+              <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                {structure.lastDownmoveHigh && (
                   <span>
-                    <span style={{color:"#475569"}}>Abstand </span>
-                    <span style={{fontFamily:"monospace",fontWeight:700,color:"#4ade80"}}>
-                      +{((structure.currentClose / structure.lastDownmoveHigh.price - 1)*100).toFixed(1)}%
+                    <span style={{color:"#64748b"}}>🟡 Downmove-Hoch: </span>
+                    <span style={{fontFamily:"monospace",fontWeight:700,color:structure.broken?"#4ade80":"#f59e0b"}}>
+                      ${structure.lastDownmoveHigh.price.toFixed(2)}
                     </span>
+                    <span style={{color:"#334155",marginLeft:4,fontSize:10}}>({structure.lastDownmoveHigh.date})</span>
+                    {structure.broken && (
+                      <span style={{color:"#4ade80",marginLeft:4}}>✓ gebrochen</span>
+                    )}
                   </span>
                 )}
+                {structure.retracementHigh && (
+                  <span>
+                    <span style={{color:"#64748b"}}>🔵 Retracement-Hoch (4H-Entry): </span>
+                    <span style={{fontFamily:"monospace",fontWeight:700,color:"#60a5fa"}}>
+                      ${structure.retracementHigh.price.toFixed(2)}
+                    </span>
+                    <span style={{color:"#334155",marginLeft:4,fontSize:10}}>({structure.retracementHigh.date})</span>
+                    {structure.retracementBroken
+                      ? <span style={{color:"#4ade80",marginLeft:4}}>✓ gebrochen</span>
+                      : <span style={{color:"#3b82f6",marginLeft:4}}>→ Entry bei Bruch</span>
+                    }
+                  </span>
+                )}
+                <span>
+                  <span style={{color:"#64748b"}}>Aktuell: </span>
+                  <span style={{fontFamily:"monospace",fontWeight:700,color:"#f1f5f9"}}>${structure.currentClose.toFixed(2)}</span>
+                  {structure.retracementHigh && !structure.retracementBroken && (
+                    <span style={{color:"#334155",marginLeft:6,fontSize:10}}>
+                      ({((structure.retracementHigh.price/structure.currentClose-1)*100).toFixed(1)}% bis Entry-Level)
+                    </span>
+                  )}
+                  {structure.retracementBroken && (
+                    <span style={{color:"#4ade80",marginLeft:6}}>
+                      +{((structure.currentClose/structure.retracementHigh.price-1)*100).toFixed(1)}% über Entry
+                    </span>
+                  )}
+                </span>
               </div>
-            )}
+            </div>
 
-            {/* Professioneller Chart */}
+            {/* Chart */}
             <CandleChart ohlcv={ohlcv} structure={structure}/>
 
-            {/* Setup-Notiz */}
+            {/* Erklärung der Legende Struktur-Panel */}
+            <div style={{marginTop:10,padding:"7px 10px",background:"#07090f",borderRadius:6,border:"1px solid #1a2235",fontSize:10,color:"#475569",lineHeight:1.7}}>
+              <strong style={{color:"#334155"}}>Legende Strukturanalyse:</strong>
+              {"  "}
+              <span style={{color:"#f59e0b"}}>— Gelb gestrichelt</span> = Downmove-Hoch (letztes Swing-Hoch vor dem Rücksetzer, das der Kurs überwinden muss).{"  "}
+              <span style={{color:"#22c55e"}}>— Grün</span> = Bereits gebrochen (Breakout bestätigt).{"  "}
+              <span style={{color:"#3b82f6"}}>— Blau gestrichelt</span> = Retracement-Hoch nach dem Breakout (letztes Swing-Hoch im Rücksetzer, Entry-Signal bei Bruch).
+            </div>
+
+            {/* Setup-Notiz für ARM */}
             {selected === "ARM" && (
-              <div style={{marginTop:10,padding:"8px 10px",background:"#0d1526",borderRadius:6,border:"1px solid #1e3a5f",fontSize:11,color:"#93c5fd",lineHeight:1.6}}>
+              <div style={{marginTop:8,padding:"8px 10px",background:"#0d1526",borderRadius:6,border:"1px solid #1e3a5f",fontSize:11,color:"#93c5fd",lineHeight:1.6}}>
                 <strong>ARM Setup-Status:</strong> Daily-Hoch des Downmoves (~143.9$) wurde am 25. März stark gebrochen (+16% Kerze).
-                Kurs läuft aktuell im 4H-Retracement zurück. Nächster Schritt: Letztes Hoch des 4H-Retracements abwarten und bei Bruch einsteigen.
+                Kurs läuft aktuell im 4H-Retracement zurück. Entry: Letztes Hoch des 4H-Retracements (blaue Linie) abwarten → bei Bruch einsteigen.
               </div>
             )}
           </>
         ) : (
           <div style={{color:"#475569",fontSize:12,textAlign:"center",padding:"20px 0"}}>
-            Klick auf einen Top-20 Ticker (▸) für Strukturanalyse.<br/>
-            <span style={{fontSize:10,marginTop:4,display:"block"}}>Aktuell nur für ARM verfügbar (OHLCV-Daten geladen)</span>
+            {tableData.some(d => d.hasOhlcv)
+              ? <>Klick auf einen Ticker mit 🔥 oder ⏳ für Strukturanalyse.</>
+              : <>Lade rs_full.json aus dem gleichen Verzeichnis für vollständige OHLCV-Daten.<br/>
+                  <span style={{fontSize:10,marginTop:4,display:"block",color:"#334155"}}>
+                    Tipp: Python-Script ausführen → rs_full.json neben index.html auf GitHub hochladen
+                  </span>
+                </>
+            }
           </div>
         )}
       </div>
 
+      {/* Workflow-Hinweis */}
+      <div style={{marginBottom:12,padding:"8px 12px",background:"#0a0f1e",borderRadius:8,border:"1px solid #1e293b",fontSize:10,color:"#334155",lineHeight:1.8}}>
+        <strong style={{color:"#475569"}}>Workflow:</strong> Python-Script in Colab ausführen → <code style={{color:"#3b82f6"}}>rs_full.json</code> zusammen mit <code style={{color:"#3b82f6"}}>index.html</code> auf GitHub hochladen → Dashboard aktualisiert sich automatisch.
+      </div>
+
       <p style={{textAlign:"center",color:"#1e293b",fontSize:9,marginTop:8}}>
-        Echte Daten via yfinance · Kein Handelssignal · Stand {TIMESTAMP}
+        Echte Daten via yfinance · Kein Handelssignal · {dataSource}
       </p>
     </div>
   );
