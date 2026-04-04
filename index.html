@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RS · QQQ Dashboard</title>
-  <!-- Daten aus data.js · index.html + data.js müssen im gleichen Ordner sein -->
+  <!-- Daten aus data.json · index.html + data.json müssen im gleichen Ordner sein -->
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -22,8 +22,8 @@
 <body>
 <div id="root"></div>
 <div id="load-error" style="display:none;color:#f87171;font-family:monospace;padding:20px;background:#0f172a;border:1px solid #f87171;border-radius:8px;margin:20px;font-size:13px;">
-  ⚠️ Datei <strong>data.js</strong> nicht gefunden.<br>
-  Beide Dateien müssen im gleichen Ordner liegen: <code>index.html</code> und <code>data.js</code>
+  ⚠️ Datei <strong>data.json</strong> nicht gefunden.<br>
+  Beide Dateien müssen im gleichen Ordner liegen: <code>index.html</code> und <code>data.json</code>
 </div>
 <script>
   window.addEventListener('DOMContentLoaded', function() {
