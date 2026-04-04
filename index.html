@@ -14,12 +14,14 @@
     ::-webkit-scrollbar-track { background: #0a0f1e; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
     select, button { outline: none; }
+    .chart-wrap { position: relative; }
+    .chart-wrap svg { display: block; }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useMemo } = React;
+const { useState, useMemo, useRef, useCallback } = React;
 
 const TIMESTAMP = "2026-04-03 22:32";
 const TOP20 = ["SNDK","MRVL","MU","AMAT","ROST","FANG","ARM","ODFL","MRNA","LRCX","KLAC","ON","SIRI","ADI","AMD","AEP","GILD","REGN","WELL","PEP"];
@@ -65,46 +67,337 @@ function analyzeStructure(ohlcv) {
   return { currentClose, lastDownmoveHigh, broken, trend, swingHighs: swingHighs.slice(-5), swingLows: swingLows.slice(-5), setup: broken && trend !== "bearish" };
 }
 
+// ── Professioneller Chart ──────────────────────────────────────────────────
 function CandleChart({ ohlcv, structure }) {
-  const W = 520, H = 160, PAD = 20;
+  const svgRef = useRef(null);
+  const [hover, setHover] = useState(null);
+
+  // Layout-Konstanten
+  const W = 600, H = 260;
+  const PAD_LEFT = 52, PAD_RIGHT = 48, PAD_TOP = 18, PAD_BOTTOM = 32;
+  const chartW = W - PAD_LEFT - PAD_RIGHT;
+  const chartH = H - PAD_TOP - PAD_BOTTOM;
+
   const n = ohlcv.length;
   const allH = ohlcv.map(d => d.h);
   const allL = ohlcv.map(d => d.l);
-  const maxP = Math.max(...allH);
-  const minP = Math.min(...allL);
-  const range = maxP - minP || 1;
-  const toY = p => PAD + (1 - (p - minP) / range) * (H - PAD * 2);
-  const barW = Math.max(2, (W - PAD * 2) / n - 1);
+
+  // Preis-Range mit etwas Puffer
+  const rawMax = Math.max(...allH);
+  const rawMin = Math.min(...allL);
+  const pad = (rawMax - rawMin) * 0.06;
+  const maxP = rawMax + pad;
+  const minP = rawMin - pad;
+  const range = maxP - minP;
+
+  const toY = p => PAD_TOP + (1 - (p - minP) / range) * chartH;
+  const toX = i => PAD_LEFT + (i + 0.5) * (chartW / n);
+  const barW = Math.max(2, chartW / n * 0.65);
+
+  // Y-Achsen-Ticks (5 Stufen)
+  const yTicks = [];
+  const step = range / 5;
+  for (let k = 0; k <= 5; k++) {
+    const val = minP + k * step;
+    yTicks.push(val);
+  }
+
+  // Monats-Labels für X-Achse
+  const monthLabels = [];
+  let lastMonth = null;
+  ohlcv.forEach((d, i) => {
+    const m = d.d.slice(0, 7);
+    if (m !== lastMonth) {
+      monthLabels.push({ i, label: d.d.slice(5, 7) + "/" + d.d.slice(2, 4) });
+      lastMonth = m;
+    }
+  });
+
+  // Breakout-Kerze finden (erste Kerze, die über das Downmove-Hoch schließt)
+  let breakoutIdx = null;
+  if (structure?.lastDownmoveHigh) {
+    for (let i = structure.lastDownmoveHigh.idx + 1; i < n; i++) {
+      if (ohlcv[i].c > structure.lastDownmoveHigh.price) {
+        breakoutIdx = i;
+        break;
+      }
+    }
+  }
+
+  const handleMouseMove = useCallback((e) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const idx = Math.round((mx - PAD_LEFT) / (chartW / n) - 0.5);
+    if (idx >= 0 && idx < n) setHover(idx);
+    else setHover(null);
+  }, [n, chartW]);
+
+  const handleMouseLeave = () => setHover(null);
+
+  const hd = hover !== null ? ohlcv[hover] : null;
+
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:"block"}}>
-      {[0.25,0.5,0.75].map(f => (
-        <line key={f} x1={PAD} x2={W-PAD} y1={PAD+(1-f)*(H-PAD*2)} y2={PAD+(1-f)*(H-PAD*2)} stroke="#1e293b" strokeWidth="0.5"/>
-      ))}
-      {structure?.lastDownmoveHigh && (
-        <>
-          <line x1={PAD} x2={W-PAD} y1={toY(structure.lastDownmoveHigh.price)} y2={toY(structure.lastDownmoveHigh.price)}
-            stroke={structure.broken ? "#22c55e" : "#f59e0b"} strokeWidth="1.5" strokeDasharray="4,3"/>
-          <text x={W-PAD+2} y={toY(structure.lastDownmoveHigh.price)+4} fill={structure.broken ? "#22c55e" : "#f59e0b"} fontSize="8">
-            {structure.lastDownmoveHigh.price.toFixed(0)}
-          </text>
-        </>
-      )}
-      {ohlcv.map((d, i) => {
-        const x = PAD + i * ((W - PAD*2) / n);
-        const bullish = d.c >= d.o;
-        const color = bullish ? "#22c55e" : "#ef4444";
-        const bodyTop = toY(Math.max(d.o, d.c));
-        const bodyBot = toY(Math.min(d.o, d.c));
-        const bodyH = Math.max(1, bodyBot - bodyTop);
-        return (
+    <div className="chart-wrap" style={{background:"#07090f",borderRadius:8,border:"1px solid #1e293b",overflow:"hidden"}}>
+      {/* Tooltip-Bar oben */}
+      <div style={{
+        height:28,padding:"0 12px",display:"flex",alignItems:"center",gap:14,
+        background:"#0a0f1e",borderBottom:"1px solid #1e293b",
+        fontSize:10,fontFamily:"monospace",
+        transition:"all 0.1s"
+      }}>
+        {hd ? (
+          <>
+            <span style={{color:"#475569"}}>{hd.d}</span>
+            <span>O <span style={{color:"#e2e8f0"}}>{hd.o.toFixed(2)}</span></span>
+            <span>H <span style={{color:"#4ade80"}}>{hd.h.toFixed(2)}</span></span>
+            <span>L <span style={{color:"#f87171"}}>{hd.l.toFixed(2)}</span></span>
+            <span>C <span style={{color:hd.c>=hd.o?"#4ade80":"#f87171",fontWeight:700}}>{hd.c.toFixed(2)}</span></span>
+            <span style={{color:"#475569",marginLeft:"auto"}}>
+              {hd.c>=hd.o?"▲":"▼"} {((hd.c-hd.o)/hd.o*100).toFixed(2)}%
+            </span>
+          </>
+        ) : (
+          <span style={{color:"#334155"}}>Hover für OHLC-Details</span>
+        )}
+      </div>
+
+      <svg
+        ref={svgRef}
+        width="100%"
+        viewBox={`0 0 ${W} ${H}`}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={{cursor:"crosshair"}}
+      >
+        <defs>
+          {/* Breakout-Zone Gradient */}
+          <linearGradient id="breakoutGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.12"/>
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0.01"/>
+          </linearGradient>
+          {/* Downmove-Zone Gradient */}
+          <linearGradient id="downGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.06"/>
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0"/>
+          </linearGradient>
+        </defs>
+
+        {/* Hintergrund */}
+        <rect x={PAD_LEFT} y={PAD_TOP} width={chartW} height={chartH} fill="#07090f"/>
+
+        {/* Y-Gridlines + Labels */}
+        {yTicks.map((val, k) => {
+          const y = toY(val);
+          return (
+            <g key={k}>
+              <line x1={PAD_LEFT} x2={PAD_LEFT + chartW} y1={y} y2={y}
+                stroke="#1a2235" strokeWidth="0.8"/>
+              <text x={PAD_LEFT - 5} y={y + 3.5} textAnchor="end"
+                fill="#334155" fontSize="9" fontFamily="monospace">
+                {val.toFixed(0)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* X-Achsen Monats-Labels */}
+        {monthLabels.map(({ i, label }) => (
           <g key={i}>
-            <line x1={x+barW/2} x2={x+barW/2} y1={toY(d.h)} y2={toY(d.l)} stroke={color} strokeWidth="1"/>
-            <rect x={x} y={bodyTop} width={barW} height={bodyH} fill={color} opacity="0.85"/>
+            <line x1={toX(i)} x2={toX(i)} y1={PAD_TOP} y2={PAD_TOP + chartH}
+              stroke="#131c2e" strokeWidth="1" strokeDasharray="2,4"/>
+            <text x={toX(i)} y={PAD_TOP + chartH + 14} textAnchor="middle"
+              fill="#334155" fontSize="8.5" fontFamily="monospace">{label}</text>
           </g>
-        );
-      })}
-      <line x1={PAD} x2={W-PAD} y1={toY(ohlcv[n-1].c)} y2={toY(ohlcv[n-1].c)} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="2,2"/>
-    </svg>
+        ))}
+
+        {/* Downmove-Zone: Hintergrund-Schattierung vor dem Breakout */}
+        {structure?.lastDownmoveHigh && breakoutIdx !== null && (
+          <rect
+            x={PAD_LEFT}
+            y={PAD_TOP}
+            width={toX(breakoutIdx) - PAD_LEFT}
+            height={chartH}
+            fill="url(#downGrad)"
+          />
+        )}
+
+        {/* Breakout-Zone: ab der Breakout-Kerze */}
+        {breakoutIdx !== null && (
+          <rect
+            x={toX(breakoutIdx) - barW}
+            y={PAD_TOP}
+            width={chartW - (toX(breakoutIdx) - PAD_LEFT) + barW}
+            height={chartH}
+            fill="url(#breakoutGrad)"
+          />
+        )}
+
+        {/* Downmove-Hoch Linie */}
+        {structure?.lastDownmoveHigh && (() => {
+          const y = toY(structure.lastDownmoveHigh.price);
+          const color = structure.broken ? "#22c55e" : "#f59e0b";
+          return (
+            <>
+              {/* Schattenbereich unterhalb der Linie */}
+              <rect x={PAD_LEFT} y={y} width={chartW} height={PAD_TOP+chartH-y}
+                fill={color} opacity="0.03"/>
+              {/* Hauptlinie */}
+              <line x1={PAD_LEFT} x2={PAD_LEFT + chartW} y1={y} y2={y}
+                stroke={color} strokeWidth="1.5" strokeDasharray="5,4"/>
+              {/* Label links */}
+              <rect x={PAD_LEFT - 48} y={y - 9} width={44} height={16}
+                rx="3" fill="#0a0f1e" stroke={color} strokeWidth="0.8"/>
+              <text x={PAD_LEFT - 26} y={y + 4} textAnchor="middle"
+                fill={color} fontSize="9" fontWeight="700" fontFamily="monospace">
+                {structure.lastDownmoveHigh.price.toFixed(1)}
+              </text>
+              {/* Label rechts */}
+              <rect x={PAD_LEFT + chartW + 2} y={y - 9} width={44} height={16}
+                rx="3" fill={color + "22"} stroke={color} strokeWidth="0.8"/>
+              <text x={PAD_LEFT + chartW + 24} y={y + 4} textAnchor="middle"
+                fill={color} fontSize="8" fontWeight="700" fontFamily="monospace">
+                {structure.broken ? "✓ BOC" : "Res."}
+              </text>
+            </>
+          );
+        })()}
+
+        {/* Swing-Hoch Marker */}
+        {structure?.swingHighs?.map((sh, k) => {
+          const x = toX(sh.idx);
+          const y = toY(sh.price);
+          const isDownHigh = structure.lastDownmoveHigh && sh.idx === structure.lastDownmoveHigh.idx;
+          if (isDownHigh) return null;
+          return (
+            <g key={k}>
+              <polygon points={`${x},${y-10} ${x-4},${y-4} ${x+4},${y-4}`}
+                fill="#f59e0b" opacity="0.7"/>
+            </g>
+          );
+        })}
+
+        {/* Swing-Tief Marker */}
+        {structure?.swingLows?.map((sl, k) => {
+          const x = toX(sl.idx);
+          const y = toY(sl.price);
+          return (
+            <g key={k}>
+              <polygon points={`${x},${y+10} ${x-4},${y+4} ${x+4},${y+4}`}
+                fill="#3b82f6" opacity="0.5"/>
+            </g>
+          );
+        })}
+
+        {/* Breakout-Kerze Highlight */}
+        {breakoutIdx !== null && (() => {
+          const x = toX(breakoutIdx);
+          return (
+            <rect
+              x={x - barW * 0.8}
+              y={PAD_TOP}
+              width={barW * 1.6}
+              height={chartH}
+              fill="#22c55e"
+              opacity="0.07"
+              rx="1"
+            />
+          );
+        })()}
+
+        {/* Kerzen */}
+        {ohlcv.map((d, i) => {
+          const x = toX(i);
+          const bullish = d.c >= d.o;
+          const isBreakout = i === breakoutIdx;
+          const color = bullish ? "#22c55e" : "#ef4444";
+          const bodyTop = toY(Math.max(d.o, d.c));
+          const bodyBot = toY(Math.min(d.o, d.c));
+          const bodyH = Math.max(1.5, bodyBot - bodyTop);
+          const isHovered = hover === i;
+          return (
+            <g key={i}>
+              {/* Docht */}
+              <line x1={x} x2={x} y1={toY(d.h)} y2={toY(d.l)}
+                stroke={color} strokeWidth={isHovered ? 1.5 : 1} opacity={isBreakout ? 1 : 0.9}/>
+              {/* Körper */}
+              <rect
+                x={x - barW / 2}
+                y={bodyTop}
+                width={barW}
+                height={bodyH}
+                fill={color}
+                opacity={isBreakout ? 1 : isHovered ? 0.95 : 0.8}
+                stroke={isBreakout ? "#fff" : isHovered ? color : "none"}
+                strokeWidth={isBreakout ? 0.5 : 0}
+              />
+            </g>
+          );
+        })}
+
+        {/* Letzter Kurs Linie */}
+        <line
+          x1={PAD_LEFT} x2={PAD_LEFT + chartW}
+          y1={toY(ohlcv[n-1].c)} y2={toY(ohlcv[n-1].c)}
+          stroke="#94a3b8" strokeWidth="0.6" strokeDasharray="2,3" opacity="0.4"
+        />
+        <rect x={PAD_LEFT + chartW + 2} y={toY(ohlcv[n-1].c) - 8} width={44} height={15}
+          rx="3" fill="#1e293b"/>
+        <text x={PAD_LEFT + chartW + 24} y={toY(ohlcv[n-1].c) + 3} textAnchor="middle"
+          fill="#94a3b8" fontSize="8.5" fontFamily="monospace">
+          {ohlcv[n-1].c.toFixed(2)}
+        </text>
+
+        {/* Hover-Crosshair */}
+        {hover !== null && (
+          <>
+            <line x1={toX(hover)} x2={toX(hover)} y1={PAD_TOP} y2={PAD_TOP+chartH}
+              stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
+            <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={toY(ohlcv[hover].c)} y2={toY(ohlcv[hover].c)}
+              stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
+            {/* Preismarker Crosshair */}
+            <rect x={PAD_LEFT - 48} y={toY(ohlcv[hover].c) - 8} width={44} height={15}
+              rx="3" fill="#1e293b"/>
+            <text x={PAD_LEFT - 26} y={toY(ohlcv[hover].c) + 3} textAnchor="middle"
+              fill="#94a3b8" fontSize="8.5" fontFamily="monospace">
+              {ohlcv[hover].c.toFixed(2)}
+            </text>
+          </>
+        )}
+
+        {/* Chart-Rahmen */}
+        <rect x={PAD_LEFT} y={PAD_TOP} width={chartW} height={chartH}
+          fill="none" stroke="#1e293b" strokeWidth="0.8"/>
+      </svg>
+
+      {/* Legende unten */}
+      <div style={{
+        padding:"6px 12px",display:"flex",gap:14,alignItems:"center",
+        background:"#0a0f1e",borderTop:"1px solid #0f172a",flexWrap:"wrap"
+      }}>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4,3"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Downmove-Hoch</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#22c55e" strokeWidth="1.5" strokeDasharray="4,3"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Breakout ✓</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="10" height="10"><polygon points="5,0 0,8 10,8" fill="#f59e0b" opacity="0.7"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Swing-Hoch</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="10" height="10"><polygon points="5,10 0,2 10,2" fill="#3b82f6" opacity="0.5"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Swing-Tief</span>
+        </div>
+        <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>
+          {n} Handelstage · Daily
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -221,6 +514,7 @@ function App() {
         </div>
       </div>
 
+      {/* Struktur-Panel */}
       <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",padding:14,marginBottom:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <p style={{margin:0,fontSize:11,fontWeight:700,color:"#f1f5f9"}}>📊 Daily Struktur · {selected}</p>
@@ -232,6 +526,7 @@ function App() {
         </div>
         {ohlcv && structure ? (
           <>
+            {/* Status-Badges */}
             <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
               <span style={{
                 background: structure.broken ? "#052e16" : "#1c1108",
@@ -250,24 +545,40 @@ function App() {
                 </span>
               )}
             </div>
+
+            {/* Key Levels */}
             {structure.lastDownmoveHigh && (
-              <div style={{marginBottom:10,fontSize:11,color:"#94a3b8"}}>
-                <span style={{color:"#64748b"}}>Letztes Downmove-Hoch: </span>
-                <span style={{fontFamily:"monospace",fontWeight:700,color:structure.broken?"#4ade80":"#f59e0b"}}>
-                  ${structure.lastDownmoveHigh.price.toFixed(2)}
+              <div style={{
+                marginBottom:12,padding:"7px 10px",
+                background:"#07090f",borderRadius:6,border:"1px solid #1a2235",
+                display:"flex",gap:16,flexWrap:"wrap",fontSize:11
+              }}>
+                <span>
+                  <span style={{color:"#475569"}}>Downmove-Hoch </span>
+                  <span style={{fontFamily:"monospace",fontWeight:700,color:structure.broken?"#4ade80":"#f59e0b"}}>
+                    ${structure.lastDownmoveHigh.price.toFixed(2)}
+                  </span>
+                  <span style={{color:"#334155",marginLeft:5,fontSize:10}}>({structure.lastDownmoveHigh.date})</span>
                 </span>
-                <span style={{color:"#334155",marginLeft:6}}>({structure.lastDownmoveHigh.date})</span>
-                <span style={{color:"#64748b",marginLeft:10}}>Aktuell: </span>
-                <span style={{fontFamily:"monospace",fontWeight:700,color:"#f1f5f9"}}>${structure.currentClose.toFixed(2)}</span>
+                <span>
+                  <span style={{color:"#475569"}}>Aktuell </span>
+                  <span style={{fontFamily:"monospace",fontWeight:700,color:"#f1f5f9"}}>${structure.currentClose.toFixed(2)}</span>
+                </span>
+                {structure.broken && (
+                  <span>
+                    <span style={{color:"#475569"}}>Abstand </span>
+                    <span style={{fontFamily:"monospace",fontWeight:700,color:"#4ade80"}}>
+                      +{((structure.currentClose / structure.lastDownmoveHigh.price - 1)*100).toFixed(1)}%
+                    </span>
+                  </span>
+                )}
               </div>
             )}
-            <div style={{background:"#060b14",borderRadius:8,padding:"8px 4px",overflow:"hidden"}}>
-              <CandleChart ohlcv={ohlcv} structure={structure}/>
-              <div style={{display:"flex",gap:12,justifyContent:"center",marginTop:4}}>
-                <span style={{fontSize:9,color:"#f59e0b"}}>— Downmove-Hoch</span>
-                <span style={{fontSize:9,color:"#22c55e"}}>— Gebrochen ✓</span>
-              </div>
-            </div>
+
+            {/* Professioneller Chart */}
+            <CandleChart ohlcv={ohlcv} structure={structure}/>
+
+            {/* Setup-Notiz */}
             {selected === "ARM" && (
               <div style={{marginTop:10,padding:"8px 10px",background:"#0d1526",borderRadius:6,border:"1px solid #1e3a5f",fontSize:11,color:"#93c5fd",lineHeight:1.6}}>
                 <strong>ARM Setup-Status:</strong> Daily-Hoch des Downmoves (~143.9$) wurde am 25. März stark gebrochen (+16% Kerze).
@@ -278,7 +589,7 @@ function App() {
         ) : (
           <div style={{color:"#475569",fontSize:12,textAlign:"center",padding:"20px 0"}}>
             Klick auf einen Top-20 Ticker (▸) für Strukturanalyse.<br/>
-            <span style={{fontSize:10,marginTop:4,display:"block"}}>Aktuell nur für Top-20 verfügbar (OHLCV-Daten geladen)</span>
+            <span style={{fontSize:10,marginTop:4,display:"block"}}>Aktuell nur für ARM verfügbar (OHLCV-Daten geladen)</span>
           </div>
         )}
       </div>
