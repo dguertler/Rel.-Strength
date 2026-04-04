@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RS · QQQ Dashboard</title>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #060b14; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0a0f1e; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    select, button { outline: none; }
+    .chart-wrap { position: relative; }
+    .chart-wrap svg { display: block; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useRef, useCallback, useEffect } = React;
+
+// ── Struktur-Analyse ───────────────────────────────────────────────────────
+function analyzeStructure(ohlcv) {
+  if (!ohlcv || ohlcv.length < 10) return null;
+  const n = ohlcv.length;
+  const highs = ohlcv.map(d => d.h);
+  const lows  = ohlcv.map(d => d.l);
+  const closes = ohlcv.map(d => d.c);
+  const swingHighs = [];
+  for (let i = 3; i < n - 2; i++) {
+    if (highs[i] >= highs[i-1] && highs[i] >= highs[i-2] && highs[i] >= highs[i+1] && highs[i] >= highs[i+2])
+      swingHighs.push({ idx: i, date: ohlcv[i].d, price: highs[i] });
+  }
+  const swingLows = [];
+  for (let i = 3; i < n - 2; i++) {
+    if (lows[i] <= lows[i-1] && lows[i] <= lows[i-2] && lows[i] <= lows[i+1] && lows[i] <= lows[i+2])
+      swingLows.push({ idx: i, date: ohlcv[i].d, price: lows[i] });
+  }
+  const currentClose = closes[n - 1];
+  let lastDownmoveHigh = null;
+  for (let i = swingHighs.length - 1; i >= 0; i--) {
+    const sh = swingHighs[i];
+    const minAfter = Math.min(...lows.slice(sh.idx));
+    if (minAfter < sh.price * 0.95) { lastDownmoveHigh = sh; break; }
+  }
+  const broken = lastDownmoveHigh && currentClose > lastDownmoveHigh.price;
+  let trend = "neutral";
+  if (swingHighs.length >= 2) {
+    const last = swingHighs[swingHighs.length - 1];
+    const prev = swingHighs[swingHighs.length - 2];
+    if (last.price > prev.price) trend = "bullish";
+    else if (last.price < prev.price) trend = "bearish";
+  }
+  return { currentClose, lastDownmoveHigh, broken, trend, swingHighs: swingHighs.slice(-5), swingLows: swingLows.slice(-5), setup: broken && trend !== "bearish" };
+}
+
+// ── Candlestick Chart ──────────────────────────────────────────────────────
+function CandleChart({ ohlcv, structure }) {
+  const svgRef = useRef(null);
+  const [hover, setHover] = useState(null);
+  const W = 600, H = 260;
+  const PAD_LEFT = 52, PAD_RIGHT = 48, PAD_TOP = 18, PAD_BOTTOM = 32;
+  const chartW = W - PAD_LEFT - PAD_RIGHT;
+  const chartH = H - PAD_TOP - PAD_BOTTOM;
+  const n = ohlcv.length;
+  const allH = ohlcv.map(d => d.h);
+  const allL = ohlcv.map(d => d.l);
+  const rawMax = Math.max(...allH), rawMin = Math.min(...allL);
+  const pad = (rawMax - rawMin) * 0.06;
+  const maxP = rawMax + pad, minP = rawMin - pad, range = maxP - minP;
+  const toY = p => PAD_TOP + (1 - (p - minP) / range) * chartH;
+  const toX = i => PAD_LEFT + (i + 0.5) * (chartW / n);
+  const barW = Math.max(2, chartW / n * 0.65);
+  const yTicks = [];
+  const step = range / 5;
+  for (let k = 0; k <= 5; k++) yTicks.push(minP + k * step);
+  const monthLabels = [];
+  let lastMonth = null;
+  ohlcv.forEach((d, i) => {
+    const m = d.d.slice(0, 7);
+    if (m !== lastMonth) { monthLabels.push({ i, label: d.d.slice(5, 7) + "/" + d.d.slice(2, 4) }); lastMonth = m; }
+  });
+  let breakoutIdx = null;
+  if (structure?.lastDownmoveHigh) {
+    for (let i = structure.lastDownmoveHigh.idx + 1; i < n; i++) {
+      if (ohlcv[i].c > structure.lastDownmoveHigh.price) { breakoutIdx = i; break; }
+    }
+  }
+  const handleMouseMove = useCallback((e) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (W / rect.width);
+    const idx = Math.round((mx - PAD_LEFT) / (chartW / n) - 0.5);
+    setHover(idx >= 0 && idx < n ? idx : null);
+  }, [n, chartW]);
+  const hd = hover !== null ? ohlcv[hover] : null;
+
+  return (
+    <div className="chart-wrap" style={{background:"#07090f",borderRadius:8,border:"1px solid #1e293b",overflow:"hidden"}}>
+      <div style={{height:28,padding:"0 12px",display:"flex",alignItems:"center",gap:14,background:"#0a0f1e",borderBottom:"1px solid #1e293b",fontSize:10,fontFamily:"monospace"}}>
+        {hd ? (
+          <>
+            <span style={{color:"#475569"}}>{hd.d}</span>
+            <span>O <span style={{color:"#e2e8f0"}}>{hd.o.toFixed(2)}</span></span>
+            <span>H <span style={{color:"#4ade80"}}>{hd.h.toFixed(2)}</span></span>
+            <span>L <span style={{color:"#f87171"}}>{hd.l.toFixed(2)}</span></span>
+            <span>C <span style={{color:hd.c>=hd.o?"#4ade80":"#f87171",fontWeight:700}}>{hd.c.toFixed(2)}</span></span>
+            <span style={{color:"#475569",marginLeft:"auto"}}>{hd.c>=hd.o?"▲":"▼"} {((hd.c-hd.o)/hd.o*100).toFixed(2)}%</span>
+          </>
+        ) : <span style={{color:"#334155"}}>Hover für OHLC-Details</span>}
+      </div>
+      <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`} onMouseMove={handleMouseMove} onMouseLeave={()=>setHover(null)} style={{cursor:"crosshair"}}>
+        <defs>
+          <linearGradient id="breakoutGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.12"/>
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0.01"/>
+          </linearGradient>
+          <linearGradient id="downGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.06"/>
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <rect x={PAD_LEFT} y={PAD_TOP} width={chartW} height={chartH} fill="#07090f"/>
+        {yTicks.map((val, k) => {
+          const y = toY(val);
+          return <g key={k}>
+            <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={y} y2={y} stroke="#1a2235" strokeWidth="0.8"/>
+            <text x={PAD_LEFT-5} y={y+3.5} textAnchor="end" fill="#334155" fontSize="9" fontFamily="monospace">{val.toFixed(0)}</text>
+          </g>;
+        })}
+        {monthLabels.map(({i,label}) => (
+          <g key={i}>
+            <line x1={toX(i)} x2={toX(i)} y1={PAD_TOP} y2={PAD_TOP+chartH} stroke="#131c2e" strokeWidth="1" strokeDasharray="2,4"/>
+            <text x={toX(i)} y={PAD_TOP+chartH+14} textAnchor="middle" fill="#334155" fontSize="8.5" fontFamily="monospace">{label}</text>
+          </g>
+        ))}
+        {structure?.lastDownmoveHigh && breakoutIdx !== null && (
+          <rect x={PAD_LEFT} y={PAD_TOP} width={toX(breakoutIdx)-PAD_LEFT} height={chartH} fill="url(#downGrad)"/>
+        )}
+        {breakoutIdx !== null && (
+          <rect x={toX(breakoutIdx)-barW} y={PAD_TOP} width={chartW-(toX(breakoutIdx)-PAD_LEFT)+barW} height={chartH} fill="url(#breakoutGrad)"/>
+        )}
+        {structure?.lastDownmoveHigh && (() => {
+          const y = toY(structure.lastDownmoveHigh.price);
+          const color = structure.broken ? "#22c55e" : "#f59e0b";
+          return <>
+            <rect x={PAD_LEFT} y={y} width={chartW} height={PAD_TOP+chartH-y} fill={color} opacity="0.03"/>
+            <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={y} y2={y} stroke={color} strokeWidth="1.5" strokeDasharray="5,4"/>
+            <rect x={PAD_LEFT-48} y={y-9} width={44} height={16} rx="3" fill="#0a0f1e" stroke={color} strokeWidth="0.8"/>
+            <text x={PAD_LEFT-26} y={y+4} textAnchor="middle" fill={color} fontSize="9" fontWeight="700" fontFamily="monospace">{structure.lastDownmoveHigh.price.toFixed(1)}</text>
+            <rect x={PAD_LEFT+chartW+2} y={y-9} width={44} height={16} rx="3" fill={color+"22"} stroke={color} strokeWidth="0.8"/>
+            <text x={PAD_LEFT+chartW+24} y={y+4} textAnchor="middle" fill={color} fontSize="8" fontWeight="700" fontFamily="monospace">{structure.broken?"✓ BOC":"Res."}</text>
+          </>;
+        })()}
+        {structure?.swingHighs?.map((sh, k) => {
+          if (structure.lastDownmoveHigh && sh.idx === structure.lastDownmoveHigh.idx) return null;
+          return <polygon key={k} points={`${toX(sh.idx)},${toY(sh.price)-10} ${toX(sh.idx)-4},${toY(sh.price)-4} ${toX(sh.idx)+4},${toY(sh.price)-4}`} fill="#f59e0b" opacity="0.7"/>;
+        })}
+        {structure?.swingLows?.map((sl, k) => (
+          <polygon key={k} points={`${toX(sl.idx)},${toY(sl.price)+10} ${toX(sl.idx)-4},${toY(sl.price)+4} ${toX(sl.idx)+4},${toY(sl.price)+4}`} fill="#3b82f6" opacity="0.5"/>
+        ))}
+        {breakoutIdx !== null && (
+          <rect x={toX(breakoutIdx)-barW*0.8} y={PAD_TOP} width={barW*1.6} height={chartH} fill="#22c55e" opacity="0.07" rx="1"/>
+        )}
+        {ohlcv.map((d, i) => {
+          const bullish = d.c >= d.o;
+          const isBreakout = i === breakoutIdx;
+          const color = bullish ? "#22c55e" : "#ef4444";
+          const bodyTop = toY(Math.max(d.o, d.c));
+          const bodyBot = toY(Math.min(d.o, d.c));
+          const bodyH = Math.max(1.5, bodyBot - bodyTop);
+          const isHovered = hover === i;
+          return <g key={i}>
+            <line x1={toX(i)} x2={toX(i)} y1={toY(d.h)} y2={toY(d.l)} stroke={color} strokeWidth={isHovered?1.5:1} opacity={isBreakout?1:0.9}/>
+            <rect x={toX(i)-barW/2} y={bodyTop} width={barW} height={bodyH} fill={color} opacity={isBreakout?1:isHovered?0.95:0.8} stroke={isBreakout?"#fff":isHovered?color:"none"} strokeWidth={isBreakout?0.5:0}/>
+          </g>;
+        })}
+        <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={toY(ohlcv[n-1].c)} y2={toY(ohlcv[n-1].c)} stroke="#94a3b8" strokeWidth="0.6" strokeDasharray="2,3" opacity="0.4"/>
+        <rect x={PAD_LEFT+chartW+2} y={toY(ohlcv[n-1].c)-8} width={44} height={15} rx="3" fill="#1e293b"/>
+        <text x={PAD_LEFT+chartW+24} y={toY(ohlcv[n-1].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">{ohlcv[n-1].c.toFixed(2)}</text>
+        {hover !== null && <>
+          <line x1={toX(hover)} x2={toX(hover)} y1={PAD_TOP} y2={PAD_TOP+chartH} stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
+          <line x1={PAD_LEFT} x2={PAD_LEFT+chartW} y1={toY(ohlcv[hover].c)} y2={toY(ohlcv[hover].c)} stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
+          <rect x={PAD_LEFT-48} y={toY(ohlcv[hover].c)-8} width={44} height={15} rx="3" fill="#1e293b"/>
+          <text x={PAD_LEFT-26} y={toY(ohlcv[hover].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">{ohlcv[hover].c.toFixed(2)}</text>
+        </>}
+        <rect x={PAD_LEFT} y={PAD_TOP} width={chartW} height={chartH} fill="none" stroke="#1e293b" strokeWidth="0.8"/>
+      </svg>
+      <div style={{padding:"6px 12px",display:"flex",gap:14,alignItems:"center",background:"#0a0f1e",borderTop:"1px solid #0f172a",flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4,3"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Downmove-Hoch</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#22c55e" strokeWidth="1.5" strokeDasharray="4,3"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Breakout ✓</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="10" height="10"><polygon points="5,0 0,8 10,8" fill="#f59e0b" opacity="0.7"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Swing-Hoch</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <svg width="10" height="10"><polygon points="5,10 0,2 10,2" fill="#3b82f6" opacity="0.5"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Swing-Tief</span>
+        </div>
+        <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>
+          {ohlcv.length} Handelstage · Daily
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Hilfkomponenten ────────────────────────────────────────────────────────
+const WINDOWS = ["5T","10T","20T","50T","6M"];
+function Cell({ v }) {
+  if (v == null) return <span style={{color:"#334155"}}>—</span>;
+  return <span style={{color:v>0?"#4ade80":"#f87171",fontFamily:"monospace",fontSize:11}}>{v>0?"+":""}{v}</span>;
+}
+
+// ── Haupt-App ──────────────────────────────────────────────────────────────
+function App() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [topN, setTopN] = useState(10);
+  const [sortBy, setSortBy] = useState("score");
+  const [showAll, setShowAll] = useState(false);
+  const [selected, setSelected] = useState(null);
+
+  // JSON laden
+  useEffect(() => {
+    fetch("rs_full.json")
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(json => {
+        setData(json);
+        // Standard-Selektion: erster Top-20 Ticker mit OHLCV-Daten
+        const first = json.data.find(d => json.top20.includes(d.ticker) && d.ohlcv?.length > 0);
+        if (first) setSelected(first.ticker);
+      })
+      .catch(e => setError(e.message));
+  }, []);
+
+  const rsData = useMemo(() => {
+    if (!data) return [];
+    return data.data.map(d => ({
+      t: d.ticker,
+      s: d.score,
+      w: d.windows,
+    }));
+  }, [data]);
+
+  const sorted = useMemo(() =>
+    [...rsData].sort((a,b) => sortBy === "score" ? b.s - a.s : (b.w[sortBy]??-999) - (a.w[sortBy]??-999)),
+    [rsData, sortBy]);
+
+  const rows = showAll ? sorted : sorted.slice(0, Math.max(topN+5, 15));
+
+  const ohlcv = useMemo(() => {
+    if (!data || !selected) return null;
+    const entry = data.data.find(d => d.ticker === selected);
+    return entry?.ohlcv?.length > 0 ? entry.ohlcv : null;
+  }, [data, selected]);
+
+  const structure = useMemo(() => analyzeStructure(ohlcv), [ohlcv]);
+  const selectedRs = rsData.find(d => d.t === selected);
+  const top20 = data?.top20 ?? [];
+
+  const sel = {background:"#1e293b",border:"1px solid #334155",color:"#e2e8f0",borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer"};
+
+  // Ladezustand
+  if (error) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#060b14",color:"#f87171",fontFamily:"monospace",flexDirection:"column",gap:8}}>
+      <span style={{fontSize:18}}>⚠ Fehler beim Laden</span>
+      <span style={{fontSize:12,color:"#475569"}}>{error}</span>
+      <span style={{fontSize:11,color:"#334155"}}>Stelle sicher, dass rs_full.json im selben Verzeichnis liegt.</span>
+    </div>
+  );
+
+  if (!data) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#060b14",color:"#475569",fontFamily:"monospace",flexDirection:"column",gap:8}}>
+      <span style={{fontSize:24,animation:"spin 1s linear infinite"}}>⟳</span>
+      <span style={{fontSize:12}}>Lade rs_full.json …</span>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  return (
+    <div style={{minHeight:"100vh",background:"#060b14",color:"#e2e8f0",fontFamily:"'Inter',system-ui,sans-serif",padding:"16px 12px"}}>
+      <div style={{marginBottom:14}}>
+        <h1 style={{margin:0,fontSize:18,fontWeight:800,color:"#f8fafc"}}>⚡ RS · QQQ</h1>
+        <p style={{margin:"2px 0 0",color:"#475569",fontSize:11}}>Outperformance vs. Nasdaq 100 · {data.timestamp}</p>
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"flex-end"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:2}}>
+          <label style={{fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>Top N</label>
+          <select style={sel} value={topN} onChange={e=>setTopN(+e.target.value)}>
+            {[5,10,15,20].map(n=><option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:2}}>
+          <label style={{fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>Sortieren</label>
+          <select style={sel} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
+            <option value="score">Score</option>
+            {WINDOWS.map(w=><option key={w} value={w}>{w}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* RS-Tabelle */}
+      <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",marginBottom:12,overflowX:"auto"}}>
+        <div style={{minWidth:440}}>
+          <div style={{display:"grid",gridTemplateColumns:"22px 50px 56px repeat(5,1fr)",padding:"6px 10px",background:"#1e293b",gap:3,fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:0.5}}>
+            <span>#</span><span>Ticker</span><span>Score</span>
+            {WINDOWS.map(w=><span key={w} style={{textAlign:"center"}}>{w}</span>)}
+          </div>
+          {rows.map(item => {
+            const rank = sorted.indexOf(item);
+            const isTop = rank < topN;
+            const isSelected = item.t === selected;
+            const hasChart = top20.includes(item.t) && data.data.find(d=>d.ticker===item.t)?.ohlcv?.length > 0;
+            return (
+              <div key={item.t}
+                onClick={() => hasChart && setSelected(item.t)}
+                style={{
+                  display:"grid",gridTemplateColumns:"22px 50px 56px repeat(5,1fr)",
+                  padding:"6px 10px",gap:3,
+                  borderTop:"1px solid #0a0f1e",
+                  background: isSelected ? "#1a2f4a" : isTop ? (rank%2===0?"#0d1526":"#0a1020") : "#07090f",
+                  opacity: isTop?1:0.25,
+                  alignItems:"center",
+                  cursor: hasChart ? "pointer" : "default",
+                  borderLeft: isSelected ? "2px solid #3b82f6" : "2px solid transparent",
+                }}>
+                <span style={{fontSize:10,fontWeight:700,color:rank===0?"#f59e0b":rank<3?"#94a3b8":"#334155"}}>{rank+1}</span>
+                <span style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:rank===0?"#fbbf24":isTop?"#f1f5f9":"#475569"}}>
+                  {item.t}
+                  {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}
+                </span>
+                <span style={{fontFamily:"monospace",fontSize:11,fontWeight:600,color:item.s>0?"#4ade80":"#f87171"}}>
+                  {item.s>0?"+":""}{item.s}
+                </span>
+                {WINDOWS.map(w=>(
+                  <div key={w} style={{textAlign:"center"}}><Cell v={item.w[w]}/></div>
+                ))}
+              </div>
+            );
+          })}
+          {!showAll && sorted.length > rows.length && (
+            <div style={{textAlign:"center",padding:"8px",borderTop:"1px solid #0a0f1e"}}>
+              <button onClick={()=>setShowAll(true)}
+                style={{background:"none",border:"1px solid #334155",color:"#64748b",borderRadius:6,padding:"4px 14px",fontSize:11,cursor:"pointer"}}>
+                Alle {rsData.length} ↓
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Portfolio-Übersicht */}
+      <div style={{background:"#0f172a",borderRadius:10,padding:12,border:"1px solid #1e293b",marginBottom:12}}>
+        <p style={{margin:"0 0 6px",fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>Portfolio · Top {topN}</p>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+          {sorted.slice(0,topN).map((d,i) => {
+            const hasChart = top20.includes(d.t) && data.data.find(e=>e.ticker===d.t)?.ohlcv?.length > 0;
+            return (
+              <span key={d.t}
+                onClick={() => hasChart && setSelected(d.t)}
+                style={{
+                  background:i<3?"#1a2f4a":"#1e293b",
+                  border:`1px solid ${d.t===selected?"#3b82f6":i<3?"#2563eb":"#334155"}`,
+                  borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:700,
+                  color:i<3?"#93c5fd":"#94a3b8",fontFamily:"monospace",
+                  cursor:hasChart?"pointer":"default"
+                }}>{d.t}</span>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Strukturanalyse */}
+      <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",padding:14,marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <p style={{margin:0,fontSize:11,fontWeight:700,color:"#f1f5f9"}}>📊 Daily Struktur · {selected ?? "–"}</p>
+          {selectedRs && (
+            <span style={{fontSize:11,fontFamily:"monospace",color:selectedRs.s>0?"#4ade80":"#f87171"}}>
+              RS Score: {selectedRs.s>0?"+":""}{selectedRs.s}
+            </span>
+          )}
+        </div>
+        {ohlcv && structure ? (
+          <>
+            <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+              <span style={{
+                background: structure.broken ? "#052e16" : "#1c1108",
+                border: `1px solid ${structure.broken ? "#22c55e" : "#f59e0b"}`,
+                color: structure.broken ? "#4ade80" : "#fbbf24",
+                borderRadius:5,padding:"3px 8px",fontSize:11,fontWeight:600
+              }}>
+                {structure.broken ? "✅ Downmove-Hoch gebrochen" : "⏳ Warte auf Breakout"}
+              </span>
+              <span style={{background:"#0d1526",border:"1px solid #1e3a5f",color:"#93c5fd",borderRadius:5,padding:"3px 8px",fontSize:11}}>
+                Trend: {structure.trend === "bullish" ? "↗ Bullish" : structure.trend === "bearish" ? "↘ Bearish" : "→ Neutral"}
+              </span>
+              {structure.setup && (
+                <span style={{background:"#1a2f4a",border:"1px solid #3b82f6",color:"#60a5fa",borderRadius:5,padding:"3px 8px",fontSize:11,fontWeight:600}}>
+                  ⚡ Setup aktiv → 4H Entry
+                </span>
+              )}
+            </div>
+            {structure.lastDownmoveHigh && (
+              <div style={{marginBottom:12,padding:"7px 10px",background:"#07090f",borderRadius:6,border:"1px solid #1a2235",display:"flex",gap:16,flexWrap:"wrap",fontSize:11}}>
+                <span>
+                  <span style={{color:"#475569"}}>Downmove-Hoch </span>
+                  <span style={{fontFamily:"monospace",fontWeight:700,color:structure.broken?"#4ade80":"#f59e0b"}}>${structure.lastDownmoveHigh.price.toFixed(2)}</span>
+                  <span style={{color:"#334155",marginLeft:5,fontSize:10}}>({structure.lastDownmoveHigh.date})</span>
+                </span>
+                <span>
+                  <span style={{color:"#475569"}}>Aktuell </span>
+                  <span style={{fontFamily:"monospace",fontWeight:700,color:"#f1f5f9"}}>${structure.currentClose.toFixed(2)}</span>
+                </span>
+                {structure.broken && (
+                  <span>
+                    <span style={{color:"#475569"}}>Abstand </span>
+                    <span style={{fontFamily:"monospace",fontWeight:700,color:"#4ade80"}}>
+                      +{((structure.currentClose / structure.lastDownmoveHigh.price - 1)*100).toFixed(1)}%
+                    </span>
+                  </span>
+                )}
+              </div>
+            )}
+            <CandleChart ohlcv={ohlcv} structure={structure}/>
+          </>
+        ) : (
+          <div style={{color:"#475569",fontSize:12,textAlign:"center",padding:"20px 0"}}>
+            Klick auf einen Ticker mit ▸ für Strukturanalyse.
+          </div>
+        )}
+      </div>
+
+      <p style={{textAlign:"center",color:"#1e293b",fontSize:9,marginTop:8}}>
+        Echte Daten via yfinance · Kein Handelssignal · Stand {data.timestamp}
+      </p>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
