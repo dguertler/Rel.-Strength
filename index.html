@@ -21,17 +21,7 @@
 </head>
 <body>
 <div id="root"></div>
-<div id="load-error" style="display:none;color:#f87171;font-family:monospace;padding:20px;background:#0f172a;border:1px solid #f87171;border-radius:8px;margin:20px;font-size:13px;">
-  ⚠️ Datei <strong>data.json</strong> nicht gefunden.<br>
-  Beide Dateien müssen im gleichen Ordner liegen: <code>index.html</code> und <code>data.json</code>
-</div>
-<script>
-  window.addEventListener('DOMContentLoaded', function() {
-    if (!window.RS_DATA) {
-      document.getElementById('load-error').style.display = 'block';
-    }
-  });
-</script>
+
 
 <script type="text/babel">
 const { useState, useMemo, useRef, useCallback } = React;
