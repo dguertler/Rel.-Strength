@@ -16,10 +16,10 @@
     select, button { outline: none; }
     .chart-wrap { position: relative; }
     .chart-wrap svg { display: block; }
-    @keyframes flamePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.75;transform:scale(1.2)} }
-    .flame-anim { display:inline-block; animation: flamePulse 0.9s ease-in-out infinite; }
     @keyframes redGlow { 0%,100%{box-shadow:0 0 6px #ef444455} 50%{box-shadow:0 0 16px #ef4444aa} }
     .red-glow { animation: redGlow 1.3s ease-in-out infinite; }
+    @keyframes flamePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.75;transform:scale(1.2)} }
+    .flame-anim { display:inline-block; animation: flamePulse 0.9s ease-in-out infinite; }
   </style>
 </head>
 <body>
@@ -28,9 +28,8 @@
 const { useState, useMemo, useRef, useCallback, useEffect } = React;
 
 // ── GWS-D Analyse ─────────────────────────────────────────────────────────
-// GWS-D entsteht: es gibt ein Swing-Hoch, nach dem ein tieferes Tief folgt (mind. -3%).
-// Das ist das "letzte relevante Hoch" des Downmoves.
-// Die Linie geht von diesem Hoch bis zum Breakout-Candle.
+// GWS-D: letztes relevantes Swing-Hoch vor einem Downmove von mind. -3%.
+// Die Linie geht von diesem Hoch bis zum Breakout-Candle (oder aktuell).
 function analyzeStructure(ohlcv) {
   if (!ohlcv || ohlcv.length < 10) return null;
   const n      = ohlcv.length;
@@ -54,20 +53,34 @@ function analyzeStructure(ohlcv) {
       swingLows.push({ idx: i, date: ohlcv[i].d, price: lows[i] });
   }
 
-  // GWS-D: letztes Swing-Hoch nach dem der Markt mind. 3% fiel → tieferes Tief
-  let gwsdHigh = null;
-  for (let i = swingHighs.length - 1; i >= 0; i--) {
+  // Alle GWS-D Kandidaten: Swing-Hochs nach denen mind. -3% folgte
+  const gwsdCandidates = [];
+  for (let i = 0; i < swingHighs.length; i++) {
     const sh = swingHighs[i];
     if (sh.idx + 1 >= n) continue;
     const minAfter = Math.min(...lows.slice(sh.idx + 1));
-    if (minAfter < sh.price * 0.97) { gwsdHigh = sh; break; }
+    if (minAfter < sh.price * 0.97) gwsdCandidates.push(sh);
   }
 
-  // Breakout: erster Close über GWS-D Hoch
+  // Aktueller GWS-D: letzter Kandidat
+  const gwsdHigh = gwsdCandidates.length > 0 ? gwsdCandidates[gwsdCandidates.length - 1] : null;
+
+  // Vorheriger GWS-D: vorletzter Kandidat
+  const prevGwsdHigh = gwsdCandidates.length > 1 ? gwsdCandidates[gwsdCandidates.length - 2] : null;
+
+  // Breakout des aktuellen GWS-D: erster Close über dem Hoch
   let breakoutIdx = null;
   if (gwsdHigh) {
     for (let i = gwsdHigh.idx + 1; i < n; i++) {
       if (closes[i] > gwsdHigh.price) { breakoutIdx = i; break; }
+    }
+  }
+
+  // Breakout des vorherigen GWS-D
+  let prevBreakoutIdx = null;
+  if (prevGwsdHigh) {
+    for (let i = prevGwsdHigh.idx + 1; i < n; i++) {
+      if (closes[i] > prevGwsdHigh.price) { prevBreakoutIdx = i; break; }
     }
   }
 
@@ -85,26 +98,11 @@ function analyzeStructure(ohlcv) {
 
   return {
     currentClose, gwsdHigh, breakoutIdx, broken, trend,
+    prevGwsdHigh, prevBreakoutIdx,
     swingHighs: swingHighs.slice(-6),
     swingLows:  swingLows.slice(-6),
     setup: broken && trend !== "bearish",
   };
-}
-
-// ── 4H-Daten: simuliert aus Daily (2 Kerzen/Tag) ──────────────────────────
-// Für echte 4H-Daten: ohlcv_4h-Feld in rs_full.json via rs_colab.py ergänzen.
-function buildSimulated4H(ohlcv) {
-  if (!ohlcv || ohlcv.length < 4) return [];
-  const result = [];
-  for (let i = 0; i < ohlcv.length; i++) {
-    const d   = ohlcv[i];
-    const mid = (d.h + d.l) / 2;
-    // Vormittag
-    result.push({ d: d.d + " AM", o: d.o,  h: d.h, l: mid, c: (d.o + d.h) / 2 });
-    // Nachmittag
-    result.push({ d: d.d + " PM", o: mid,  h: d.h, l: d.l, c: d.c });
-  }
-  return result;
 }
 
 // ── GWS-4H Analyse ────────────────────────────────────────────────────────
@@ -129,14 +127,17 @@ function analyze4HStructure(ohlcv4h) {
       swingLows.push({ idx: i, date: ohlcv4h[i].d, price: lows[i] });
   }
 
-  // GWS-4H: letztes Swing-Hoch nach dem mind. -2% Rücksetzer folgte
-  let gws4hHigh = null;
-  for (let i = swingHighs.length - 1; i >= 0; i--) {
+  // Alle GWS-4H Kandidaten: Swing-Hochs nach denen mind. -2% folgte
+  const gws4hCandidates = [];
+  for (let i = 0; i < swingHighs.length; i++) {
     const sh = swingHighs[i];
     if (sh.idx + 1 >= n) continue;
     const minAfter = Math.min(...lows.slice(sh.idx + 1));
-    if (minAfter < sh.price * 0.98) { gws4hHigh = sh; break; }
+    if (minAfter < sh.price * 0.98) gws4hCandidates.push(sh);
   }
+
+  const gws4hHigh     = gws4hCandidates.length > 0 ? gws4hCandidates[gws4hCandidates.length - 1] : null;
+  const prevGws4hHigh = gws4hCandidates.length > 1 ? gws4hCandidates[gws4hCandidates.length - 2] : null;
 
   let breakout4hIdx = null;
   if (gws4hHigh) {
@@ -145,8 +146,16 @@ function analyze4HStructure(ohlcv4h) {
     }
   }
 
+  let prevBreakout4hIdx = null;
+  if (prevGws4hHigh) {
+    for (let i = prevGws4hHigh.idx + 1; i < n; i++) {
+      if (closes[i] > prevGws4hHigh.price) { prevBreakout4hIdx = i; break; }
+    }
+  }
+
   return {
     gws4hHigh, breakout4hIdx, broken4h: breakout4hIdx !== null,
+    prevGws4hHigh, prevBreakout4hIdx,
     swingHighs: swingHighs.slice(-8),
     swingLows:  swingLows.slice(-8),
   };
@@ -178,8 +187,9 @@ function CandleChart({ ohlcv, structure, chartId }) {
     if (m !== lastMonth) { monthLabels.push({ i, label: d.d.slice(5,7)+"/"+d.d.slice(2,4) }); lastMonth = m; }
   });
 
-  const { gwsdHigh, breakoutIdx, broken } = structure || {};
-  const gwsdColor  = broken ? "#ef4444" : "#f59e0b";
+  const { gwsdHigh, breakoutIdx, broken, prevGwsdHigh, prevBreakoutIdx } = structure || {};
+  // Nur rote Linie: immer #ef4444
+  const gwsdColor   = "#ef4444";
   const gwsdLineEnd = breakoutIdx !== null ? breakoutIdx : n - 1;
 
   const handleMouseMove = useCallback((e) => {
@@ -208,10 +218,6 @@ function CandleChart({ ohlcv, structure, chartId }) {
       <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`}
         onMouseMove={handleMouseMove} onMouseLeave={()=>setHover(null)} style={{cursor:"crosshair"}}>
         <defs>
-          <linearGradient id={`dg_${chartId}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.05"/>
-            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0"/>
-          </linearGradient>
           <linearGradient id={`bg_${chartId}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={broken?"#ef4444":"#22c55e"} stopOpacity="0.12"/>
             <stop offset="100%" stopColor={broken?"#ef4444":"#22c55e"} stopOpacity="0.01"/>
@@ -228,20 +234,13 @@ function CandleChart({ ohlcv, structure, chartId }) {
           </g>;
         })}
 
-        {/* Monatstrennlinien */}
+        {/* Monatstrennlinien – hellblau */}
         {monthLabels.map(({i, label}) => (
           <g key={i}>
-            <line x1={toX(i)} x2={toX(i)} y1={PT} y2={PT+cH} stroke="#131c2e" strokeWidth="1" strokeDasharray="2,4"/>
+            <line x1={toX(i)} x2={toX(i)} y1={PT} y2={PT+cH} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,4" opacity="0.25"/>
             <text x={toX(i)} y={PT+cH+14} textAnchor="middle" fill="#334155" fontSize="8.5" fontFamily="monospace">{label}</text>
           </g>
         ))}
-
-        {/* Downmove-Zone (Downmove vor Breakout) */}
-        {gwsdHigh && breakoutIdx !== null && (
-          <rect x={toX(gwsdHigh.idx)} y={PT}
-            width={toX(breakoutIdx)-toX(gwsdHigh.idx)} height={cH}
-            fill={`url(#dg_${chartId})`}/>
-        )}
 
         {/* Breakout-Zone */}
         {breakoutIdx !== null && (
@@ -250,7 +249,21 @@ function CandleChart({ ohlcv, structure, chartId }) {
             fill={`url(#bg_${chartId})`}/>
         )}
 
-        {/* GWS-D Linie: vom Swing-Hoch bis zum Breakout-Candle */}
+        {/* Vorheriger GWS-D Break (gedimmt) */}
+        {prevGwsdHigh && (() => {
+          const prevLineEnd = prevBreakoutIdx !== null ? prevBreakoutIdx : (gwsdHigh ? gwsdHigh.idx : n - 1);
+          const y  = toY(prevGwsdHigh.price);
+          const x1 = toX(prevGwsdHigh.idx);
+          const x2 = toX(prevLineEnd);
+          return <>
+            <line x1={x1} x2={x2} y1={y} y2={y} stroke="#ef4444" strokeWidth="1.2" strokeDasharray="4,4" opacity="0.35"/>
+            <text x={x1+4} y={y-4} fill="#ef444466" fontSize="7.5" fontFamily="monospace">
+              GWS-D {prevGwsdHigh.date.slice(5)} {prevBreakoutIdx !== null ? "✓" : ""}
+            </text>
+          </>;
+        })()}
+
+        {/* Aktueller GWS-D: vom Swing-Hoch bis zum Breakout oder aktuell */}
         {gwsdHigh && (() => {
           const y  = toY(gwsdHigh.price);
           const x1 = toX(gwsdHigh.idx);
@@ -270,21 +283,6 @@ function CandleChart({ ohlcv, structure, chartId }) {
           </>;
         })()}
 
-        {/* Swing-Hochs (kleine horizontale Marker) */}
-        {structure?.swingHighs?.map((sh, k) => {
-          if (gwsdHigh && sh.idx === gwsdHigh.idx) return null;
-          return <line key={k} x1={toX(sh.idx)-bW} x2={toX(sh.idx)+bW}
-            y1={toY(sh.price)-2} y2={toY(sh.price)-2}
-            stroke="#f59e0b" strokeWidth="1" opacity="0.4"/>;
-        })}
-
-        {/* Swing-Tiefs */}
-        {structure?.swingLows?.map((sl, k) => (
-          <line key={k} x1={toX(sl.idx)-bW} x2={toX(sl.idx)+bW}
-            y1={toY(sl.price)+2} y2={toY(sl.price)+2}
-            stroke="#3b82f6" strokeWidth="1" opacity="0.35"/>
-        ))}
-
         {/* Kerzen */}
         {ohlcv.map((d, i) => {
           const bull = d.c >= d.o;
@@ -297,19 +295,19 @@ function CandleChart({ ohlcv, structure, chartId }) {
             <line x1={toX(i)} x2={toX(i)} y1={toY(d.h)} y2={toY(d.l)} stroke={col} strokeWidth={isHov?1.5:1} opacity={0.9}/>
             <rect x={toX(i)-bW/2} y={bTop} width={bW} height={bH}
               fill={col} opacity={isBoc?1:isHov?0.95:0.8}
-              stroke={isBoc?(broken?"#ef4444":"#22c55e"):"none"} strokeWidth={isBoc?1.2:0}/>
+              stroke={isBoc?"#ef4444":"none"} strokeWidth={isBoc?1.2:0}/>
           </g>;
         })}
 
-        {/* Aktueller Preis */}
-        <line x1={PL} x2={PL+cW} y1={toY(ohlcv[n-1].c)} y2={toY(ohlcv[n-1].c)} stroke="#94a3b8" strokeWidth="0.6" strokeDasharray="2,3" opacity="0.4"/>
+        {/* Aktueller Preis – hellblau gestrichelt */}
+        <line x1={PL} x2={PL+cW} y1={toY(ohlcv[n-1].c)} y2={toY(ohlcv[n-1].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.45"/>
         <rect x={PL+cW+2} y={toY(ohlcv[n-1].c)-8} width={46} height={15} rx="3" fill="#1e293b"/>
         <text x={PL+cW+25} y={toY(ohlcv[n-1].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">{ohlcv[n-1].c.toFixed(2)}</text>
 
-        {/* Crosshair */}
+        {/* Crosshair – hellblau */}
         {hover !== null && <>
-          <line x1={toX(hover)} x2={toX(hover)} y1={PT} y2={PT+cH} stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
-          <line x1={PL} x2={PL+cW} y1={toY(ohlcv[hover].c)} y2={toY(ohlcv[hover].c)} stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
+          <line x1={toX(hover)} x2={toX(hover)} y1={PT} y2={PT+cH} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.5"/>
+          <line x1={PL} x2={PL+cW} y1={toY(ohlcv[hover].c)} y2={toY(ohlcv[hover].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.5"/>
           <rect x={PL-52} y={toY(ohlcv[hover].c)-8} width={48} height={15} rx="3" fill="#1e293b"/>
           <text x={PL-28} y={toY(ohlcv[hover].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">{ohlcv[hover].c.toFixed(2)}</text>
         </>}
@@ -318,20 +316,12 @@ function CandleChart({ ohlcv, structure, chartId }) {
 
       <div style={{padding:"5px 12px",display:"flex",gap:14,alignItems:"center",background:"#0a0f1e",borderTop:"1px solid #0f172a",flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#f59e0b" strokeWidth="1.8" strokeDasharray="4,3"/></svg>
+          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#ef4444" strokeWidth="1.8" strokeDasharray="4,3"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>GWS-D</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#ef4444" strokeWidth="1.8" strokeDasharray="4,3"/></svg>
-          <span style={{fontSize:9,color:"#64748b"}}>GWS-D gebrochen 🔥</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <svg width="12" height="8"><line x1="0" y1="4" x2="12" y2="4" stroke="#f59e0b" strokeWidth="1" opacity="0.4"/></svg>
-          <span style={{fontSize:9,color:"#64748b"}}>Swing-H</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <svg width="12" height="8"><line x1="0" y1="4" x2="12" y2="4" stroke="#3b82f6" strokeWidth="1" opacity="0.35"/></svg>
-          <span style={{fontSize:9,color:"#64748b"}}>Swing-T</span>
+          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#ef4444" strokeWidth="1.2" strokeDasharray="4,4" opacity="0.35"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Letzter Break</span>
         </div>
         <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ohlcv.length} Tage · Daily</div>
       </div>
@@ -366,7 +356,7 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
     if (day !== lastDay && i % 2 === 0) { dayLabels.push({ i, label: d.d.slice(5, 10) }); lastDay = day; }
   });
 
-  const { gws4hHigh, breakout4hIdx, broken4h } = structure4h || {};
+  const { gws4hHigh, breakout4hIdx, broken4h, prevGws4hHigh, prevBreakout4hIdx } = structure4h || {};
   const col4h = broken4h ? "#ef4444" : "#a78bfa";
   const lineEnd4h = breakout4hIdx !== null ? breakout4hIdx : n - 1;
 
@@ -410,9 +400,10 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           </g>;
         })}
 
+        {/* Tagestrennlinien – hellblau */}
         {dayLabels.map(({i, label}) => (
           <g key={i}>
-            <line x1={toX(i)} x2={toX(i)} y1={PT} y2={PT+cH} stroke="#131c2e" strokeWidth="1" strokeDasharray="2,4"/>
+            <line x1={toX(i)} x2={toX(i)} y1={PT} y2={PT+cH} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,4" opacity="0.25"/>
             <text x={toX(i)} y={PT+cH+14} textAnchor="middle" fill="#334155" fontSize="8" fontFamily="monospace">{label}</text>
           </g>
         ))}
@@ -422,7 +413,21 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           <rect x={toX(breakout4hIdx)} y={PT} width={PL+cW-toX(breakout4hIdx)} height={cH} fill={`url(#g4h_${chartId})`}/>
         )}
 
-        {/* GWS-4H Linie */}
+        {/* Vorheriger GWS-4H Break (gedimmt) */}
+        {prevGws4hHigh && (() => {
+          const prevEnd = prevBreakout4hIdx !== null ? prevBreakout4hIdx : (gws4hHigh ? gws4hHigh.idx : n - 1);
+          const y  = toY(prevGws4hHigh.price);
+          const x1 = toX(prevGws4hHigh.idx);
+          const x2 = toX(prevEnd);
+          return <>
+            <line x1={x1} x2={x2} y1={y} y2={y} stroke={col4h} strokeWidth="1.1" strokeDasharray="4,4" opacity="0.3"/>
+            <text x={x1+4} y={y-4} fill={col4h+"55"} fontSize="7" fontFamily="monospace">
+              GWS-4H {prevGws4hHigh.date.slice(5,10)} {prevBreakout4hIdx !== null ? "✓" : ""}
+            </text>
+          </>;
+        })()}
+
+        {/* Aktueller GWS-4H Linie */}
         {gws4hHigh && (() => {
           const y  = toY(gws4hHigh.price);
           const x1 = toX(gws4hHigh.idx);
@@ -440,17 +445,6 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           </>;
         })()}
 
-        {/* Swing-Hochs 4H */}
-        {structure4h?.swingHighs?.map((sh, k) => {
-          if (gws4hHigh && sh.idx === gws4hHigh.idx) return null;
-          return <line key={k} x1={toX(sh.idx)-bW} x2={toX(sh.idx)+bW} y1={toY(sh.price)-2} y2={toY(sh.price)-2} stroke="#a78bfa" strokeWidth="1" opacity="0.35"/>;
-        })}
-
-        {/* Swing-Tiefs 4H */}
-        {structure4h?.swingLows?.map((sl, k) => (
-          <line key={k} x1={toX(sl.idx)-bW} x2={toX(sl.idx)+bW} y1={toY(sl.price)+2} y2={toY(sl.price)+2} stroke="#3b82f6" strokeWidth="1" opacity="0.3"/>
-        ))}
-
         {/* Kerzen 4H */}
         {ohlcv4h.map((d, i) => {
           const bull = d.c >= d.o;
@@ -467,14 +461,15 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           </g>;
         })}
 
-        {/* Aktueller Preis */}
-        <line x1={PL} x2={PL+cW} y1={toY(ohlcv4h[n-1].c)} y2={toY(ohlcv4h[n-1].c)} stroke="#94a3b8" strokeWidth="0.6" strokeDasharray="2,3" opacity="0.4"/>
+        {/* Aktueller Preis – hellblau gestrichelt */}
+        <line x1={PL} x2={PL+cW} y1={toY(ohlcv4h[n-1].c)} y2={toY(ohlcv4h[n-1].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.45"/>
         <rect x={PL+cW+2} y={toY(ohlcv4h[n-1].c)-8} width={46} height={15} rx="3" fill="#1e293b"/>
         <text x={PL+cW+25} y={toY(ohlcv4h[n-1].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">{ohlcv4h[n-1].c.toFixed(2)}</text>
 
+        {/* Crosshair – hellblau */}
         {hover !== null && <>
-          <line x1={toX(hover)} x2={toX(hover)} y1={PT} y2={PT+cH} stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
-          <line x1={PL} x2={PL+cW} y1={toY(ohlcv4h[hover].c)} y2={toY(ohlcv4h[hover].c)} stroke="#475569" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.6"/>
+          <line x1={toX(hover)} x2={toX(hover)} y1={PT} y2={PT+cH} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.5"/>
+          <line x1={PL} x2={PL+cW} y1={toY(ohlcv4h[hover].c)} y2={toY(ohlcv4h[hover].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.5"/>
         </>}
         <rect x={PL} y={PT} width={cW} height={cH} fill="none" stroke="#1e293b" strokeWidth="0.8"/>
       </svg>
@@ -485,16 +480,10 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           <span style={{fontSize:9,color:"#64748b"}}>GWS-4H</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <svg width="12" height="8"><line x1="0" y1="4" x2="12" y2="4" stroke="#a78bfa" strokeWidth="1" opacity="0.35"/></svg>
-          <span style={{fontSize:9,color:"#64748b"}}>Swing-H</span>
+          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#a78bfa" strokeWidth="1.1" strokeDasharray="4,4" opacity="0.3"/></svg>
+          <span style={{fontSize:9,color:"#64748b"}}>Letzter Break</span>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <svg width="12" height="8"><line x1="0" y1="4" x2="12" y2="4" stroke="#3b82f6" strokeWidth="1" opacity="0.3"/></svg>
-          <span style={{fontSize:9,color:"#64748b"}}>Swing-T</span>
-        </div>
-        <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>
-          ⚠ Simuliert · Echte 4H-Daten: ohlcv_4h via rs_colab.py
-        </div>
+        <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>4H · Echte Daten</div>
       </div>
     </div>
   );
@@ -505,10 +494,11 @@ const WINDOWS = ["5T","10T","20T","50T","6M"];
 
 function Cell({ v }) {
   if (v == null) return <span style={{color:"#334155"}}>—</span>;
-  return <span style={{color:v>0?"#4ade80":"#f87171",fontFamily:"monospace",fontSize:11}}>{v>0?"+":""}{v}</span>;
+  // Keine Nachkommastellen
+  return <span style={{color:v>0?"#4ade80":"#f87171",fontFamily:"monospace",fontSize:11}}>{v>0?"+":""}{Math.round(v)}</span>;
 }
 
-// Tabellen-Badge: nur Breakout anzeigen (Phase 3 erfordert echte 4H-Daten)
+// Tabellen-Badge: nur Breakout anzeigen
 function SignalBadge({ structure }) {
   if (!structure) return <span style={{color:"#334155",fontSize:9}}>—</span>;
   if (structure.broken) {
@@ -554,7 +544,6 @@ function App() {
       sortBy === "score" ? b.s - a.s : (b.w[sortBy]??-999) - (a.w[sortBy]??-999)
     ), [rsData, sortBy]);
 
-  // Top 20 oder alle
   const rows = showAll ? sorted : sorted.slice(0, 20);
 
   const ohlcv = useMemo(() => {
@@ -563,11 +552,11 @@ function App() {
     return entry?.ohlcv?.length > 0 ? entry.ohlcv : null;
   }, [data, selected]);
 
+  // 4H: nur echte Daten, kein Fallback auf simuliert
   const ohlcv4h = useMemo(() => {
     if (!data || !selected) return null;
     const entry = data.data.find(d => d.ticker === selected);
-    if (entry?.ohlcv_4h?.length > 0) return entry.ohlcv_4h;
-    return entry?.ohlcv?.length > 0 ? buildSimulated4H(entry.ohlcv) : null;
+    return entry?.ohlcv_4h?.length > 0 ? entry.ohlcv_4h : null;
   }, [data, selected]);
 
   const structure   = useMemo(() => analyzeStructure(ohlcv), [ohlcv]);
@@ -668,7 +657,7 @@ function App() {
                   {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}
                 </span>
                 <span style={{fontFamily:"monospace",fontSize:11,fontWeight:600,color:item.s>0?"#4ade80":"#f87171"}}>
-                  {item.s>0?"+":""}{item.s}
+                  {item.s>0?"+":""}{Math.round(item.s)}
                 </span>
                 <span><SignalBadge structure={struct}/></span>
                 {WINDOWS.map(w => (
@@ -694,42 +683,6 @@ function App() {
           </div>
         </div>
       </div>
-
-      {/* Kurzübersicht: Breakouts (BOC) und Phase-3-Kandidaten */}
-      {(() => {
-        const bocs = sorted.slice(0,20).filter(i => structureMap[i.t]?.broken);
-        if (!bocs.length) return null;
-        return (
-          <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",padding:"10px 14px",marginBottom:12}}>
-            <p style={{margin:"0 0 8px",fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>
-              🔥 Breakout · Phase 3 vorbereiten
-            </p>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {bocs.map(item => {
-                const hasChart = top20.includes(item.t) && data.data.find(d=>d.ticker===item.t)?.ohlcv?.length>0;
-                const st = structureMap[item.t];
-                return (
-                  <div key={item.t}
-                    onClick={()=>hasChart&&setSelected(item.t)}
-                    className="red-glow"
-                    style={{background:"#160303",border:"1px solid #ef4444",borderRadius:7,padding:"5px 10px",
-                      cursor:hasChart?"pointer":"default",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-                    <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#fca5a5"}}>
-                      <span className="flame-anim">🔥</span> {item.t}
-                    </span>
-                    {st?.gwsdHigh && (
-                      <span style={{fontSize:9,color:"#7f1d1d",fontFamily:"monospace"}}>
-                        GWS-D ${st.gwsdHigh.price.toFixed(2)} gebrochen
-                      </span>
-                    )}
-                    <span style={{fontSize:9,color:"#64748b"}}>→ 4H Entry suchen</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Portfolio-Schnellauswahl */}
       <div style={{background:"#0f172a",borderRadius:10,padding:12,border:"1px solid #1e293b",marginBottom:12}}>
@@ -761,14 +714,14 @@ function App() {
           <p style={{margin:0,fontSize:11,fontWeight:700,color:"#f1f5f9"}}>📊 Struktur · {selected ?? "–"}</p>
           {selectedRs && (
             <span style={{fontSize:11,fontFamily:"monospace",color:selectedRs.s>0?"#4ade80":"#f87171"}}>
-              RS Score: {selectedRs.s>0?"+":""}{selectedRs.s}
+              RS Score: {selectedRs.s>0?"+":""}{Math.round(selectedRs.s)}
             </span>
           )}
         </div>
 
         {ohlcv && structure ? (
           <>
-            {/* Status-Badges */}
+            {/* Status-Badge: nur Breakout oder Phase-2 */}
             <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
               {structure.broken ? (
                 <span className="red-glow" style={{
@@ -787,48 +740,13 @@ function App() {
                   Phase 1 – RS aufbauen
                 </span>
               )}
-              <span style={{background:"#0d1526",border:"1px solid #1e3a5f",color:"#93c5fd",borderRadius:5,padding:"3px 8px",fontSize:11}}>
-                Trend: {structure.trend==="bullish"?"↗ Bullish":structure.trend==="bearish"?"↘ Bearish":"→ Neutral"}
-              </span>
-              {structure.broken && (
-                <span style={{background:"#1e1040",border:"1px solid #7c3aed",color:"#a78bfa",borderRadius:5,padding:"3px 8px",fontSize:11,fontWeight:600}}>
-                  ⚡ Phase 3 → 4H Retracement · GWS-4H Entry
-                </span>
-              )}
             </div>
-
-            {/* GWS-D Info */}
-            {structure.gwsdHigh && (
-              <div style={{marginBottom:10,padding:"7px 10px",background:"#07090f",borderRadius:6,
-                border:`1px solid ${structure.broken?"#ef444433":"#1a2235"}`,
-                display:"flex",gap:16,flexWrap:"wrap",fontSize:11}}>
-                <span>
-                  <span style={{color:"#475569"}}>GWS-D </span>
-                  <span style={{fontFamily:"monospace",fontWeight:700,color:structure.broken?"#ef4444":"#f59e0b"}}>
-                    ${structure.gwsdHigh.price.toFixed(2)}
-                  </span>
-                  <span style={{color:"#334155",marginLeft:5,fontSize:10}}>({structure.gwsdHigh.date})</span>
-                </span>
-                <span>
-                  <span style={{color:"#475569"}}>Aktuell </span>
-                  <span style={{fontFamily:"monospace",fontWeight:700,color:"#f1f5f9"}}>${structure.currentClose.toFixed(2)}</span>
-                </span>
-                {structure.broken && (
-                  <span>
-                    <span style={{color:"#475569"}}>Abstand </span>
-                    <span style={{fontFamily:"monospace",fontWeight:700,color:"#ef4444"}}>
-                      +{((structure.currentClose/structure.gwsdHigh.price-1)*100).toFixed(1)}% über GWS-D
-                    </span>
-                  </span>
-                )}
-              </div>
-            )}
 
             {/* Daily Chart */}
             <CandleChart ohlcv={ohlcv} structure={structure} chartId={selected+"_d"}/>
 
-            {/* 4H Chart – nur wenn Breakout (Phase 3) */}
-            {structure.broken && ohlcv4h && structure4h && (
+            {/* 4H Chart – nur wenn echte ohlcv_4h Daten vorhanden */}
+            {ohlcv4h && structure4h && (
               <div style={{marginTop:14}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"6px 10px",background:"#0a0f1e",borderRadius:6,border:"1px solid #1e1040"}}>
                   <p style={{margin:0,fontSize:11,fontWeight:700,color:"#a78bfa"}}>⚡ 4H Struktur · GWS-4H Entry</p>
