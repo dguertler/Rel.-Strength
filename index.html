@@ -328,8 +328,8 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
         onMouseMove={handleMouseMove} onMouseLeave={()=>setHover(null)} style={{cursor:"crosshair"}}>
         <defs>
           <linearGradient id={`bgW_${chartId}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={broken?"#ef4444":"#f59e0b"} stopOpacity="0.10"/>
-            <stop offset="100%" stopColor={broken?"#ef4444":"#f59e0b"} stopOpacity="0.01"/>
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.10"/>
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0.01"/>
           </linearGradient>
         </defs>
         <rect x={PL} y={PT} width={cW} height={cH} fill="#07090f"/>
@@ -376,7 +376,6 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
           const x1 = toX(gwswHigh.idx);
           const x2 = toX(gwswLineEnd);
           return <>
-            <rect x={x1} y={y} width={x2-x1} height={PT+cH-y} fill={gwswColor} opacity="0.03"/>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwswColor} strokeWidth="1.8" strokeDasharray="5,4"/>
             <rect x={PL-55} y={y-11} width={51} height={20} rx="3" fill="#0a0f1e" stroke={gwswColor} strokeWidth="0.8"/>
             <text x={PL-29} y={y-1} textAnchor="middle" fill={gwswColor} fontSize="8" fontWeight="700" fontFamily="monospace">GWS-W</text>
@@ -491,8 +490,8 @@ function CandleChart({ ohlcv, structure, chartId }) {
         onMouseMove={handleMouseMove} onMouseLeave={()=>setHover(null)} style={{cursor:"crosshair"}}>
         <defs>
           <linearGradient id={`bg_${chartId}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={broken?"#ef4444":"#22c55e"} stopOpacity="0.12"/>
-            <stop offset="100%" stopColor={broken?"#ef4444":"#22c55e"} stopOpacity="0.01"/>
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.12"/>
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0.01"/>
           </linearGradient>
         </defs>
         <rect x={PL} y={PT} width={cW} height={cH} fill="#07090f"/>
@@ -542,7 +541,6 @@ function CandleChart({ ohlcv, structure, chartId }) {
           const x1 = toX(gwsdHigh.idx);
           const x2 = toX(gwsdLineEnd);
           return <>
-            <rect x={x1} y={y} width={x2-x1} height={PT+cH-y} fill={gwsdColor} opacity="0.04"/>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwsdColor} strokeWidth="1.8" strokeDasharray="5,4"/>
             {/* Label links */}
             <rect x={PL-55} y={y-11} width={51} height={20} rx="3" fill="#0a0f1e" stroke={gwsdColor} strokeWidth="0.8"/>
@@ -658,8 +656,8 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
         onMouseMove={handleMouseMove} onMouseLeave={()=>setHover(null)} style={{cursor:"crosshair"}}>
         <defs>
           <linearGradient id={`g4h_${chartId}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={broken4h?"#ef4444":"#a78bfa"} stopOpacity="0.13"/>
-            <stop offset="100%" stopColor={broken4h?"#ef4444":"#a78bfa"} stopOpacity="0.01"/>
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.13"/>
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0.01"/>
           </linearGradient>
         </defs>
         <rect x={PL} y={PT} width={cW} height={cH} fill="#07090f"/>
@@ -705,7 +703,6 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           const x1 = toX(gws4hHigh.idx);
           const x2 = toX(lineEnd4h);
           return <>
-            <rect x={x1} y={y} width={x2-x1} height={PT+cH-y} fill={col4h} opacity="0.04"/>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={col4h} strokeWidth="1.8" strokeDasharray="4,3"/>
             <rect x={PL-55} y={y-11} width={51} height={20} rx="3" fill="#0a0f1e" stroke={col4h} strokeWidth="0.8"/>
             <text x={PL-29} y={y-1} textAnchor="middle" fill={col4h} fontSize="8" fontWeight="700" fontFamily="monospace">GWS-4H</text>
