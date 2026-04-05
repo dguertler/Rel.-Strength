@@ -1,0 +1,31 @@
+name: RS Daten aktualisieren
+
+on:
+  schedule:
+    - cron: '0 21 * * 1-5'  # täglich Mo-Fr um 21 Uhr UTC (= 23 Uhr DE)
+  workflow_dispatch:          # manueller Start per Knopfdruck möglich
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Abhängigkeiten installieren
+        run: pip install yfinance pandas
+
+      - name: Skript ausführen
+        run: python rs_colab.py
+
+      - name: JSON committen und pushen
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add rs_full.json
+          git diff --staged --quiet || git commit -m "RS Daten aktualisiert"
+          git push
