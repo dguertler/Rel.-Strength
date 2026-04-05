@@ -2,8 +2,10 @@ name: RS Daten aktualisieren
 
 on:
   schedule:
-    - cron: '0 21 * * 1-5'  # täglich Mo-Fr um 21 Uhr UTC (= 23 Uhr DE)
-  workflow_dispatch:          # manueller Start per Knopfdruck möglich
+    - cron: '0 21 * * 1-5'   # Mo-Fr 23:00 Uhr DE (21 UTC)
+    - cron: '0 4 * * 2-6'    # Di-Sa 06:00 Uhr DE (4 UTC)
+    - cron: '30 8 * * 2-6'   # Di-Sa 10:30 Uhr DE (8:30 UTC)
+  workflow_dispatch:          # manueller Start per Knopfdruck
 
 jobs:
   update:
