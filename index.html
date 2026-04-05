@@ -62,26 +62,17 @@ function analyzeStructure(ohlcv) {
   }
 
   // ── Kernlogik: Tiefere Tiefs erkennen und GWS-D bestimmen ──────────────────
-  //
-  // Wir suchen tiefere Tiefs: jedes Swing-Tief das ein vorheriges Swing-Tief unterschreitet.
-  // Das GWS-D ist das höchste Swing-Hoch ZWISCHEN dem alten (unterschrittenen) Tief
-  // und dem neuen tieferen Tief.
-  // Dadurch entsteht erst beim Unterschreiten des Tiefs ein Down-Retracement.
-
-  const gwsdCandidates = []; // { hochIdx, hochDate, hochPrice, tiefAlt, tiefNeu }
+  const gwsdCandidates = [];
 
   for (let j = 1; j < swingLows.length; j++) {
     const tiefNeu = swingLows[j];
     const tiefAlt = swingLows[j - 1];
 
-    // Tieferes Tief: neues Swing-Tief unterschreitet das vorherige
     if (tiefNeu.price < tiefAlt.price) {
-      // Höchstes Swing-Hoch zwischen altem Tief und neuem Tief
       const hochsDazwischen = swingHighs.filter(
         sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
       );
       if (hochsDazwischen.length > 0) {
-        // Höchstes Hoch im Bereich
         const gwsdHoch = hochsDazwischen.reduce((best, h) => h.price > best.price ? h : best);
         gwsdCandidates.push({
           idx:      gwsdHoch.idx,
@@ -94,15 +85,11 @@ function analyzeStructure(ohlcv) {
     }
   }
 
-  // Aktueller GWS-D: letzter Kandidat
   const gwsdHigh     = gwsdCandidates.length > 0 ? gwsdCandidates[gwsdCandidates.length - 1] : null;
-  // Vorheriger GWS-D: vorletzter Kandidat
   const prevGwsdHigh = gwsdCandidates.length > 1 ? gwsdCandidates[gwsdCandidates.length - 2] : null;
 
-  // Breakout-Level = GWS-D Preis
   const breakoutPrice = gwsdHigh ? gwsdHigh.price : null;
 
-  // Erster Close über GWS-D Preis → Bullish / BOC
   let breakoutIdx = null;
   if (gwsdHigh) {
     for (let i = gwsdHigh.idx + 1; i < n; i++) {
@@ -110,7 +97,6 @@ function analyzeStructure(ohlcv) {
     }
   }
 
-  // Vorheriger Breakout
   let prevBreakoutIdx = null;
   if (prevGwsdHigh) {
     for (let i = prevGwsdHigh.idx + 1; i < n; i++) {
@@ -121,7 +107,6 @@ function analyzeStructure(ohlcv) {
   const broken       = breakoutIdx !== null;
   const currentClose = closes[n - 1];
 
-  // Trend aus letzten 2 Swing-Hochs
   let trend = "neutral";
   if (swingHighs.length >= 2) {
     const last = swingHighs[swingHighs.length - 1];
@@ -130,7 +115,6 @@ function analyzeStructure(ohlcv) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  // Kürzlicher Breakout: innerhalb der letzten 10 Kerzen
   const recentBreakout = broken && (n - 1 - breakoutIdx <= 10);
 
   return {
@@ -574,15 +558,19 @@ function CandleChart({ ohlcv, structure, chartId }) {
   );
 }
 
-// ── 4H Candlestick Chart ───────────────────────────────────────────────────
+// ── 4H Candlestick Chart (60 Kerzen) ─────────────────────────────────────────
 function Chart4H({ ohlcv4h, structure4h, chartId }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
   const PL = 56, PR = 52, PT = 18, PB = 32;
   const cW = W - PL - PR, cH = H - PT - PB;
-  const n = ohlcv4h.length;
-  const allH = ohlcv4h.map(d => d.h), allL = ohlcv4h.map(d => d.l);
+
+  // Letzte 60 Kerzen anzeigen
+  const display4h = useMemo(() => ohlcv4h.slice(-60), [ohlcv4h]);
+  const n = display4h.length;
+
+  const allH = display4h.map(d => d.h), allL = display4h.map(d => d.l);
   const rawMax = Math.max(...allH), rawMin = Math.min(...allL);
   const pad = (rawMax - rawMin) * 0.07;
   const maxP = rawMax + pad, minP = rawMin - pad, range = maxP - minP;
@@ -595,14 +583,25 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
 
   const dayLabels = [];
   let lastDay = null;
-  ohlcv4h.forEach((d, i) => {
+  display4h.forEach((d, i) => {
     const day = d.d.slice(0, 10);
     if (day !== lastDay && i % 2 === 0) { dayLabels.push({ i, label: d.d.slice(5, 10) }); lastDay = day; }
   });
 
+  // Offset für Struktur-Indizes (da wir nur die letzten 60 anzeigen)
+  const offset = ohlcv4h.length - display4h.length;
   const { gws4hHigh, breakout4hIdx, broken4h, prevGws4hHigh, prevBreakout4hIdx } = structure4h || {};
   const col4h = broken4h ? "#ef4444" : "#a78bfa";
-  const lineEnd4h = breakout4hIdx !== null ? breakout4hIdx : n - 1;
+
+  // Lokale Indizes für die angezeigten 60 Kerzen
+  const localGws4hIdx      = gws4hHigh      ? gws4hHigh.idx - offset      : null;
+  const localBreakout4hIdx = breakout4hIdx  !== null ? breakout4hIdx - offset  : null;
+  const localPrevGws4hIdx  = prevGws4hHigh  ? prevGws4hHigh.idx - offset  : null;
+  const localPrevBreakIdx  = prevBreakout4hIdx !== null ? prevBreakout4hIdx - offset : null;
+
+  const lineEnd4h = localBreakout4hIdx !== null && localBreakout4hIdx >= 0
+    ? Math.min(localBreakout4hIdx, n - 1)
+    : n - 1;
 
   const handleMouseMove = useCallback((e) => {
     const svg = svgRef.current; if (!svg) return;
@@ -612,7 +611,7 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
     setHover(idx >= 0 && idx < n ? idx : null);
   }, [n, cW]);
 
-  const hd = hover !== null ? ohlcv4h[hover] : null;
+  const hd = hover !== null ? display4h[hover] : null;
 
   return (
     <div className="chart-wrap" style={{background:"#07090f",borderRadius:8,border:"1px solid #1e293b",overflow:"hidden"}}>
@@ -653,15 +652,17 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
         ))}
 
         {/* Breakout-Zone 4H */}
-        {breakout4hIdx !== null && (
-          <rect x={toX(breakout4hIdx)} y={PT} width={PL+cW-toX(breakout4hIdx)} height={cH} fill={`url(#g4h_${chartId})`}/>
+        {localBreakout4hIdx !== null && localBreakout4hIdx >= 0 && (
+          <rect x={toX(localBreakout4hIdx)} y={PT} width={PL+cW-toX(localBreakout4hIdx)} height={cH} fill={`url(#g4h_${chartId})`}/>
         )}
 
         {/* Vorheriger GWS-4H Break (gedimmt) */}
-        {prevGws4hHigh && (() => {
-          const prevEnd = prevBreakout4hIdx !== null ? prevBreakout4hIdx : (gws4hHigh ? gws4hHigh.idx : n - 1);
+        {prevGws4hHigh && localPrevGws4hIdx !== null && localPrevGws4hIdx >= 0 && (() => {
+          const prevEnd = localPrevBreakIdx !== null && localPrevBreakIdx >= 0
+            ? Math.min(localPrevBreakIdx, localGws4hIdx !== null && localGws4hIdx >= 0 ? localGws4hIdx : n - 1)
+            : (localGws4hIdx !== null && localGws4hIdx >= 0 ? localGws4hIdx : n - 1);
           const y  = toY(prevGws4hHigh.price);
-          const x1 = toX(prevGws4hHigh.idx);
+          const x1 = toX(Math.max(0, localPrevGws4hIdx));
           const x2 = toX(prevEnd);
           return <>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={col4h} strokeWidth="1.1" strokeDasharray="4,4" opacity="0.3"/>
@@ -669,9 +670,9 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
         })()}
 
         {/* Aktueller GWS-4H */}
-        {gws4hHigh && (() => {
+        {gws4hHigh && localGws4hIdx !== null && localGws4hIdx >= 0 && (() => {
           const y  = toY(gws4hHigh.price);
-          const x1 = toX(gws4hHigh.idx);
+          const x1 = toX(localGws4hIdx);
           const x2 = toX(lineEnd4h);
           return <>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={col4h} strokeWidth="1.8" strokeDasharray="4,3"/>
@@ -679,9 +680,9 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
         })()}
 
         {/* Kerzen 4H */}
-        {ohlcv4h.map((d, i) => {
+        {display4h.map((d, i) => {
           const bull = d.c >= d.o;
-          const isBoc = i === breakout4hIdx;
+          const isBoc = i === localBreakout4hIdx;
           const col  = bull ? "#22c55e" : "#ef4444";
           const bTop = toY(Math.max(d.o, d.c));
           const bH   = Math.max(1, toY(Math.min(d.o, d.c)) - bTop);
@@ -695,14 +696,14 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
         })}
 
         {/* Aktueller Preis */}
-        <line x1={PL} x2={PL+cW} y1={toY(ohlcv4h[n-1].c)} y2={toY(ohlcv4h[n-1].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.45"/>
-        <rect x={PL+cW+2} y={toY(ohlcv4h[n-1].c)-8} width={46} height={15} rx="3" fill="#1e293b"/>
-        <text x={PL+cW+25} y={toY(ohlcv4h[n-1].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">{ohlcv4h[n-1].c.toFixed(2)}</text>
+        <line x1={PL} x2={PL+cW} y1={toY(display4h[n-1].c)} y2={toY(display4h[n-1].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.45"/>
+        <rect x={PL+cW+2} y={toY(display4h[n-1].c)-8} width={46} height={15} rx="3" fill="#1e293b"/>
+        <text x={PL+cW+25} y={toY(display4h[n-1].c)+3} textAnchor="middle" fill="#94a3b8" fontSize="8.5" fontFamily="monospace">{display4h[n-1].c.toFixed(2)}</text>
 
         {/* Crosshair */}
         {hover !== null && <>
           <line x1={toX(hover)} x2={toX(hover)} y1={PT} y2={PT+cH} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.5"/>
-          <line x1={PL} x2={PL+cW} y1={toY(ohlcv4h[hover].c)} y2={toY(ohlcv4h[hover].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.5"/>
+          <line x1={PL} x2={PL+cW} y1={toY(display4h[hover].c)} y2={toY(display4h[hover].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.5"/>
         </>}
         <rect x={PL} y={PT} width={cW} height={cH} fill="none" stroke="#1e293b" strokeWidth="0.8"/>
       </svg>
@@ -716,7 +717,7 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#a78bfa" strokeWidth="1.1" strokeDasharray="4,4" opacity="0.3"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>Letzter Break</span>
         </div>
-        <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ohlcv4h.length} Kerzen · 4H</div>
+        <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{n} Kerzen (von {ohlcv4h.length}) · 4H</div>
       </div>
     </div>
   );
@@ -730,20 +731,24 @@ function Cell({ v }) {
   return <span style={{color:v>0?"#4ade80":"#f87171",fontFamily:"monospace",fontSize:11}}>{v>0?"+":""}{Math.round(v)}</span>;
 }
 
-function SignalBadge({ structure }) {
-  if (!structure) return <span style={{color:"#334155",fontSize:9}}>—</span>;
-  if (structure.broken) {
-    return (
-      <span style={{
-        background:"#2d0808", border:"1px solid #ef4444",
-        color:"#ef4444", borderRadius:4, padding:"1px 5px",
-        fontSize:9, fontWeight:800, display:"inline-flex", alignItems:"center", gap:2, whiteSpace:"nowrap"
-      }}>
-        <span className="flame-anim">🔥</span>BOC
-      </span>
-    );
-  }
-  return <span style={{color:"#334155",fontSize:9}}>—</span>;
+// ── W/D/4H Breach-Punkte Spalten ───────────────────────────────────────────
+function BreachDots({ structW, structD, struct4H }) {
+  const dot = (active) => (
+    <span style={{
+      display:"inline-block", width:7, height:7, borderRadius:"50%",
+      background: active ? "#4ade80" : "#1e293b",
+      border: active ? "1px solid #22c55e" : "1px solid #334155",
+      flexShrink: 0,
+    }}/>
+  );
+  const col = { display:"flex", alignItems:"center", justifyContent:"center", width:18 };
+  return (
+    <div style={{display:"flex", gap:1, alignItems:"center"}}>
+      <div style={col}>{dot(structW?.broken)}</div>
+      <div style={col}>{dot(structD?.broken)}</div>
+      <div style={col}>{dot(struct4H?.broken4h)}</div>
+    </div>
+  );
 }
 
 // ── Haupt-App ──────────────────────────────────────────────────────────────
@@ -803,16 +808,18 @@ function App() {
   const structure   = useMemo(() => analyzeStructure(ohlcv), [ohlcv]);
   const structure4h = useMemo(() => analyze4HStructure(ohlcv4h), [ohlcv4h]);
 
-  // Struktur aller Top-20 (für Badges in Tabelle)
+  // Struktur ALLER Ticker (für Badges und Breach-Punkte in Tabelle)
   const structureMap = useMemo(() => {
     if (!data) return {};
     const map = {};
-    sorted.slice(0, 20).forEach(item => {
-      const entry = data.data.find(d => d.ticker === item.t);
-      if (entry?.ohlcv?.length > 0) map[item.t] = analyzeStructure(entry.ohlcv);
+    data.data.forEach(entry => {
+      const d = map[entry.ticker] = {};
+      if (entry.ohlcv?.length > 0)    d.daily  = analyzeStructure(entry.ohlcv);
+      if (entry.ohlcv_w?.length > 0)  d.weekly = analyzeWeeklyStructure(entry.ohlcv_w);
+      if (entry.ohlcv_4h?.length > 0) d.h4     = analyze4HStructure(entry.ohlcv_4h);
     });
     return map;
-  }, [data, sorted]);
+  }, [data]);
 
   // 4H Chart: immer anzeigen wenn Daten vorhanden
   const show4H = ohlcv4h && structure4h;
@@ -860,10 +867,23 @@ function App() {
       </div>
 
       {/* RS-Tabelle */}
+      {/* Spalten: # | Ticker | Score | W D 4H (3 Punkte-Spalten eng) | 5T 10T 20T 50T 6M */}
       <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",marginBottom:12,overflowX:"auto"}}>
         <div style={{minWidth:480}}>
-          <div style={{display:"grid",gridTemplateColumns:"22px 50px 56px 60px repeat(5,1fr)",padding:"6px 10px",background:"#1e293b",gap:3,fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:0.5}}>
-            <span>#</span><span>Ticker</span><span>Score</span><span>Signal</span>
+          {/* Header-Zeile */}
+          <div style={{
+            display:"grid",
+            gridTemplateColumns:"22px 58px 56px 18px 18px 18px repeat(5,1fr)",
+            padding:"6px 10px", background:"#1e293b", gap:2,
+            fontSize:9, color:"#475569", textTransform:"uppercase", letterSpacing:0.5,
+            alignItems:"center"
+          }}>
+            <span>#</span>
+            <span>Ticker</span>
+            <span>Score</span>
+            <span style={{textAlign:"center",color:"#f59e0b"}}>W</span>
+            <span style={{textAlign:"center",color:"#ef4444"}}>D</span>
+            <span style={{textAlign:"center",color:"#a78bfa"}}>4H</span>
             {WINDOWS.map(w => <span key={w} style={{textAlign:"center"}}>{w}</span>)}
           </div>
 
@@ -871,30 +891,32 @@ function App() {
             const rank       = sorted.indexOf(item);
             const isTop      = rank < 20;
             const hasChart   = data.data.find(d=>d.ticker===item.t)?.ohlcv?.length > 0;
-            const struct     = structureMap[item.t];
-            const isBOC      = struct?.broken;
+            const structs    = structureMap[item.t] || {};
+            const isBOC      = structs.daily?.broken;
 
             return (
               <div key={item.t}
                 onClick={() => hasChart && setSelected(item.t)}
                 style={{
-                  display:"grid", gridTemplateColumns:"22px 50px 56px 60px repeat(5,1fr)",
-                  padding:"6px 10px", gap:3,
+                  display:"grid",
+                  gridTemplateColumns:"22px 58px 56px 18px 18px 18px repeat(5,1fr)",
+                  padding:"6px 10px", gap:2,
                   borderTop:`1px solid ${isBOC?"#ef444422":"#0a0f1e"}`,
                   background: isBOC
                     ? (item.t===selected?"#3a0808":"#160303")
                     : item.t===selected ? "#1a2f4a"
                     : isTop ? (rank%2===0?"#0d1526":"#0a1020") : "#07090f",
-                  opacity: isTop ? 1 : 0.25,
+                  opacity: isTop ? 1 : (isBOC ? 0.85 : 0.25),
                   alignItems:"center",
                   cursor: hasChart ? "pointer" : "default",
                   borderLeft: isBOC ? "2px solid #ef4444"
                     : item.t===selected ? "2px solid #3b82f6" : "2px solid transparent",
                 }}>
                 <span style={{fontSize:10,fontWeight:700,color:rank===0?"#f59e0b":rank<3?"#94a3b8":"#334155"}}>{rank+1}</span>
+                {/* Ticker-Zelle: Feuer vor dem Namen, kein extra Signal */}
                 <span style={{fontWeight:700,fontSize:11,fontFamily:"monospace",
                   color:isBOC?"#fca5a5":rank===0?"#fbbf24":isTop?"#f1f5f9":"#475569",
-                  display:"flex",alignItems:"center",gap:3}}>
+                  display:"flex",alignItems:"center",gap:2}}>
                   {isBOC && <span className="flame-anim" style={{fontSize:11}}>🔥</span>}
                   {item.t}
                   {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}
@@ -902,7 +924,30 @@ function App() {
                 <span style={{fontFamily:"monospace",fontSize:11,fontWeight:600,color:item.s>0?"#4ade80":"#f87171"}}>
                   {item.s>0?"+":""}{Math.round(item.s)}
                 </span>
-                <span><SignalBadge structure={struct}/></span>
+                {/* W-Breach Punkt */}
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <span style={{
+                    display:"inline-block", width:7, height:7, borderRadius:"50%",
+                    background: structs.weekly?.broken ? "#4ade80" : "transparent",
+                    border: structs.weekly?.broken ? "1px solid #22c55e" : "1px solid #1e293b",
+                  }}/>
+                </div>
+                {/* D-Breach Punkt */}
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <span style={{
+                    display:"inline-block", width:7, height:7, borderRadius:"50%",
+                    background: structs.daily?.broken ? "#4ade80" : "transparent",
+                    border: structs.daily?.broken ? "1px solid #22c55e" : "1px solid #1e293b",
+                  }}/>
+                </div>
+                {/* 4H-Breach Punkt */}
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <span style={{
+                    display:"inline-block", width:7, height:7, borderRadius:"50%",
+                    background: structs.h4?.broken4h ? "#4ade80" : "transparent",
+                    border: structs.h4?.broken4h ? "1px solid #22c55e" : "1px solid #1e293b",
+                  }}/>
+                </div>
                 {WINDOWS.map(w => (
                   <div key={w} style={{textAlign:"center"}}><Cell v={item.w[w]}/></div>
                 ))}
@@ -933,7 +978,7 @@ function App() {
         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
           {sorted.slice(0,20).map((d,i) => {
             const hasChart = data.data.find(e=>e.ticker===d.t)?.ohlcv?.length > 0;
-            const isBOC   = structureMap[d.t]?.broken;
+            const isBOC   = structureMap[d.t]?.daily?.broken;
             return (
               <span key={d.t}
                 onClick={()=>hasChart&&setSelected(d.t)}
