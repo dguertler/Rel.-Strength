@@ -1,6 +1,8 @@
-import subprocess
-subprocess.run(["pip", "install", "yfinance", "pandas", "-q"])
+# RS QQQ Update
 
+Führe das folgende Python-Skript aus, um die RS-Daten für alle QQQ-Aktien zu berechnen und `rs_full.json` zu aktualisieren. Danach committe und pushe die Datei nach GitHub auf den aktuellen Branch.
+
+```python
 import yfinance as yf
 import pandas as pd
 import json
@@ -52,9 +54,8 @@ print(f"Top 20: {', '.join(top20)}")
 
 # ── Schritt 2: Weekly OHLCV für ALLE Ticker (letzte 60 Wochen = ~15 Monate)
 print(f"\nSchritt 2: Weekly OHLCV für alle {len(tickers)} Ticker (60 Wochen)...")
-# 60 Wochen ≈ 420 Tage + Puffer
-end_date    = datetime.now()
-start_weekly = end_date - timedelta(days=450)  # Puffer für genau 60 Wochen
+end_date = datetime.now()
+start_weekly = end_date - timedelta(days=450)
 
 all_tickers_list = [r["ticker"] for r in all_results]
 raw_weekly = yf.download(
@@ -67,7 +68,6 @@ raw_weekly = yf.download(
 )
 
 def extract_ohlcv_weekly(ticker, raw_data, n_candles=60):
-    """Extrahiert Weekly OHLCV-Daten für einen Ticker, letzte n_candles Kerzen."""
     try:
         if isinstance(raw_data.columns, pd.MultiIndex):
             c = raw_data["Close"][ticker].dropna()
@@ -89,14 +89,13 @@ def extract_ohlcv_weekly(ticker, raw_data, n_candles=60):
                 "l": round(float(lv), 2),
                 "c": round(float(cv), 2)
             })
-        return result[-n_candles:]  # Letzte 60 Kerzen
+        return result[-n_candles:]
     except Exception as e:
         print(f"  Fehler Weekly OHLCV {ticker}: {e}")
         return []
 
 # ── Schritt 3: Daily OHLCV für ALLE Ticker (letzte 60 Kerzen ≈ 3 Monate)
 print(f"\nSchritt 3: Daily OHLCV für alle {len(tickers)} Ticker (60 Kerzen)...")
-# 60 Handelstage ≈ 90 Kalendertage + Puffer
 start_daily = end_date - timedelta(days=100)
 
 raw_daily = yf.download(
@@ -109,7 +108,6 @@ raw_daily = yf.download(
 )
 
 def extract_ohlcv_daily(ticker, raw_data, n_candles=60):
-    """Extrahiert Daily OHLCV-Daten für einen Ticker, letzte n_candles Kerzen."""
     try:
         if isinstance(raw_data.columns, pd.MultiIndex):
             c = raw_data["Close"][ticker].dropna()
@@ -131,18 +129,16 @@ def extract_ohlcv_daily(ticker, raw_data, n_candles=60):
                 "l": round(float(lv), 2),
                 "c": round(float(cv), 2)
             })
-        return result[-n_candles:]  # Letzte 60 Kerzen
+        return result[-n_candles:]
     except Exception as e:
         print(f"  Fehler Daily OHLCV {ticker}: {e}")
         return []
 
 # ── Schritt 4: 4H OHLCV für ALLE Ticker (letzte 60 Kerzen ≈ 30 Handelstage)
 print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (60 Kerzen ≈ 30 Tage)...")
-# 60 4H-Kerzen ≈ 30 Handelstage (ca. 2 Kerzen/Tag US-Session) → Puffer 45 Kalendertage
 start_4h = end_date - timedelta(days=45)
 
 def extract_ohlcv_4h(ticker, n_candles=60):
-    """Lädt 4H-Daten für einen Ticker via yfinance (1H → 4H aggregiert), letzte n_candles."""
     try:
         df = yf.download(
             ticker,
@@ -154,22 +150,16 @@ def extract_ohlcv_4h(ticker, n_candles=60):
         )
         if df.empty:
             return []
-
-        # Spalten glätten falls MultiIndex
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
-
         df = df[["Open", "High", "Low", "Close"]].dropna()
         df.index = pd.to_datetime(df.index)
-
-        # 1H → 4H aggregieren, Session-Offset 9:30 ET = UTC 13:30
         df_4h = df.resample("4h", offset="1h30min").agg({
             "Open":  "first",
             "High":  "max",
             "Low":   "min",
             "Close": "last"
         }).dropna()
-
         result = []
         for dt, row in df_4h.iterrows():
             if pd.isna(row["Close"]): continue
@@ -180,12 +170,11 @@ def extract_ohlcv_4h(ticker, n_candles=60):
                 "l": round(float(row["Low"]),   2),
                 "c": round(float(row["Close"]), 2)
             })
-        return result[-n_candles:]  # Letzte 60 Kerzen
+        return result[-n_candles:]
     except Exception as e:
         print(f"  Fehler 4H {ticker}: {e}")
         return []
 
-# 4H sequentiell (yfinance unterstützt kein Multi-Ticker-Download für 1H gut)
 ohlcv_4h_map = {}
 for i, ticker in enumerate(all_tickers_list):
     print(f"  4H [{i+1}/{len(all_tickers_list)}] {ticker}...", end=" ")
@@ -205,26 +194,31 @@ for r in all_results:
         "ticker":   ticker,
         "score":    r["score"],
         "windows":  r["windows"],
-        "ohlcv_w":  ohlcv_w,   # Weekly, letzte 60 Kerzen
-        "ohlcv":    ohlcv_d,   # Daily,  letzte 60 Kerzen
-        "ohlcv_4h": ohlcv4h   # 4H,     letzte 60 Kerzen
+        "ohlcv_w":  ohlcv_w,
+        "ohlcv":    ohlcv_d,
+        "ohlcv_4h": ohlcv4h
     })
-
-output = {
-    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    "benchmark": "QQQ",
-    "top20": top20,
-    "data": data
-}
 
 with open("rs_full.json", "w") as f:
     json.dump(data, f)
 
-size_kb = len(json.dumps(output)) / 1024
-print(f"\n✅ Fertig! Dateigröße: {size_kb:.0f} KB")
-print(f"Timestamp: {output['timestamp']}")
+output_size = len(json.dumps(data)) / 1024
+print(f"\n✅ Fertig! Dateigröße: {output_size:.0f} KB")
+print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 print(f"Ticker gesamt: {len(data)}")
 print("Top 5:")
 for i, r in enumerate(data[:5]):
     print(f"  {i+1}. {r['ticker']}: Score={r['score']}, Weekly={len(r['ohlcv_w'])} Kerzen, Daily={len(r['ohlcv'])} Kerzen, 4H={len(r['ohlcv_4h'])} Kerzen")
-print("\nDatei gespeichert: rs_full.json")
+```
+
+Führe anschließend diese Schritte aus:
+
+1. Schreibe den obigen Python-Code in eine temporäre Datei `/tmp/rs_run.py`
+2. Führe aus: `python3 /tmp/rs_run.py`
+3. Committe und pushe `rs_full.json` nach GitHub:
+   ```
+   git add rs_full.json
+   git commit -m "RS Daten aktualisiert"
+   git push
+   ```
+4. Lösche die temporäre Datei: `rm /tmp/rs_run.py`
