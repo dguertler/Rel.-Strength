@@ -321,7 +321,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
           <span>L <span style={{color:"#f87171"}}>{hd.l.toFixed(2)}</span></span>
           <span>C <span style={{color:hd.c>=hd.o?"#4ade80":"#f87171",fontWeight:700}}>{hd.c.toFixed(2)}</span></span>
           <span style={{color:"#475569",marginLeft:"auto"}}>{hd.c>=hd.o?"▲":"▼"} {((hd.c-hd.o)/hd.o*100).toFixed(2)}%</span>
-        </> : <span style={{color:"#334155"}}>Hover für OHLC-Details</span>}
+        </> : <span style={{color:"#334155"}}>Hover für Weekly-Details</span>}
       </div>
 
       <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`}
@@ -364,9 +364,6 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
           const x2 = toX(prevLineEnd);
           return <>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwswColor} strokeWidth="1.2" strokeDasharray="4,4" opacity="0.30"/>
-            <text x={x1+4} y={y-4} fill={gwswColor+"55"} fontSize="7.5" fontFamily="monospace">
-              GWS-W {prevGwswHigh.date.slice(5)} {prevBreakoutIdx !== null ? "✓" : ""}
-            </text>
           </>;
         })()}
 
@@ -375,16 +372,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
           const y  = toY(breakoutPrice ?? gwswHigh.price);
           const x1 = toX(gwswHigh.idx);
           const x2 = toX(gwswLineEnd);
-          return <>
-            <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwswColor} strokeWidth="1.8" strokeDasharray="5,4"/>
-            <rect x={PL-55} y={y-11} width={51} height={20} rx="3" fill="#0a0f1e" stroke={gwswColor} strokeWidth="0.8"/>
-            <text x={PL-29} y={y-1} textAnchor="middle" fill={gwswColor} fontSize="8" fontWeight="700" fontFamily="monospace">GWS-W</text>
-            <text x={PL-29} y={y+8} textAnchor="middle" fill={gwswColor} fontSize="7.5" fontFamily="monospace">{(breakoutPrice ?? gwswHigh.price).toFixed(1)}</text>
-            <rect x={x2+2} y={y-9} width={46} height={16} rx="3" fill={gwswColor+"22"} stroke={gwswColor} strokeWidth="0.8"/>
-            <text x={x2+25} y={y+4} textAnchor="middle" fill={gwswColor} fontSize="8" fontWeight="700" fontFamily="monospace">
-              {broken ? "✓ BOC" : "Res."}
-            </text>
-          </>;
+          return <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwswColor} strokeWidth="1.8" strokeDasharray="5,4"/>;
         })()}
 
         {/* Kerzen */}
@@ -528,9 +516,6 @@ function CandleChart({ ohlcv, structure, chartId }) {
           const x2 = toX(prevLineEnd);
           return <>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke="#ef4444" strokeWidth="1.2" strokeDasharray="4,4" opacity="0.35"/>
-            <text x={x1+4} y={y-4} fill="#ef444466" fontSize="7.5" fontFamily="monospace">
-              GWS-D {prevGwsdHigh.date.slice(5)} {prevBreakoutIdx !== null ? "✓" : ""}
-            </text>
           </>;
         })()}
 
@@ -540,18 +525,7 @@ function CandleChart({ ohlcv, structure, chartId }) {
           const y  = toY(levelPrice);
           const x1 = toX(gwsdHigh.idx);
           const x2 = toX(gwsdLineEnd);
-          return <>
-            <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwsdColor} strokeWidth="1.8" strokeDasharray="5,4"/>
-            {/* Label links */}
-            <rect x={PL-55} y={y-11} width={51} height={20} rx="3" fill="#0a0f1e" stroke={gwsdColor} strokeWidth="0.8"/>
-            <text x={PL-29} y={y-1} textAnchor="middle" fill={gwsdColor} fontSize="8" fontWeight="700" fontFamily="monospace">GWS-D</text>
-            <text x={PL-29} y={y+8} textAnchor="middle" fill={gwsdColor} fontSize="7.5" fontFamily="monospace">{levelPrice.toFixed(1)}</text>
-            {/* Label rechts am Linienende */}
-            <rect x={x2+2} y={y-9} width={46} height={16} rx="3" fill={gwsdColor+"22"} stroke={gwsdColor} strokeWidth="0.8"/>
-            <text x={x2+25} y={y+4} textAnchor="middle" fill={gwsdColor} fontSize="8" fontWeight="700" fontFamily="monospace">
-              {broken ? "🔥 BOC" : "Res."}
-            </text>
-          </>;
+          return <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwsdColor} strokeWidth="1.8" strokeDasharray="5,4"/>;
         })()}
 
         {/* Kerzen */}
@@ -691,9 +665,6 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           const x2 = toX(prevEnd);
           return <>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={col4h} strokeWidth="1.1" strokeDasharray="4,4" opacity="0.3"/>
-            <text x={x1+4} y={y-4} fill={col4h+"55"} fontSize="7" fontFamily="monospace">
-              GWS-4H {prevGws4hHigh.date.slice(5,10)} {prevBreakout4hIdx !== null ? "✓" : ""}
-            </text>
           </>;
         })()}
 
@@ -704,13 +675,6 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           const x2 = toX(lineEnd4h);
           return <>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={col4h} strokeWidth="1.8" strokeDasharray="4,3"/>
-            <rect x={PL-55} y={y-11} width={51} height={20} rx="3" fill="#0a0f1e" stroke={col4h} strokeWidth="0.8"/>
-            <text x={PL-29} y={y-1} textAnchor="middle" fill={col4h} fontSize="8" fontWeight="700" fontFamily="monospace">GWS-4H</text>
-            <text x={PL-29} y={y+8} textAnchor="middle" fill={col4h} fontSize="7.5" fontFamily="monospace">{gws4hHigh.price.toFixed(1)}</text>
-            <rect x={x2+2} y={y-9} width={46} height={16} rx="3" fill={col4h+"22"} stroke={col4h} strokeWidth="0.8"/>
-            <text x={x2+25} y={y+4} textAnchor="middle" fill={col4h} fontSize="8" fontWeight="700" fontFamily="monospace">
-              {broken4h ? "✓ Entry" : "Entry?"}
-            </text>
           </>;
         })()}
 
@@ -752,7 +716,7 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#a78bfa" strokeWidth="1.1" strokeDasharray="4,4" opacity="0.3"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>Letzter Break</span>
         </div>
-        <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>4H · Echte Daten</div>
+        <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ohlcv4h.length} Kerzen · 4H</div>
       </div>
     </div>
   );
@@ -1002,23 +966,25 @@ function App() {
           <>
             {/* Weekly Chart – immer angezeigt wenn Daten vorhanden */}
             {ohlcvW && structureW ? (
-              <div style={{marginBottom:10}}>
+              <div>
                 <ChartWeekly ohlcvW={ohlcvW} structureW={structureW} chartId={selected+"_w"}/>
               </div>
             ) : (
-              <div style={{marginBottom:10,background:"#07090f",borderRadius:8,border:"1px solid #1e293b",padding:"12px 16px",color:"#334155",fontSize:11,fontFamily:"monospace"}}>
+              <div style={{background:"#07090f",borderRadius:8,border:"1px solid #1e293b",padding:"12px 16px",color:"#334155",fontSize:11,fontFamily:"monospace"}}>
                 Weekly-Daten fehlen – bitte Python-Skript neu ausführen (ohlcv_w)
               </div>
             )}
 
             {/* Daily Chart – immer angezeigt */}
             {ohlcv && structure && (
-              <CandleChart ohlcv={ohlcv} structure={structure} chartId={selected+"_d"}/>
+              <div style={{marginTop:10}}>
+                <CandleChart ohlcv={ohlcv} structure={structure} chartId={selected+"_d"}/>
+              </div>
             )}
 
             {/* 4H Chart – immer angezeigt wenn Daten vorhanden */}
             {show4H && (
-              <div style={{marginTop:14}}>
+              <div style={{marginTop:10}}>
                 <Chart4H ohlcv4h={ohlcv4h} structure4h={structure4h} chartId={selected+"_4h"}/>
               </div>
             )}
