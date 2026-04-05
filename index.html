@@ -27,10 +27,17 @@
 <script type="text/babel">
 const { useState, useMemo, useRef, useCallback, useEffect } = React;
 
-// ── GWS-D Analyse (überarbeitet) ──────────────────────────────────────────
-// Bullish = Close über letztem Hoch des Down-Retracements (das letzte höhere Hoch
-//           vor dem darauffolgenden tieferen Tief), ODER letztem Daily-Hoch (höheres Hoch).
-// Bearish = Close unter letztem Tief.
+// ── GWS-D Analyse (korrekte Down-Retracement Logik) ──────────────────────────
+//
+// Ein Down-Retracement entsteht ERST wenn ein vorheriges Swing-Tief unterschritten wird.
+// Das GWS-D ist dann das HÖCHSTE Hoch zwischen dem alten Tief und dem neuen tieferen Tief.
+//
+// Ablauf:
+//   1. Sequenz von Swing-Hochs und Swing-Tiefs ermitteln
+//   2. Suche tiefere Tiefs (jedes Swing-Tief, das ein vorheriges Swing-Tief unterschreitet)
+//   3. Für jedes tiefere Tief: GWS-D = höchstes Hoch zwischen dem alten Tief und dem neuen Tief
+//   4. Aktuelles GWS-D = letztes so ermitteltes Hoch
+//   5. Bullish = Close über GWS-D Preis
 function analyzeStructure(ohlcv) {
   if (!ohlcv || ohlcv.length < 10) return null;
   const n      = ohlcv.length;
@@ -54,65 +61,52 @@ function analyzeStructure(ohlcv) {
       swingLows.push({ idx: i, date: ohlcv[i].d, price: lows[i] });
   }
 
-  // GWS-D Kandidaten: Swing-Hochs nach denen mind. -3% folgte (down retracement)
-  // Das GWS-D ist das letzte Hoch VOR dem tieferen Tief — also das letzte höhere Hoch
-  // des Retracements, das dann unterschritten wurde.
-  const gwsdCandidates = [];
-  for (let i = 0; i < swingHighs.length; i++) {
-    const sh = swingHighs[i];
-    if (sh.idx + 1 >= n) continue;
-    const minAfter = Math.min(...lows.slice(sh.idx + 1));
-    if (minAfter < sh.price * 0.97) gwsdCandidates.push(sh);
+  // ── Kernlogik: Tiefere Tiefs erkennen und GWS-D bestimmen ──────────────────
+  //
+  // Wir suchen tiefere Tiefs: jedes Swing-Tief das ein vorheriges Swing-Tief unterschreitet.
+  // Das GWS-D ist das höchste Swing-Hoch ZWISCHEN dem alten (unterschrittenen) Tief
+  // und dem neuen tieferen Tief.
+  // Dadurch entsteht erst beim Unterschreiten des Tiefs ein Down-Retracement.
+
+  const gwsdCandidates = []; // { hochIdx, hochDate, hochPrice, tiefAlt, tiefNeu }
+
+  for (let j = 1; j < swingLows.length; j++) {
+    const tiefNeu = swingLows[j];
+    const tiefAlt = swingLows[j - 1];
+
+    // Tieferes Tief: neues Swing-Tief unterschreitet das vorherige
+    if (tiefNeu.price < tiefAlt.price) {
+      // Höchstes Swing-Hoch zwischen altem Tief und neuem Tief
+      const hochsDazwischen = swingHighs.filter(
+        sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
+      );
+      if (hochsDazwischen.length > 0) {
+        // Höchstes Hoch im Bereich
+        const gwsdHoch = hochsDazwischen.reduce((best, h) => h.price > best.price ? h : best);
+        gwsdCandidates.push({
+          idx:      gwsdHoch.idx,
+          date:     gwsdHoch.date,
+          price:    gwsdHoch.price,
+          tiefAlt:  tiefAlt,
+          tiefNeu:  tiefNeu,
+        });
+      }
+    }
   }
 
   // Aktueller GWS-D: letzter Kandidat
-  const gwsdHigh = gwsdCandidates.length > 0 ? gwsdCandidates[gwsdCandidates.length - 1] : null;
-
+  const gwsdHigh     = gwsdCandidates.length > 0 ? gwsdCandidates[gwsdCandidates.length - 1] : null;
   // Vorheriger GWS-D: vorletzter Kandidat
   const prevGwsdHigh = gwsdCandidates.length > 1 ? gwsdCandidates[gwsdCandidates.length - 2] : null;
 
-  // Letztes Tief nach dem aktuellen GWS-D Hoch (Bearish-Level)
-  let lastLowAfterGwsd = null;
-  if (gwsdHigh) {
-    // Letztes Swing-Tief nach gwsdHigh.idx
-    const lowsAfter = swingLows.filter(sl => sl.idx > gwsdHigh.idx);
-    if (lowsAfter.length > 0) {
-      lastLowAfterGwsd = lowsAfter[lowsAfter.length - 1];
-    } else {
-      // Fallback: absolutes Tief nach gwsdHigh
-      let minIdx = gwsdHigh.idx + 1, minVal = lows[minIdx];
-      for (let i = gwsdHigh.idx + 2; i < n; i++) {
-        if (lows[i] < minVal) { minVal = lows[i]; minIdx = i; }
-      }
-      lastLowAfterGwsd = { idx: minIdx, date: ohlcv[minIdx].d, price: minVal };
-    }
-  }
+  // Breakout-Level = GWS-D Preis
+  const breakoutPrice = gwsdHigh ? gwsdHigh.price : null;
 
-  // Breakout des aktuellen GWS-D:
-  // Bullish = erster Close über gwsdHigh.price (letztes Hoch des Down-Retracements)
-  // ODER erster Close über einem späteren Swing-Hoch (höheres Hoch = direktes Bullish-Signal)
+  // Erster Close über GWS-D Preis → Bullish / BOC
   let breakoutIdx = null;
-  let breakoutPrice = null;
   if (gwsdHigh) {
-    // Suche nach dem letzten Swing-Hoch nach gwsdHigh.idx (höheres Hoch im Retracement)
-    const laterSwingHighs = swingHighs.filter(sh => sh.idx > gwsdHigh.idx);
-    // Das relevante Breakout-Level ist das gwsdHigh ODER das letzte Swing-Hoch davor
-    // (das "letzte Hoch des Down Retracements")
-    let targetLevel = gwsdHigh.price;
-    // Falls es nach gwsdHigh noch ein höheres Hoch gab (was das Retracement-Ende markiert),
-    // dann ist DIESES das relevante Level
-    if (laterSwingHighs.length > 0) {
-      // Letztes Swing-Hoch das NACH gwsdHigh aber VOR dem letzten Tief liegt
-      const lastLowIdx = lastLowAfterGwsd ? lastLowAfterGwsd.idx : n - 1;
-      const highsBeforeLow = laterSwingHighs.filter(sh => sh.idx < lastLowIdx);
-      if (highsBeforeLow.length > 0) {
-        const lastHighBeforeLow = highsBeforeLow[highsBeforeLow.length - 1];
-        targetLevel = lastHighBeforeLow.price;
-      }
-    }
-    breakoutPrice = targetLevel;
     for (let i = gwsdHigh.idx + 1; i < n; i++) {
-      if (closes[i] > targetLevel) { breakoutIdx = i; break; }
+      if (closes[i] > gwsdHigh.price) { breakoutIdx = i; break; }
     }
   }
 
@@ -124,11 +118,8 @@ function analyzeStructure(ohlcv) {
     }
   }
 
-  const broken = breakoutIdx !== null;
+  const broken       = breakoutIdx !== null;
   const currentClose = closes[n - 1];
-
-  // Bearish: Close unter letztem Tief nach GWS-D
-  const bearish = lastLowAfterGwsd && currentClose < lastLowAfterGwsd.price;
 
   // Trend aus letzten 2 Swing-Hochs
   let trend = "neutral";
@@ -139,20 +130,20 @@ function analyzeStructure(ohlcv) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  // Kürzlicher Breach: Breakout innerhalb der letzten 10 Kerzen oder noch aktiv
+  // Kürzlicher Breakout: innerhalb der letzten 10 Kerzen
   const recentBreakout = broken && (n - 1 - breakoutIdx <= 10);
 
   return {
     currentClose, gwsdHigh, breakoutIdx, breakoutPrice, broken, trend,
     prevGwsdHigh, prevBreakoutIdx,
-    lastLowAfterGwsd, bearish, recentBreakout,
+    recentBreakout,
     swingHighs: swingHighs.slice(-6),
     swingLows:  swingLows.slice(-6),
     setup: broken && trend !== "bearish",
   };
 }
 
-// ── GWS-W Analyse (Weekly) ─────────────────────────────────────────────────
+// ── GWS-W Analyse (Weekly, gleiche korrekte Logik) ───────────────────────────
 function analyzeWeeklyStructure(ohlcvW) {
   if (!ohlcvW || ohlcvW.length < 8) return null;
   const n      = ohlcvW.length;
@@ -174,29 +165,30 @@ function analyzeWeeklyStructure(ohlcvW) {
       swingLows.push({ idx: i, date: ohlcvW[i].d, price: lows[i] });
   }
 
-  // GWS-W: Swing-Hochs nach denen mind. -4% folgte
+  // Gleiche Kernlogik: tiefere Tiefs → GWS-W = höchstes Hoch dazwischen
   const gwswCandidates = [];
-  for (let i = 0; i < swingHighs.length; i++) {
-    const sh = swingHighs[i];
-    if (sh.idx + 1 >= n) continue;
-    const minAfter = Math.min(...lows.slice(sh.idx + 1));
-    if (minAfter < sh.price * 0.96) gwswCandidates.push(sh);
+  for (let j = 1; j < swingLows.length; j++) {
+    const tiefNeu = swingLows[j];
+    const tiefAlt = swingLows[j - 1];
+    if (tiefNeu.price < tiefAlt.price) {
+      const hochsDazwischen = swingHighs.filter(
+        sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
+      );
+      if (hochsDazwischen.length > 0) {
+        const gwswHoch = hochsDazwischen.reduce((best, h) => h.price > best.price ? h : best);
+        gwswCandidates.push({ idx: gwswHoch.idx, date: gwswHoch.date, price: gwswHoch.price });
+      }
+    }
   }
 
   const gwswHigh     = gwswCandidates.length > 0 ? gwswCandidates[gwswCandidates.length - 1] : null;
   const prevGwswHigh = gwswCandidates.length > 1 ? gwswCandidates[gwswCandidates.length - 2] : null;
 
-  // Breakout-Level: letztes Hoch des Retracements nach gwswHigh
   let breakoutPrice = gwswHigh ? gwswHigh.price : null;
   let breakoutIdx = null;
   if (gwswHigh) {
-    const lastLowIdx = swingLows.filter(sl => sl.idx > gwswHigh.idx).slice(-1)[0]?.idx ?? n - 1;
-    const highsBeforeLow = swingHighs.filter(sh => sh.idx > gwswHigh.idx && sh.idx < lastLowIdx);
-    if (highsBeforeLow.length > 0) {
-      breakoutPrice = highsBeforeLow[highsBeforeLow.length - 1].price;
-    }
     for (let i = gwswHigh.idx + 1; i < n; i++) {
-      if (closes[i] > breakoutPrice) { breakoutIdx = i; break; }
+      if (closes[i] > gwswHigh.price) { breakoutIdx = i; break; }
     }
   }
 
@@ -215,7 +207,7 @@ function analyzeWeeklyStructure(ohlcvW) {
   };
 }
 
-// ── GWS-4H Analyse ────────────────────────────────────────────────────────
+// ── GWS-4H Analyse (gleiche korrekte Logik) ──────────────────────────────────
 function analyze4HStructure(ohlcv4h) {
   if (!ohlcv4h || ohlcv4h.length < 8) return null;
   const n     = ohlcv4h.length;
@@ -237,13 +229,20 @@ function analyze4HStructure(ohlcv4h) {
       swingLows.push({ idx: i, date: ohlcv4h[i].d, price: lows[i] });
   }
 
-  // GWS-4H: Swing-Hochs nach denen mind. -2% folgte
+  // Gleiche Kernlogik: tiefere Tiefs → GWS-4H = höchstes Hoch dazwischen
   const gws4hCandidates = [];
-  for (let i = 0; i < swingHighs.length; i++) {
-    const sh = swingHighs[i];
-    if (sh.idx + 1 >= n) continue;
-    const minAfter = Math.min(...lows.slice(sh.idx + 1));
-    if (minAfter < sh.price * 0.98) gws4hCandidates.push(sh);
+  for (let j = 1; j < swingLows.length; j++) {
+    const tiefNeu = swingLows[j];
+    const tiefAlt = swingLows[j - 1];
+    if (tiefNeu.price < tiefAlt.price) {
+      const hochsDazwischen = swingHighs.filter(
+        sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
+      );
+      if (hochsDazwischen.length > 0) {
+        const gws4hHoch = hochsDazwischen.reduce((best, h) => h.price > best.price ? h : best);
+        gws4hCandidates.push({ idx: gws4hHoch.idx, date: gws4hHoch.date, price: gws4hHoch.price });
+      }
+    }
   }
 
   const gws4hHigh     = gws4hCandidates.length > 0 ? gws4hCandidates[gws4hCandidates.length - 1] : null;
@@ -461,7 +460,7 @@ function CandleChart({ ohlcv, structure, chartId }) {
     if (m !== lastMonth) { monthLabels.push({ i, label: d.d.slice(5,7)+"/"+d.d.slice(2,4) }); lastMonth = m; }
   });
 
-  const { gwsdHigh, breakoutIdx, breakoutPrice, broken, prevGwsdHigh, prevBreakoutIdx, lastLowAfterGwsd } = structure || {};
+  const { gwsdHigh, breakoutIdx, breakoutPrice, broken, prevGwsdHigh, prevBreakoutIdx } = structure || {};
   const gwsdColor   = "#ef4444";
   const gwsdLineEnd = breakoutIdx !== null ? breakoutIdx : n - 1;
 
@@ -522,18 +521,6 @@ function CandleChart({ ohlcv, structure, chartId }) {
             fill={`url(#bg_${chartId})`}/>
         )}
 
-        {/* Letztes Tief nach GWS-D (Bearish-Level, grün gestrichelt) */}
-        {lastLowAfterGwsd && !broken && (() => {
-          const y = toY(lastLowAfterGwsd.price);
-          return <>
-            <line x1={toX(lastLowAfterGwsd.idx)} x2={PL+cW} y1={y} y2={y}
-              stroke="#22c55e" strokeWidth="1.0" strokeDasharray="3,4" opacity="0.45"/>
-            <text x={toX(lastLowAfterGwsd.idx)+3} y={y+9} fill="#22c55e88" fontSize="7.5" fontFamily="monospace">
-              Bearish &lt; {lastLowAfterGwsd.price.toFixed(1)}
-            </text>
-          </>;
-        })()}
-
         {/* Vorheriger GWS-D Break (gedimmt) */}
         {prevGwsdHigh && (() => {
           const prevLineEnd = prevBreakoutIdx !== null ? prevBreakoutIdx : (gwsdHigh ? gwsdHigh.idx : n - 1);
@@ -548,7 +535,7 @@ function CandleChart({ ohlcv, structure, chartId }) {
           </>;
         })()}
 
-        {/* Aktueller GWS-D: Breakout-Level (letztes Hoch des Retracements) */}
+        {/* Aktueller GWS-D */}
         {gwsdHigh && (() => {
           const levelPrice = breakoutPrice ?? gwsdHigh.price;
           const y  = toY(levelPrice);
@@ -608,10 +595,6 @@ function CandleChart({ ohlcv, structure, chartId }) {
         <div style={{display:"flex",alignItems:"center",gap:4}}>
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#ef4444" strokeWidth="1.2" strokeDasharray="4,4" opacity="0.35"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>Letzter Break</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#22c55e" strokeWidth="1.0" strokeDasharray="3,4" opacity="0.45"/></svg>
-          <span style={{fontSize:9,color:"#64748b"}}>Bearish-Level</span>
         </div>
         <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ohlcv.length} Tage · Daily</div>
       </div>
@@ -870,8 +853,8 @@ function App() {
     return map;
   }, [data, sorted]);
 
-  // 4H anzeigen: nur bei kürzlichem oder aktivem Daily-Breach
-  const show4H = structure?.broken && ohlcv4h && structure4h;
+  // 4H Chart: immer anzeigen wenn Daten vorhanden
+  const show4H = ohlcv4h && structure4h;
 
   const selectedRs = rsData.find(d => d.t === selected);
   const top20      = data?.top20 ?? [];
@@ -926,7 +909,6 @@ function App() {
           {rows.map(item => {
             const rank       = sorted.indexOf(item);
             const isTop      = rank < 20;
-            // Alle Ticker mit Daten sind klickbar
             const hasChart   = data.data.find(d=>d.ticker===item.t)?.ohlcv?.length > 0;
             const struct     = structureMap[item.t];
             const isBOC      = struct?.broken;
@@ -1011,7 +993,6 @@ function App() {
       {/* Strukturanalyse */}
       <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",padding:14,marginBottom:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          {/* Nur Ticker anzeigen, kein Header-Text */}
           <p style={{margin:0,fontSize:15,fontWeight:800,color:"#f1f5f9",fontFamily:"monospace"}}>{selected ?? "–"}</p>
           {selectedRs && (
             <span style={{fontSize:11,fontFamily:"monospace",color:selectedRs.s>0?"#4ade80":"#f87171"}}>
@@ -1038,7 +1019,7 @@ function App() {
               <CandleChart ohlcv={ohlcv} structure={structure} chartId={selected+"_d"}/>
             )}
 
-            {/* 4H Chart – nur wenn Daily bullish (GWS-D gebrochen) */}
+            {/* 4H Chart – immer angezeigt wenn Daten vorhanden */}
             {show4H && (
               <div style={{marginTop:14}}>
                 <Chart4H ohlcv4h={ohlcv4h} structure4h={structure4h} chartId={selected+"_4h"}/>
