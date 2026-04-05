@@ -218,7 +218,7 @@ output = {
 }
 
 with open("rs_full.json", "w") as f:
-    json.dump(output, f)
+    json.dump(data, f)
 
 size_kb = len(json.dumps(output)) / 1024
 print(f"\n✅ Fertig! Dateigröße: {size_kb:.0f} KB")
