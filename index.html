@@ -485,7 +485,7 @@ function CandleChart({ ohlcv, structure, chartId }) {
           <span>L <span style={{color:"#f87171"}}>{hd.l.toFixed(2)}</span></span>
           <span>C <span style={{color:hd.c>=hd.o?"#4ade80":"#f87171",fontWeight:700}}>{hd.c.toFixed(2)}</span></span>
           <span style={{color:"#475569",marginLeft:"auto"}}>{hd.c>=hd.o?"▲":"▼"} {((hd.c-hd.o)/hd.o*100).toFixed(2)}%</span>
-        </> : <span style={{color:"#334155"}}>Hover für OHLC-Details</span>}
+        </> : <span style={{color:"#334155"}}>Hover für Daily-Details</span>}
       </div>
 
       <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`}
@@ -1020,33 +1020,16 @@ function App() {
           )}
         </div>
 
-        {(ohlcvW || ohlcv) && (ohlcvW && structureW || structure) ? (
+        {ohlcv ? (
           <>
-            {/* Status-Badge */}
-            <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-              {structure?.broken ? (
-                <span className="red-glow" style={{
-                  background:"#2d0808", border:"2px solid #ef4444",
-                  color:"#ef4444", borderRadius:5, padding:"3px 10px",
-                  fontSize:11, fontWeight:800, display:"flex", alignItems:"center", gap:5
-                }}>
-                  <span className="flame-anim">🔥</span> GWS-D gebrochen – Jetzt handeln! <span className="flame-anim">🔥</span>
-                </span>
-              ) : structure?.gwsdHigh ? (
-                <span style={{background:"#1c1108",border:"1px solid #f59e0b",color:"#fbbf24",borderRadius:5,padding:"3px 8px",fontSize:11,fontWeight:600}}>
-                  ⏳ Phase 2 – Warte auf GWS-D Breakout
-                </span>
-              ) : structure ? (
-                <span style={{background:"#052e16",border:"1px solid #16a34a",color:"#4ade80",borderRadius:5,padding:"3px 8px",fontSize:11}}>
-                  Phase 1 – RS aufbauen
-                </span>
-              ) : null}
-            </div>
-
             {/* Weekly Chart – immer angezeigt wenn Daten vorhanden */}
-            {ohlcvW && structureW && (
+            {ohlcvW && structureW ? (
               <div style={{marginBottom:10}}>
                 <ChartWeekly ohlcvW={ohlcvW} structureW={structureW} chartId={selected+"_w"}/>
+              </div>
+            ) : (
+              <div style={{marginBottom:10,background:"#07090f",borderRadius:8,border:"1px solid #1e293b",padding:"12px 16px",color:"#334155",fontSize:11,fontFamily:"monospace"}}>
+                Weekly-Daten fehlen – bitte Python-Skript neu ausführen (ohlcv_w)
               </div>
             )}
 
