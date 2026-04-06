@@ -5,7 +5,7 @@ on:
     - cron: '0 21 * * 1-5'   # Mo-Fr 23:00 Uhr DE (21 UTC)
     - cron: '0 4 * * 2-6'    # Di-Sa 06:00 Uhr DE (4 UTC)
     - cron: '30 8 * * 2-6'   # Di-Sa 10:30 Uhr DE (8:30 UTC)
-  workflow_dispatch:          # manueller Start per Knopfdruck
+  workflow_dispatch:
 
 jobs:
   update:
@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: source
+          ref: main
           fetch-depth: 0
 
       - name: Python einrichten
@@ -24,17 +24,17 @@ jobs:
       - name: Abhängigkeiten installieren
         run: pip install yfinance pandas
 
-      - name: Skript ausführen
-        run: python rs_colab.py
+      - name: Skript aus Secret ausführen
+        env:
+          RS_SCRIPT: ${{ secrets.RS_SCRIPT }}
+        run: |
+          echo "$RS_SCRIPT" > /tmp/rs_colab.py
+          python /tmp/rs_colab.py
 
-      - name: JSON auf main pushen
+      - name: JSON committen und pushen
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          cp rs_full.json /tmp/rs_full.json
-          git fetch origin main
-          git checkout main
-          cp /tmp/rs_full.json rs_full.json
           git add rs_full.json
           git diff --staged --quiet || git commit -m "RS Daten aktualisiert"
           git push origin main
