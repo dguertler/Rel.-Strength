@@ -764,12 +764,18 @@ function App() {
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(json => {
         // Beide Formate unterstützen: Array (alt) und Objekt mit data-Key (neu)
-        const normalized = Array.isArray(json) ? {
-          timestamp: new Date().toLocaleString("de-DE", {dateStyle:"short", timeStyle:"short"}),
+        const arr = Array.isArray(json) ? json : json.data;
+        // Letztes Datum aus den täglichen Kerzen ableiten (zuverlässiger als timestamp-Feld)
+        const lastDate = arr.reduce((best, d) => {
+          const last = d.ohlcv?.[d.ohlcv.length - 1]?.d;
+          return last > best ? last : best;
+        }, "");
+        const normalized = {
+          timestamp: lastDate || (Array.isArray(json) ? "–" : json.timestamp),
           benchmark: "QQQ",
-          top20: json.slice(0, 20).map(d => d.ticker),
-          data: json
-        } : json;
+          top20: arr.slice(0, 20).map(d => d.ticker),
+          data: arr
+        };
         setData(normalized);
         const first = normalized.data.find(d => d.ohlcv?.length > 0);
         if (first) setSelected(first.ticker);
