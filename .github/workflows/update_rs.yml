@@ -1,4 +1,0 @@
-name: RS Daten aktualisieren
-
-on:
-  workflow_dispatch:  # manueller Start per Knopfdruck
