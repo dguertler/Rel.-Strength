@@ -115,7 +115,7 @@ function analyzeStructure(ohlcv) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  const recentBreakout = broken && (n - 1 - breakoutIdx <= 10);
+  const recentBreakout = broken && (n - 1 - breakoutIdx <= 7);
 
   return {
     currentClose, gwsdHigh, breakoutIdx, breakoutPrice, broken, trend,
@@ -194,9 +194,12 @@ function analyzeWeeklyStructure(ohlcvW) {
   // Broken: GWS durchbrochen ODER kein GWS-Muster aber klarer Aufwärtstrend
   const broken = breakoutIdx !== null || (gwswHigh === null && trend === "bullish");
 
+  const recentBreakout = breakoutIdx !== null && (n - 1 - breakoutIdx <= 1);
+
   return {
     gwswHigh, breakoutIdx, breakoutPrice, broken,
     prevGwswHigh, prevBreakoutIdx,
+    recentBreakout,
     swingHighs: swingHighs.slice(-6),
     swingLows:  swingLows.slice(-6),
   };
@@ -257,9 +260,11 @@ function analyze4HStructure(ohlcv4h) {
     }
   }
 
+  const recentBreakout = breakout4hIdx !== null && (n - 1 - breakout4hIdx <= 42);
   return {
     gws4hHigh, breakout4hIdx, broken4h: breakout4hIdx !== null,
     prevGws4hHigh, prevBreakout4hIdx,
+    recentBreakout,
     swingHighs: swingHighs.slice(-8),
     swingLows:  swingLows.slice(-8),
   };
@@ -845,35 +850,6 @@ function App() {
   }, [data]);
 
   // Status-Änderungen tracken (localStorage) → gelber Rand für 7 Tage
-  const [statusChanges, setStatusChanges] = useState({});
-  useEffect(() => {
-    if (!structureMap || Object.keys(structureMap).length === 0) return;
-    const KEY = 'rs_breach_status_v2';
-    const now = Date.now();
-    const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } })();
-    const updated = {};
-    const changes = {};
-    for (const [ticker, structs] of Object.entries(structureMap)) {
-      const curr = {
-        w:  structs.weekly?.broken  ? 1 : 0,
-        d:  structs.daily?.broken   ? 1 : 0,
-        h4: structs.h4?.broken4h    ? 1 : 0,
-      };
-      const prev = stored[ticker] || { vals: {}, ts: {} };
-      const ts = { ...prev.ts };
-      ['w','d','h4'].forEach(k => {
-        if (prev.vals[k] !== undefined && prev.vals[k] !== curr[k]) ts[k] = now;
-      });
-      updated[ticker] = { vals: curr, ts };
-      changes[ticker] = {
-        w:  ts.w  && (now - ts.w)  < 7 * 86400000,
-        d:  ts.d  && (now - ts.d)  < 7 * 86400000,
-        h4: ts.h4 && (now - ts.h4) < 7 * 86400000,
-      };
-    }
-    try { localStorage.setItem(KEY, JSON.stringify(updated)); } catch {}
-    setStatusChanges(changes);
-  }, [structureMap]);
 
   // 4H Chart: immer anzeigen wenn Daten vorhanden
   const show4H = ohlcv4h && structure4h;
@@ -989,7 +965,7 @@ function App() {
                 {/* W-Breach Punkt */}
                 {(() => {
                   const active = structs.weekly?.broken;
-                  const changed = statusChanges[item.t]?.w;
+                  const changed = structs.weekly?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
                       background: active ? "#4ade80" : "transparent",
@@ -1000,7 +976,7 @@ function App() {
                 {/* D-Breach Punkt */}
                 {(() => {
                   const active = structs.daily?.broken;
-                  const changed = statusChanges[item.t]?.d;
+                  const changed = structs.daily?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
                       background: active ? "#4ade80" : "transparent",
@@ -1011,7 +987,7 @@ function App() {
                 {/* 4H-Breach Punkt */}
                 {(() => {
                   const active = structs.h4?.broken4h;
-                  const changed = statusChanges[item.t]?.h4;
+                  const changed = structs.h4?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
                       background: active ? "#4ade80" : "transparent",
