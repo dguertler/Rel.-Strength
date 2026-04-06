@@ -135,17 +135,16 @@ function analyzeWeeklyStructure(ohlcvW) {
   const lows   = ohlcvW.map(d => d.l);
   const closes = ohlcvW.map(d => d.c);
 
+  // ±1 Bar für Weekly (±2 ist zu streng, übersieht valide Swing-Hochs wie SNDK Feb 2)
   const swingHighs = [];
-  for (let i = 2; i < n - 2; i++) {
-    if (highs[i] >= highs[i-1] && highs[i] >= highs[i-2] &&
-        highs[i] >= highs[i+1] && highs[i] >= highs[i+2])
+  for (let i = 1; i < n - 1; i++) {
+    if (highs[i] >= highs[i-1] && highs[i] >= highs[i+1])
       swingHighs.push({ idx: i, date: ohlcvW[i].d, price: highs[i] });
   }
 
   const swingLows = [];
-  for (let i = 2; i < n - 2; i++) {
-    if (lows[i] <= lows[i-1] && lows[i] <= lows[i-2] &&
-        lows[i] <= lows[i+1] && lows[i] <= lows[i+2])
+  for (let i = 1; i < n - 1; i++) {
+    if (lows[i] <= lows[i-1] && lows[i] <= lows[i+1])
       swingLows.push({ idx: i, date: ohlcvW[i].d, price: lows[i] });
   }
 
@@ -183,8 +182,20 @@ function analyzeWeeklyStructure(ohlcvW) {
     }
   }
 
+  // Trend: höhere Swing-Hochs = bullish (deckt reine Uptrends wie ROST ab)
+  let trend = "neutral";
+  if (swingHighs.length >= 2) {
+    const last = swingHighs[swingHighs.length - 1];
+    const prev = swingHighs[swingHighs.length - 2];
+    if (last.price > prev.price) trend = "bullish";
+    else if (last.price < prev.price) trend = "bearish";
+  }
+
+  // Broken: GWS durchbrochen ODER kein GWS-Muster aber klarer Aufwärtstrend
+  const broken = breakoutIdx !== null || (gwswHigh === null && trend === "bullish");
+
   return {
-    gwswHigh, breakoutIdx, breakoutPrice, broken: breakoutIdx !== null,
+    gwswHigh, breakoutIdx, breakoutPrice, broken,
     prevGwswHigh, prevBreakoutIdx,
     swingHighs: swingHighs.slice(-6),
     swingLows:  swingLows.slice(-6),
@@ -732,21 +743,21 @@ function Cell({ v }) {
 }
 
 // ── W/D/4H Breach-Punkte Spalten ───────────────────────────────────────────
-function BreachDots({ structW, structD, struct4H }) {
-  const dot = (active) => (
+function BreachDots({ structW, structD, struct4H, changedW, changedD, changed4H }) {
+  const dot = (active, changed) => (
     <span style={{
       display:"inline-block", width:7, height:7, borderRadius:"50%",
       background: active ? "#4ade80" : "#1e293b",
-      border: active ? "1px solid #22c55e" : "1px solid #334155",
-      flexShrink: 0,
+      border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #334155",
+      flexShrink: 0, boxSizing:"border-box",
     }}/>
   );
   const col = { display:"flex", alignItems:"center", justifyContent:"center", width:18 };
   return (
     <div style={{display:"flex", gap:1, alignItems:"center"}}>
-      <div style={col}>{dot(structW?.broken)}</div>
-      <div style={col}>{dot(structD?.broken)}</div>
-      <div style={col}>{dot(struct4H?.broken4h)}</div>
+      <div style={col}>{dot(structW?.broken,  changedW)}</div>
+      <div style={col}>{dot(structD?.broken,  changedD)}</div>
+      <div style={col}>{dot(struct4H?.broken4h, changed4H)}</div>
     </div>
   );
 }
@@ -832,6 +843,37 @@ function App() {
     });
     return map;
   }, [data]);
+
+  // Status-Änderungen tracken (localStorage) → gelber Rand für 7 Tage
+  const [statusChanges, setStatusChanges] = useState({});
+  useEffect(() => {
+    if (!structureMap || Object.keys(structureMap).length === 0) return;
+    const KEY = 'rs_breach_status';
+    const now = Date.now();
+    const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } })();
+    const updated = {};
+    const changes = {};
+    for (const [ticker, structs] of Object.entries(structureMap)) {
+      const curr = {
+        w:  structs.weekly?.broken  ? 1 : 0,
+        d:  structs.daily?.broken   ? 1 : 0,
+        h4: structs.h4?.broken4h    ? 1 : 0,
+      };
+      const prev = stored[ticker] || { vals: {}, ts: {} };
+      const ts = { ...prev.ts };
+      ['w','d','h4'].forEach(k => {
+        if (prev.vals[k] !== curr[k]) ts[k] = now;
+      });
+      updated[ticker] = { vals: curr, ts };
+      changes[ticker] = {
+        w:  ts.w  && (now - ts.w)  < 7 * 86400000,
+        d:  ts.d  && (now - ts.d)  < 7 * 86400000,
+        h4: ts.h4 && (now - ts.h4) < 7 * 86400000,
+      };
+    }
+    try { localStorage.setItem(KEY, JSON.stringify(updated)); } catch {}
+    setStatusChanges(changes);
+  }, [structureMap]);
 
   // 4H Chart: immer anzeigen wenn Daten vorhanden
   const show4H = ohlcv4h && structure4h;
@@ -945,29 +987,38 @@ function App() {
                   {item.s>0?"+":""}{Math.round(item.s)}
                 </span>
                 {/* W-Breach Punkt */}
-                <div style={{display:"flex",justifyContent:"center"}}>
-                  <span style={{
-                    display:"inline-block", width:7, height:7, borderRadius:"50%",
-                    background: structs.weekly?.broken ? "#4ade80" : "transparent",
-                    border: structs.weekly?.broken ? "1px solid #22c55e" : "1px solid #1e293b",
-                  }}/>
-                </div>
+                {(() => {
+                  const active = structs.weekly?.broken;
+                  const changed = statusChanges[item.t]?.w;
+                  return <div style={{display:"flex",justifyContent:"center"}}>
+                    <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
+                      background: active ? "#4ade80" : "transparent",
+                      border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
+                    }}/>
+                  </div>;
+                })()}
                 {/* D-Breach Punkt */}
-                <div style={{display:"flex",justifyContent:"center"}}>
-                  <span style={{
-                    display:"inline-block", width:7, height:7, borderRadius:"50%",
-                    background: structs.daily?.broken ? "#4ade80" : "transparent",
-                    border: structs.daily?.broken ? "1px solid #22c55e" : "1px solid #1e293b",
-                  }}/>
-                </div>
+                {(() => {
+                  const active = structs.daily?.broken;
+                  const changed = statusChanges[item.t]?.d;
+                  return <div style={{display:"flex",justifyContent:"center"}}>
+                    <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
+                      background: active ? "#4ade80" : "transparent",
+                      border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
+                    }}/>
+                  </div>;
+                })()}
                 {/* 4H-Breach Punkt */}
-                <div style={{display:"flex",justifyContent:"center"}}>
-                  <span style={{
-                    display:"inline-block", width:7, height:7, borderRadius:"50%",
-                    background: structs.h4?.broken4h ? "#4ade80" : "transparent",
-                    border: structs.h4?.broken4h ? "1px solid #22c55e" : "1px solid #1e293b",
-                  }}/>
-                </div>
+                {(() => {
+                  const active = structs.h4?.broken4h;
+                  const changed = statusChanges[item.t]?.h4;
+                  return <div style={{display:"flex",justifyContent:"center"}}>
+                    <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
+                      background: active ? "#4ade80" : "transparent",
+                      border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
+                    }}/>
+                  </div>;
+                })()}
                 {WINDOWS.map(w => (
                   <div key={w} style={{textAlign:"center"}}><Cell v={item.w[w]}/></div>
                 ))}
