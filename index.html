@@ -848,7 +848,7 @@ function App() {
   const [statusChanges, setStatusChanges] = useState({});
   useEffect(() => {
     if (!structureMap || Object.keys(structureMap).length === 0) return;
-    const KEY = 'rs_breach_status';
+    const KEY = 'rs_breach_status_v2';
     const now = Date.now();
     const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } })();
     const updated = {};
