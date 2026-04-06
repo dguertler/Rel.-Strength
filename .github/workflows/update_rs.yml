@@ -6,6 +6,9 @@ on:
     - cron: '0 4 * * 2-6'    # Di-Sa 06:00 Uhr DE (4 UTC)
     - cron: '30 8 * * 2-6'   # Di-Sa 10:30 Uhr DE (8:30 UTC)
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.trigger']       # Nur wenn /rs-update den Trigger-File pusht
 
 jobs:
   update:
