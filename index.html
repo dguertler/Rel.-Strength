@@ -862,7 +862,7 @@ function App() {
       const prev = stored[ticker] || { vals: {}, ts: {} };
       const ts = { ...prev.ts };
       ['w','d','h4'].forEach(k => {
-        if (prev.vals[k] !== curr[k]) ts[k] = now;
+        if (prev.vals[k] !== undefined && prev.vals[k] !== curr[k]) ts[k] = now;
       });
       updated[ticker] = { vals: curr, ts };
       changes[ticker] = {
