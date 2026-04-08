@@ -1,0 +1,38 @@
+name: DAX Daten aktualisieren
+
+on:
+  schedule:
+    - cron: '0 17 * * 1-5'   # Mo-Fr 19:00 Uhr DE (17 UTC) – nach DAX-Handelsschluss
+    - cron: '30 17 * * 1-5'  # Mo-Fr 19:30 Uhr DE (17:30 UTC) – Nachlauf-Daten
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.trigger-dax']   # Manueller Trigger via /rs-update
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Abhängigkeiten installieren
+        run: pip install yfinance pandas
+
+      - name: DAX Skript ausführen
+        run: python dax_colab.py
+
+      - name: JSON committen und pushen
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add rs_dax.json
+          git diff --staged --quiet || git commit -m "DAX Daten aktualisiert"
+          git push origin main
