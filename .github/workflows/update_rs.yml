@@ -27,12 +27,8 @@ jobs:
       - name: Abhängigkeiten installieren
         run: pip install yfinance pandas
 
-      - name: Skript aus Secret ausführen
-        env:
-          RS_SCRIPT: ${{ secrets.RS_SCRIPT }}
-        run: |
-          echo "$RS_SCRIPT" > /tmp/rs_colab.py
-          python /tmp/rs_colab.py
+      - name: Skript ausführen
+        run: python rs_colab.py
 
       - name: JSON committen und pushen
         run: |
