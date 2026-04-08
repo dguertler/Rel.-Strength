@@ -20,10 +20,13 @@
     .red-glow { animation: redGlow 1.3s ease-in-out infinite; }
     @keyframes flamePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.75;transform:scale(1.2)} }
     .flame-anim { display:inline-block; animation: flamePulse 0.9s ease-in-out infinite; }
+    .charts-grid { display:flex; flex-direction:column; gap:10px; }
     @media (min-width:1100px) {
       .desktop-layout { display:flex; flex-direction:row; align-items:flex-start; gap:16px; }
       .desktop-left { width:560px; flex-shrink:0; }
       .desktop-right { flex:1; min-width:0; position:sticky; top:16px; align-self:flex-start; }
+      .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+      .chart-full-width { grid-column:1/-1; }
     }
     .nav-switch { position:fixed; top:12px; left:12px; z-index:9999; display:inline-flex; align-items:center; gap:6px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:6px 13px; font-size:12px; font-weight:700; color:#94a3b8; text-decoration:none; font-family:monospace; white-space:nowrap; box-shadow:0 2px 8px #00000066; transition:border-color .15s, color .15s; }
     .nav-switch:hover { border-color:#3b82f6; color:#e2e8f0; }
@@ -279,7 +282,7 @@ function analyze4HStructure(ohlcv4h) {
 }
 
 // ── Weekly Candlestick Chart ───────────────────────────────────────────────
-function ChartWeekly({ ohlcvW, structureW, chartId }) {
+function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -306,6 +309,22 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
   });
 
   const { gwswHigh, breakoutIdx, breakoutPrice, broken, prevGwswHigh, prevBreakoutIdx } = structureW || {};
+
+  // Index-Linie (grau) – normalisiert auf Aktien-Preisskala
+  const benchLine = useMemo(() => {
+    if (!benchOhlcv || !ohlcvW.length) return [];
+    const benchMap = {};
+    benchOhlcv.forEach(d => { benchMap[d.d] = d.c; });
+    let stockRef = null, benchRef = null;
+    for (const d of ohlcvW) {
+      if (benchMap[d.d] != null) { stockRef = d.c; benchRef = benchMap[d.d]; break; }
+    }
+    if (!stockRef || !benchRef) return [];
+    return ohlcvW.map((d, i) => {
+      const bc = benchMap[d.d];
+      return bc != null ? { i, price: stockRef * (bc / benchRef) } : null;
+    }).filter(Boolean);
+  }, [benchOhlcv, ohlcvW]);
   const gwswColor  = "#f59e0b"; // Amber für Weekly
   const gwswLineEnd = breakoutIdx !== null ? breakoutIdx : n - 1;
 
@@ -339,6 +358,9 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
             <stop offset="0%" stopColor="#22c55e" stopOpacity="0.10"/>
             <stop offset="100%" stopColor="#22c55e" stopOpacity="0.01"/>
           </linearGradient>
+          <clipPath id={`clipW_${chartId}`}>
+            <rect x={PL} y={PT} width={cW} height={cH}/>
+          </clipPath>
         </defs>
         <rect x={PL} y={PT} width={cW} height={cH} fill="#07090f"/>
 
@@ -362,6 +384,14 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
         {/* Breakout-Zone */}
         {breakoutIdx !== null && (
           <rect x={toX(breakoutIdx)} y={PT} width={PL+cW-toX(breakoutIdx)} height={cH} fill={`url(#bgW_${chartId})`}/>
+        )}
+
+        {/* Index-Linie (grau) */}
+        {benchLine.length > 1 && (
+          <polyline
+            points={benchLine.map(({i, price}) => `${toX(i)},${toY(price)}`).join(' ')}
+            fill="none" stroke="#64748b" strokeWidth="1.2" opacity="0.55"
+            clipPath={`url(#clipW_${chartId})`}/>
         )}
 
         {/* Vorheriger GWS-W Break (gedimmt) */}
@@ -423,6 +453,12 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#f59e0b" strokeWidth="1.2" strokeDasharray="4,4" opacity="0.30"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>Letzter Break</span>
         </div>
+        {benchLine.length > 1 && benchLabel && (
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#64748b" strokeWidth="1.2" opacity="0.55"/></svg>
+            <span style={{fontSize:9,color:"#64748b"}}>{benchLabel}</span>
+          </div>
+        )}
         <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ohlcvW.length} Wochen · Weekly</div>
       </div>
     </div>
@@ -430,7 +466,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId }) {
 }
 
 // ── Daily Candlestick Chart ────────────────────────────────────────────────
-function CandleChart({ ohlcv, structure, chartId }) {
+function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 270;
@@ -456,6 +492,22 @@ function CandleChart({ ohlcv, structure, chartId }) {
   });
 
   const { gwsdHigh, breakoutIdx, breakoutPrice, broken, prevGwsdHigh, prevBreakoutIdx } = structure || {};
+
+  // Index-Linie (grau) – normalisiert auf Aktien-Preisskala
+  const benchLine = useMemo(() => {
+    if (!benchOhlcv || !ohlcv.length) return [];
+    const benchMap = {};
+    benchOhlcv.forEach(d => { benchMap[d.d] = d.c; });
+    let stockRef = null, benchRef = null;
+    for (const d of ohlcv) {
+      if (benchMap[d.d] != null) { stockRef = d.c; benchRef = benchMap[d.d]; break; }
+    }
+    if (!stockRef || !benchRef) return [];
+    return ohlcv.map((d, i) => {
+      const bc = benchMap[d.d];
+      return bc != null ? { i, price: stockRef * (bc / benchRef) } : null;
+    }).filter(Boolean);
+  }, [benchOhlcv, ohlcv]);
   const gwsdColor   = "#ef4444";
   const gwsdLineEnd = breakoutIdx !== null ? breakoutIdx : n - 1;
 
@@ -489,6 +541,9 @@ function CandleChart({ ohlcv, structure, chartId }) {
             <stop offset="0%" stopColor="#22c55e" stopOpacity="0.12"/>
             <stop offset="100%" stopColor="#22c55e" stopOpacity="0.01"/>
           </linearGradient>
+          <clipPath id={`clipD_${chartId}`}>
+            <rect x={PL} y={PT} width={cW} height={cH}/>
+          </clipPath>
         </defs>
         <rect x={PL} y={PT} width={cW} height={cH} fill="#07090f"/>
 
@@ -514,6 +569,14 @@ function CandleChart({ ohlcv, structure, chartId }) {
           <rect x={toX(breakoutIdx)} y={PT}
             width={PL+cW-toX(breakoutIdx)} height={cH}
             fill={`url(#bg_${chartId})`}/>
+        )}
+
+        {/* Index-Linie (grau) */}
+        {benchLine.length > 1 && (
+          <polyline
+            points={benchLine.map(({i, price}) => `${toX(i)},${toY(price)}`).join(' ')}
+            fill="none" stroke="#64748b" strokeWidth="1.2" opacity="0.55"
+            clipPath={`url(#clipD_${chartId})`}/>
         )}
 
         {/* Vorheriger GWS-D Break (gedimmt) */}
@@ -576,6 +639,12 @@ function CandleChart({ ohlcv, structure, chartId }) {
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#ef4444" strokeWidth="1.2" strokeDasharray="4,4" opacity="0.35"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>Letzter Break</span>
         </div>
+        {benchLine.length > 1 && benchLabel && (
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#64748b" strokeWidth="1.2" opacity="0.55"/></svg>
+            <span style={{fontSize:9,color:"#64748b"}}>{benchLabel}</span>
+          </div>
+        )}
         <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ohlcv.length} Tage · Daily</div>
       </div>
     </div>
@@ -798,7 +867,9 @@ function App() {
           timestamp: lastDate || (Array.isArray(json) ? "–" : json.timestamp),
           benchmark: "QQQ",
           top20: arr.slice(0, 20).map(d => d.ticker),
-          data: arr
+          data: arr,
+          benchmark_ohlcv_w: Array.isArray(json) ? [] : (json.benchmark_ohlcv_w || []),
+          benchmark_ohlcv:   Array.isArray(json) ? [] : (json.benchmark_ohlcv   || []),
         };
         setData(normalized);
         const first = normalized.data.find(d => d.ohlcv?.length > 0);
@@ -843,6 +914,9 @@ function App() {
   const structureW  = useMemo(() => analyzeWeeklyStructure(ohlcvW), [ohlcvW]);
   const structure   = useMemo(() => analyzeStructure(ohlcv), [ohlcv]);
   const structure4h = useMemo(() => analyze4HStructure(ohlcv4h), [ohlcv4h]);
+
+  const benchOhlcvW = useMemo(() => data?.benchmark_ohlcv_w?.length > 0 ? data.benchmark_ohlcv_w : null, [data]);
+  const benchOhlcvD = useMemo(() => data?.benchmark_ohlcv?.length > 0   ? data.benchmark_ohlcv   : null, [data]);
 
   // Struktur ALLER Ticker (für Badges und Breach-Punkte in Tabelle)
   const structureMap = useMemo(() => {
@@ -1067,32 +1141,30 @@ function App() {
         </div>
 
         {ohlcv ? (
-          <>
-            {/* Weekly Chart – immer angezeigt wenn Daten vorhanden */}
+          <div className="charts-grid">
+            {/* Weekly Chart */}
             {ohlcvW && structureW ? (
-              <div>
-                <ChartWeekly ohlcvW={ohlcvW} structureW={structureW} chartId={selected+"_w"}/>
-              </div>
+              <ChartWeekly ohlcvW={ohlcvW} structureW={structureW} chartId={selected+"_w"}
+                benchOhlcv={benchOhlcvW} benchLabel={data.benchmark}/>
             ) : (
               <div style={{background:"#07090f",borderRadius:8,border:"1px solid #1e293b",padding:"12px 16px",color:"#334155",fontSize:11,fontFamily:"monospace"}}>
                 Weekly-Daten fehlen – bitte Python-Skript neu ausführen (ohlcv_w)
               </div>
             )}
 
-            {/* Daily Chart – immer angezeigt */}
+            {/* Daily Chart */}
             {ohlcv && structure && (
-              <div style={{marginTop:10}}>
-                <CandleChart ohlcv={ohlcv} structure={structure} chartId={selected+"_d"}/>
-              </div>
+              <CandleChart ohlcv={ohlcv} structure={structure} chartId={selected+"_d"}
+                benchOhlcv={benchOhlcvD} benchLabel={data.benchmark}/>
             )}
 
-            {/* 4H Chart – immer angezeigt wenn Daten vorhanden */}
+            {/* 4H Chart – volle Breite */}
             {show4H && (
-              <div style={{marginTop:10}}>
+              <div className="chart-full-width">
                 <Chart4H ohlcv4h={ohlcv4h} structure4h={structure4h} chartId={selected+"_4h"}/>
               </div>
             )}
-          </>
+          </div>
         ) : (
           <div style={{color:"#475569",fontSize:12,textAlign:"center",padding:"20px 0"}}>
             Klick auf einen Ticker mit ▸ für Strukturanalyse.

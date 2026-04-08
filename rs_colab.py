@@ -211,11 +211,18 @@ for r in all_results:
         "ohlcv_4h": ohlcv4h   # 4H,     letzte 60 Kerzen
     })
 
+# Benchmark (QQQ) OHLCV für Index-Overlay in Charts
+benchmark_ohlcv_w = extract_ohlcv_weekly(benchmark, raw_weekly)
+benchmark_ohlcv_d = extract_ohlcv_daily(benchmark, raw_daily)
+print(f"Benchmark {benchmark}: Weekly={len(benchmark_ohlcv_w)} Kerzen, Daily={len(benchmark_ohlcv_d)} Kerzen")
+
 output = {
     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
     "benchmark": "QQQ",
     "top20": top20,
-    "data": data
+    "data": data,
+    "benchmark_ohlcv_w": benchmark_ohlcv_w,
+    "benchmark_ohlcv":   benchmark_ohlcv_d,
 }
 
 def sanitize_nan(obj):
