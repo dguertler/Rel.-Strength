@@ -23,7 +23,7 @@ tickers = list(set(tickers))
 benchmark = "QQQ"
 rs_windows = {"5T": 5, "10T": 10, "20T": 20, "50T": 50, "6M": 126, "12M": 252}
 
-# ── Schritt 1: RS-Score für alle Ticker ───────────────────────────────────
+# ── Schritt 1: RS-Score für alle Ticker ─────────────────────────────────────────
 print(f"Schritt 1: RS-Berechnung für alle {len(tickers)} Aktien...")
 all_tickers = tickers + [benchmark]
 raw = yf.download(all_tickers, period="1y", auto_adjust=True, progress=False)
@@ -52,10 +52,9 @@ print(f"Top 20: {', '.join(top20)}")
 
 # ── Schritt 2: Weekly OHLCV für ALLE Ticker (letzte 60 Wochen = ~15 Monate)
 print(f"\nSchritt 2: Weekly OHLCV für alle {len(tickers)} Ticker (60 Wochen)...")
-# 60 Wochen ≈ 420 Tage + Puffer
 end_date    = datetime.now()
-end_str     = (end_date + timedelta(days=1)).strftime("%Y-%m-%d")  # yfinance end ist exklusiv → +1 Tag damit gestrige Kurse enthalten sind
-start_weekly = end_date - timedelta(days=450)  # Puffer für genau 60 Wochen
+end_str     = (end_date + timedelta(days=1)).strftime("%Y-%m-%d")
+start_weekly = end_date - timedelta(days=450)
 
 all_tickers_list = [r["ticker"] for r in all_results]
 raw_weekly = yf.download(
@@ -90,14 +89,13 @@ def extract_ohlcv_weekly(ticker, raw_data, n_candles=60):
                 "l": round(float(lv), 2),
                 "c": round(float(cv), 2)
             })
-        return result[-n_candles:]  # Letzte 60 Kerzen
+        return result[-n_candles:]
     except Exception as e:
         print(f"  Fehler Weekly OHLCV {ticker}: {e}")
         return []
 
 # ── Schritt 3: Daily OHLCV für ALLE Ticker (letzte 60 Kerzen ≈ 3 Monate)
 print(f"\nSchritt 3: Daily OHLCV für alle {len(tickers)} Ticker (60 Kerzen)...")
-# 60 Handelstage ≈ 90 Kalendertage + Puffer
 start_daily = end_date - timedelta(days=100)
 
 raw_daily = yf.download(
@@ -132,14 +130,13 @@ def extract_ohlcv_daily(ticker, raw_data, n_candles=60):
                 "l": round(float(lv), 2),
                 "c": round(float(cv), 2)
             })
-        return result[-n_candles:]  # Letzte 60 Kerzen
+        return result[-n_candles:]
     except Exception as e:
         print(f"  Fehler Daily OHLCV {ticker}: {e}")
         return []
 
 # ── Schritt 4: 4H OHLCV für ALLE Ticker (letzte 60 Kerzen ≈ 30 Handelstage)
 print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (60 Kerzen ≈ 30 Tage)...")
-# 60 4H-Kerzen ≈ 30 Handelstage (ca. 2 Kerzen/Tag US-Session) → Puffer 45 Kalendertage
 start_4h = end_date - timedelta(days=45)
 
 def extract_ohlcv_4h(ticker, n_candles=60):
@@ -156,14 +153,12 @@ def extract_ohlcv_4h(ticker, n_candles=60):
         if df.empty:
             return []
 
-        # Spalten glätten falls MultiIndex
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
         df = df[["Open", "High", "Low", "Close"]].dropna()
         df.index = pd.to_datetime(df.index)
 
-        # 1H → 4H aggregieren, Session-Offset 9:30 ET = UTC 13:30
         df_4h = df.resample("4h", offset="1h30min").agg({
             "Open":  "first",
             "High":  "max",
@@ -181,12 +176,11 @@ def extract_ohlcv_4h(ticker, n_candles=60):
                 "l": round(float(row["Low"]),   2),
                 "c": round(float(row["Close"]), 2)
             })
-        return result[-n_candles:]  # Letzte 60 Kerzen
+        return result[-n_candles:]
     except Exception as e:
         print(f"  Fehler 4H {ticker}: {e}")
         return []
 
-# 4H sequentiell (yfinance unterstützt kein Multi-Ticker-Download für 1H gut)
 ohlcv_4h_map = {}
 for i, ticker in enumerate(all_tickers_list):
     print(f"  4H [{i+1}/{len(all_tickers_list)}] {ticker}...", end=" ")
@@ -194,7 +188,7 @@ for i, ticker in enumerate(all_tickers_list):
     ohlcv_4h_map[ticker] = data_4h
     print(f"{len(data_4h)} Kerzen")
 
-# ── Schritt 5: Ausgabe zusammenbauen ──────────────────────────────────────
+# ── Schritt 5: Ausgabe zusammenbauen ──────────────────────────────────────────
 print("\nSchritt 5: JSON zusammenbauen...")
 data = []
 for r in all_results:
@@ -206,16 +200,23 @@ for r in all_results:
         "ticker":   ticker,
         "score":    r["score"],
         "windows":  r["windows"],
-        "ohlcv_w":  ohlcv_w,   # Weekly, letzte 60 Kerzen
-        "ohlcv":    ohlcv_d,   # Daily,  letzte 60 Kerzen
-        "ohlcv_4h": ohlcv4h   # 4H,     letzte 60 Kerzen
+        "ohlcv_w":  ohlcv_w,
+        "ohlcv":    ohlcv_d,
+        "ohlcv_4h": ohlcv4h
     })
+
+# Benchmark (QQQ) OHLCV für Index-Overlay in Charts
+benchmark_ohlcv_w = extract_ohlcv_weekly(benchmark, raw_weekly)
+benchmark_ohlcv_d = extract_ohlcv_daily(benchmark, raw_daily)
+print(f"Benchmark {benchmark}: Weekly={len(benchmark_ohlcv_w)} Kerzen, Daily={len(benchmark_ohlcv_d)} Kerzen")
 
 output = {
     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
     "benchmark": "QQQ",
     "top20": top20,
-    "data": data
+    "data": data,
+    "benchmark_ohlcv_w": benchmark_ohlcv_w,
+    "benchmark_ohlcv":   benchmark_ohlcv_d,
 }
 
 def sanitize_nan(obj):

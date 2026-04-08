@@ -65,7 +65,7 @@ def sanitize_nan(obj):
         return [sanitize_nan(v) for v in obj]
     return obj
 
-# ── Schritt 1: RS-Score für alle Ticker ───────────────────────────────────
+# ── Schritt 1: RS-Score für alle Ticker ─────────────────────────────────────────
 print(f"Schritt 1: RS-Berechnung für alle {len(tickers)} DAX-Aktien...")
 all_tickers = tickers + [benchmark]
 raw = yf.download(all_tickers, period="1y", auto_adjust=True, progress=False)
@@ -95,7 +95,7 @@ print(f"Top 20: {', '.join(top20)}")
 # ── Schritt 2: Weekly OHLCV (letzte 60 Wochen)
 print(f"\nSchritt 2: Weekly OHLCV für alle {len(tickers)} Ticker (60 Wochen)...")
 end_date     = datetime.now()
-end_str      = (end_date + timedelta(days=1)).strftime("%Y-%m-%d")  # exklusiv → +1 Tag
+end_str      = (end_date + timedelta(days=1)).strftime("%Y-%m-%d")
 start_weekly = end_date - timedelta(days=450)
 
 all_tickers_list = [r["ticker"] for r in all_results]
@@ -177,9 +177,6 @@ def extract_ohlcv_daily(ticker, raw_data, n_candles=60):
 
 # ── Schritt 4: 4H OHLCV (letzte 60 Kerzen)
 print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (60 Kerzen ≈ 30 Tage)...")
-# DAX handelt 9:00–17:30 CET = 8:00–16:30 UTC (Winter) / 7:00–15:30 UTC (Sommer)
-# offset="0h" → 4H-Blöcke: 0-4, 4-8, 8-12, 12-16, 16-20 UTC
-# Relevante Blöcke: 8-12 und 12-16 UTC (DAX-Session)
 start_4h = end_date - timedelta(days=45)
 
 def extract_ohlcv_4h(ticker, n_candles=60):
@@ -201,7 +198,6 @@ def extract_ohlcv_4h(ticker, n_candles=60):
         df = df[["Open", "High", "Low", "Close"]].dropna()
         df.index = pd.to_datetime(df.index)
 
-        # 1H → 4H, kein Offset (DAX-Session beginnt bei ~8 UTC)
         df_4h = df.resample("4h", offset="0h").agg({
             "Open":  "first",
             "High":  "max",
@@ -248,11 +244,18 @@ for r in all_results:
         "ohlcv_4h": ohlcv4h
     })
 
+# Benchmark (^GDAXI) OHLCV für Index-Overlay in Charts
+benchmark_ohlcv_w = extract_ohlcv_weekly(benchmark, raw_weekly)
+benchmark_ohlcv_d = extract_ohlcv_daily(benchmark, raw_daily)
+print(f"Benchmark {benchmark}: Weekly={len(benchmark_ohlcv_w)} Kerzen, Daily={len(benchmark_ohlcv_d)} Kerzen")
+
 output = {
     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
     "benchmark": "DAX",
     "top20": top20,
-    "data": data
+    "data": data,
+    "benchmark_ohlcv_w": benchmark_ohlcv_w,
+    "benchmark_ohlcv":   benchmark_ohlcv_d,
 }
 
 with open("rs_dax.json", "w") as f:
