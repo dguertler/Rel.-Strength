@@ -218,8 +218,19 @@ output = {
     "data": data
 }
 
+def sanitize_nan(obj):
+    """Ersetzt NaN/Infinity durch None, damit gültiges JSON entsteht."""
+    import math
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if isinstance(obj, dict):
+        return {k: sanitize_nan(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitize_nan(v) for v in obj]
+    return obj
+
 with open("rs_full.json", "w") as f:
-    json.dump(output, f)
+    json.dump(sanitize_nan(output), f)
 
 size_kb = len(json.dumps(output)) / 1024
 print(f"\n✅ Fertig! Dateigröße: {size_kb:.0f} KB")
