@@ -1080,7 +1080,7 @@ function App() {
             const isTop      = rank < 20;
             const hasChart   = data.data.find(d=>d.ticker===item.t)?.ohlcv?.length > 0;
             const structs    = structureMap[item.t] || {};
-            const isBOC      = structs.daily?.broken;
+            const isBOC      = !!(structs.weekly?.broken && structs.daily?.broken && structs.h4?.broken4h);
             const hasYellowDot = !!(structs.weekly?.recentBreakout || structs.daily?.recentBreakout || structs.h4?.recentBreakout);
             const showRedBg  = isBOC && hasYellowDot;
 
@@ -1177,8 +1177,8 @@ function App() {
         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
           {sorted.slice(0,20).map((d,i) => {
             const hasChart = data.data.find(e=>e.ticker===d.t)?.ohlcv?.length > 0;
-            const isBOC   = structureMap[d.t]?.daily?.broken;
             const structs2 = structureMap[d.t] || {};
+            const isBOC   = !!(structs2.weekly?.broken && structs2.daily?.broken && structs2.h4?.broken4h);
             const hasYellowDotP = !!(structs2.weekly?.recentBreakout || structs2.daily?.recentBreakout || structs2.h4?.recentBreakout);
             const showRedBgP = isBOC && hasYellowDotP;
             return (
