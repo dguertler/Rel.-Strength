@@ -1082,10 +1082,8 @@ function App() {
             const hasChart   = data.data.find(d=>d.ticker===item.t)?.ohlcv?.length > 0;
             const structs    = structureMap[item.t] || {};
             const isBOC      = structs.daily?.broken;
-            const allThreeGreenOnly = !!(structs.weekly?.broken && !structs.weekly?.recentBreakout &&
-                                          structs.daily?.broken && !structs.daily?.recentBreakout &&
-                                          structs.h4?.broken4h && !structs.h4?.recentBreakout);
-            const showRedBg  = isBOC && !allThreeGreenOnly;
+            const hasYellowDot = !!(structs.weekly?.recentBreakout || structs.daily?.recentBreakout || structs.h4?.recentBreakout);
+            const showRedBg  = isBOC && hasYellowDot;
 
             return (
               <div key={item.t}
@@ -1182,10 +1180,8 @@ function App() {
             const hasChart = data.data.find(e=>e.ticker===d.t)?.ohlcv?.length > 0;
             const isBOC   = structureMap[d.t]?.daily?.broken;
             const structs2 = structureMap[d.t] || {};
-            const allGreenP = !!(structs2.weekly?.broken && !structs2.weekly?.recentBreakout &&
-                                  structs2.daily?.broken && !structs2.daily?.recentBreakout &&
-                                  structs2.h4?.broken4h && !structs2.h4?.recentBreakout);
-            const showRedBgP = isBOC && !allGreenP;
+            const hasYellowDotP = !!(structs2.weekly?.recentBreakout || structs2.daily?.recentBreakout || structs2.h4?.recentBreakout);
+            const showRedBgP = isBOC && hasYellowDotP;
             return (
               <span key={d.t}
                 onClick={()=>hasChart&&setSelected(d.t)}
