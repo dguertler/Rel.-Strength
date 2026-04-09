@@ -117,8 +117,8 @@ function analyzeStructure(ohlcv) {
     }
   }
 
-  const broken       = breakoutIdx !== null;
   const currentClose = closes[n - 1];
+  const broken       = breakoutIdx !== null && currentClose > breakoutPrice;
 
   let trend = "neutral";
   if (swingHighs.length >= 2) {
@@ -204,8 +204,9 @@ function analyzeWeeklyStructure(ohlcvW) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  // Broken: GWS durchbrochen ODER kein GWS-Muster aber klarer Aufwärtstrend
-  const broken = breakoutIdx !== null || (gwswHigh === null && trend === "bullish");
+  // Broken: GWS durchbrochen UND aktueller Close noch darüber ODER kein GWS-Muster aber klarer Aufwärtstrend
+  const currentCloseW = closes[n - 1];
+  const broken = (breakoutIdx !== null && currentCloseW > breakoutPrice) || (gwswHigh === null && trend === "bullish");
 
   const recentBreakout = breakoutIdx !== null && (n - 1 - breakoutIdx <= 1);
 
@@ -275,7 +276,7 @@ function analyze4HStructure(ohlcv4h) {
 
   const recentBreakout = breakout4hIdx !== null && (n - 1 - breakout4hIdx <= 42);
   return {
-    gws4hHigh, breakout4hIdx, broken4h: breakout4hIdx !== null,
+    gws4hHigh, breakout4hIdx, broken4h: breakout4hIdx !== null && closes[n-1] > gws4hHigh.price,
     prevGws4hHigh, prevBreakout4hIdx,
     recentBreakout,
     swingHighs: swingHighs.slice(-8),
