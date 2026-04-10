@@ -4,7 +4,14 @@ on:
   schedule:
     # Täglich 22:15 UTC (00:15 CET/CEST) – nach dem US-Abschluss-Update (21:00 UTC)
     - cron: '15 22 * * 1-5'
-  workflow_dispatch:   # Manuell auslösbar
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test-Mail senden (ja/nein)'
+        required: false
+        default: 'nein'
+        type: choice
+        options: ['nein', 'ja']
 
 jobs:
   check-alerts:
@@ -26,11 +33,12 @@ jobs:
 
       - name: Alert-Skript ausführen
         env:
-          SMTP_HOST:       ${{ secrets.SMTP_HOST }}
-          SMTP_PORT:       ${{ secrets.SMTP_PORT }}
-          SMTP_USER:       ${{ secrets.SMTP_USER }}
-          SMTP_PASS:       ${{ secrets.SMTP_PASS }}
-          ALERT_EMAIL_TO:  ${{ secrets.ALERT_EMAIL_TO }}
+          SMTP_HOST:        ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:        ${{ secrets.SMTP_PORT }}
+          SMTP_USER:        ${{ secrets.SMTP_USER }}
+          SMTP_PASS:        ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL_TO:   ${{ secrets.ALERT_EMAIL_TO }}
+          ALERT_TEST_MODE:  ${{ github.event.inputs.test_mode == 'ja' && 'true' || 'false' }}
         run: python check_alerts.py
 
       - name: Zustandsdatei committen

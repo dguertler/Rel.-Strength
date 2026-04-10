@@ -237,10 +237,11 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40):
 
 # ── E-Mail versenden ─────────────────────────────────────────────────────────
 
-def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
+def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr,
+                     subject_override=None):
     """Versendet eine HTML-E-Mail mit Alarmen und eingebetteten Charts."""
     today_str = datetime.now().strftime('%d.%m.%Y')
-    subject   = f'Breakout-Alarm {today_str}: {len(alerts)} Aktie(n) auf 3 Punkte'
+    subject   = subject_override or f'Breakout-Alarm {today_str}: {len(alerts)} Aktie(n) auf 3 Punkte'
 
     msg = MIMEMultipart('related')
     msg['Subject'] = subject
@@ -425,7 +426,85 @@ def process_json(json_path, source_label, prev_states, today_str):
     return new_states, alerts
 
 
+def run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
+    """
+    Testmodus: Nimmt die Aktie mit den meisten Punkten aus rs_full.json
+    (egal ob 2→3-Übergang) und schickt sofort eine Test-Mail.
+    """
+    print('── TEST-MODUS ──')
+    json_path = 'rs_full.json'
+    if not os.path.exists(json_path):
+        print(f'Datei nicht gefunden: {json_path}')
+        sys.exit(1)
+
+    with open(json_path) as f:
+        data = json.load(f)
+
+    # Suche Aktie mit höchster Punktzahl (bevorzugt 3, sonst 2, sonst 1)
+    best_entry = None
+    best_points = -1
+    for entry in data.get('data', []):
+        info = count_points(entry)
+        if info['points'] > best_points:
+            best_points = info['points']
+            best_entry  = (entry, info)
+        if best_points == 3:
+            break
+
+    if not best_entry:
+        print('Keine Einträge gefunden.')
+        sys.exit(1)
+
+    entry, info = best_entry
+    ticker = entry['ticker']
+    score  = entry.get('score', 0)
+    print(f'Test-Aktie: {ticker}  ({best_points} Punkte, Score {score:.1f})')
+
+    charts = []
+    d_b64  = render_chart(
+        entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
+        gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None,
+    )
+    w_b64  = render_chart(
+        entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
+        gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
+        n_candles=30,
+    )
+    h4_b64 = render_chart(
+        entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
+        gws_price=info['struct_4h']['gws_price'] if info['struct_4h'] else None,
+        n_candles=60,
+    )
+    if d_b64:  charts.append((d_b64,  'Daily'))
+    if w_b64:  charts.append((w_b64,  'Weekly'))
+    if h4_b64: charts.append((h4_b64, '4H'))
+
+    test_alert = [{
+        'ticker': f'[TEST] {ticker}',
+        'score':  score,
+        'info':   info,
+        'source': 'QQQ – Testmail',
+        'charts': charts,
+    }]
+
+    # Subject als Test kennzeichnen
+    today_str = datetime.now().strftime('%d.%m.%Y')
+    msg = MIMEMultipart('related')
+    msg['Subject'] = f'[TEST] Breakout-Alarm {today_str} – Mail-Versand funktioniert!'
+    msg['From']    = smtp_user
+    msg['To']      = to_addr
+
+    # HTML über send_alert_email-Hilfsfunktion bauen
+    # (wir rufen direkt send_alert_email auf, Subject wird überschrieben)
+    send_alert_email(test_alert, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr,
+                     subject_override=f'[TEST] Breakout-Alarm {today_str} – '
+                                      f'Mail-Versand funktioniert!')
+    print('Test-Mail gesendet.')
+
+
 def main():
+    test_mode = '--test' in sys.argv or os.environ.get('ALERT_TEST_MODE', '') == 'true'
+
     smtp_host = os.environ.get('SMTP_HOST', '')
     smtp_port = os.environ.get('SMTP_PORT', '587')
     smtp_user = os.environ.get('SMTP_USER', '')
@@ -435,6 +514,10 @@ def main():
     if not all([smtp_host, smtp_user, smtp_pass, to_addr]):
         print('FEHLER: Bitte SMTP_HOST, SMTP_USER, SMTP_PASS und ALERT_EMAIL_TO setzen.')
         sys.exit(1)
+
+    if test_mode:
+        run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr)
+        return
 
     today_str  = datetime.now().strftime('%Y-%m-%d')
     state      = load_state()
