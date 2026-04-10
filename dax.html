@@ -273,7 +273,11 @@ function analyze4HStructure(ohlcv4h) {
     }
   }
 
-  const recentBreakout = breakout4hIdx !== null && (n - 1 - breakout4hIdx <= 42);
+  const recentBreakout = breakout4hIdx !== null && (() => {
+    const breakoutDate = new Date(ohlcv4h[breakout4hIdx].d.replace(' ', 'T'));
+    const lastDate     = new Date(ohlcv4h[n - 1].d.replace(' ', 'T'));
+    return (lastDate - breakoutDate) / (1000 * 60 * 60 * 24) <= 7;
+  })();
   return {
     gws4hHigh, breakout4hIdx, broken4h: breakout4hIdx !== null,
     prevGws4hHigh, prevBreakout4hIdx,
@@ -1080,7 +1084,7 @@ function App() {
             const isTop      = rank < 20;
             const hasChart   = data.data.find(d=>d.ticker===item.t)?.ohlcv?.length > 0;
             const structs    = structureMap[item.t] || {};
-            const isBOC      = structs.daily?.broken;
+            const isBOC      = structs.weekly?.broken && structs.daily?.broken && structs.h4?.broken4h;
 
             return (
               <div key={item.t}
@@ -1118,7 +1122,7 @@ function App() {
                   const changed = structs.weekly?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: active ? "#4ade80" : "transparent",
+                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
                       border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
                     }}/>
                   </div>;
@@ -1129,7 +1133,7 @@ function App() {
                   const changed = structs.daily?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: active ? "#4ade80" : "transparent",
+                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
                       border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
                     }}/>
                   </div>;
@@ -1140,7 +1144,7 @@ function App() {
                   const changed = structs.h4?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: active ? "#4ade80" : "transparent",
+                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
                       border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
                     }}/>
                   </div>;
@@ -1175,7 +1179,7 @@ function App() {
         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
           {sorted.slice(0,20).map((d,i) => {
             const hasChart = data.data.find(e=>e.ticker===d.t)?.ohlcv?.length > 0;
-            const isBOC   = structureMap[d.t]?.daily?.broken;
+            const isBOC   = structureMap[d.t]?.weekly?.broken && structureMap[d.t]?.daily?.broken && structureMap[d.t]?.h4?.broken4h;
             return (
               <span key={d.t}
                 onClick={()=>hasChart&&setSelected(d.t)}
