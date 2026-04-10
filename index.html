@@ -273,7 +273,11 @@ function analyze4HStructure(ohlcv4h) {
     }
   }
 
-  const recentBreakout = breakout4hIdx !== null && (n - 1 - breakout4hIdx <= 42);
+  const recentBreakout = breakout4hIdx !== null && (() => {
+    const breakoutDate = new Date(ohlcv4h[breakout4hIdx].d.replace(' ', 'T'));
+    const lastDate     = new Date(ohlcv4h[n - 1].d.replace(' ', 'T'));
+    return (lastDate - breakoutDate) / (1000 * 60 * 60 * 24) <= 7;
+  })();
   return {
     gws4hHigh, breakout4hIdx, broken4h: breakout4hIdx !== null,
     prevGws4hHigh, prevBreakout4hIdx,
