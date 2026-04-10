@@ -135,18 +135,20 @@ def extract_ohlcv_daily(ticker, raw_data, n_candles=60):
         print(f"  Fehler Daily OHLCV {ticker}: {e}")
         return []
 
-# ── Schritt 4: 4H OHLCV für ALLE Ticker (letzte 60 Kerzen ≈ 30 Handelstage)
-print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (60 Kerzen ≈ 30 Tage)...")
-start_4h = end_date - timedelta(days=45)
+# ── Schritt 4: 4H OHLCV für ALLE Ticker (letzte 90 Kerzen inkl. Extended Hours)
+print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (90 Kerzen, inkl. Pre-/Post-Market)...")
+start_4h = end_date - timedelta(days=60)
 
-def extract_ohlcv_4h(ticker, n_candles=60):
-    """Lädt 4H-Daten für einen Ticker via yfinance (1H → 4H aggregiert), letzte n_candles."""
+def extract_ohlcv_4h(ticker, n_candles=90):
+    """Lädt 4H-Daten inkl. Extended Hours (Pre-Market 04:00-09:30 ET ≈ London-Session,
+    After-Hours 16:00-20:00 ET) via yfinance (1H → 4H aggregiert), letzte n_candles."""
     try:
         df = yf.download(
             ticker,
             start=start_4h.strftime("%Y-%m-%d"),
             end=end_str,
             interval="1h",
+            prepost=True,
             auto_adjust=True,
             progress=False
         )

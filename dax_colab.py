@@ -175,17 +175,18 @@ def extract_ohlcv_daily(ticker, raw_data, n_candles=60):
         print(f"  Fehler Daily OHLCV {ticker}: {e}")
         return []
 
-# ── Schritt 4: 4H OHLCV (letzte 60 Kerzen)
-print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (60 Kerzen ≈ 30 Tage)...")
-start_4h = end_date - timedelta(days=45)
+# ── Schritt 4: 4H OHLCV (letzte 90 Kerzen inkl. Extended Hours)
+print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (90 Kerzen, inkl. Pre-/Post-Market)...")
+start_4h = end_date - timedelta(days=60)
 
-def extract_ohlcv_4h(ticker, n_candles=60):
+def extract_ohlcv_4h(ticker, n_candles=90):
     try:
         df = yf.download(
             ticker,
             start=start_4h.strftime("%Y-%m-%d"),
             end=end_str,
             interval="1h",
+            prepost=True,
             auto_adjust=True,
             progress=False
         )
