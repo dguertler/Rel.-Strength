@@ -1081,7 +1081,7 @@ function App() {
             const isTop      = rank < 20;
             const hasChart   = data.data.find(d=>d.ticker===item.t)?.ohlcv?.length > 0;
             const structs    = structureMap[item.t] || {};
-            const isBOC      = structs.daily?.broken;
+            const isBOC      = structs.weekly?.broken && structs.daily?.broken && structs.h4?.broken4h;
 
             return (
               <div key={item.t}
@@ -1119,7 +1119,7 @@ function App() {
                   const changed = structs.weekly?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: active ? "#4ade80" : "transparent",
+                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
                       border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
                     }}/>
                   </div>;
@@ -1130,7 +1130,7 @@ function App() {
                   const changed = structs.daily?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: active ? "#4ade80" : "transparent",
+                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
                       border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
                     }}/>
                   </div>;
@@ -1141,7 +1141,7 @@ function App() {
                   const changed = structs.h4?.recentBreakout;
                   return <div style={{display:"flex",justifyContent:"center"}}>
                     <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: active ? "#4ade80" : "transparent",
+                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
                       border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
                     }}/>
                   </div>;
