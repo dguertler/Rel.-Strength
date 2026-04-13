@@ -57,10 +57,10 @@
       "source": "QQQ"
     },
     "ADI": {
-      "points": 3,
+      "points": 2,
       "weekly": true,
       "daily": true,
-      "h4": true,
+      "h4": false,
       "source": "QQQ"
     },
     "GFS": {
