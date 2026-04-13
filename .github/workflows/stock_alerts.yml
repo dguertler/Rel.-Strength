@@ -3,7 +3,7 @@ name: Breakout-Alarm (2→3 Punkte)
 on:
   schedule:
     # Täglich 22:15 UTC (00:15 CET/CEST) – nach dem US-Abschluss-Update (21:00 UTC)
-    - cron: '15 22 * * 1-5'
+    - cron: '15 22 * * *'
   workflow_dispatch:
     inputs:
       test_mode:
