@@ -264,8 +264,15 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
     cid_counter  = 0
     inline_imgs  = []
 
-    def dot_html(active):
-        color = '#4ade80' if active else '#334155'
+    def dot_html(active, is_new=False):
+        # Gleiche Farblogik wie auf der HTML-Seite:
+        # gelb (#eab308) = neu aktiv, grün (#4ade80) = aktiv, grau = inaktiv
+        if is_new:
+            color = '#eab308'
+        elif active:
+            color = '#4ade80'
+        else:
+            color = '#334155'
         return (f'<span style="display:inline-block;width:9px;height:9px;'
                 f'border-radius:50%;background:{color};'
                 f'vertical-align:middle;margin:0 1px"></span>')
@@ -276,9 +283,16 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
         info     = alert['info']
         source   = alert.get('source', 'QQQ')
 
-        w_dot  = dot_html(info['weekly'])
-        d_dot  = dot_html(info['daily'])
-        h4_dot = dot_html(info['h4'])
+        w_dot  = dot_html(info['weekly'], alert.get('new_weekly', False))
+        d_dot  = dot_html(info['daily'],  alert.get('new_daily',  False))
+        h4_dot = dot_html(info['h4'],     alert.get('new_h4',     False))
+
+        if source == 'DAX':
+            dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/dax.html'
+            dashboard_label = 'DAX-Dashboard'
+        else:
+            dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/'
+            dashboard_label = 'Nasdaq-Dashboard'
 
         html_parts.append(f"""
   <div style="margin:0 0 28px;padding:16px;
@@ -292,8 +306,15 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
         RS-Score:&nbsp;<strong style="color:#f1f5f9">{score:.1f}</strong>
       </span>
     </div>
-    <div style="font-size:11px;color:#94a3b8;margin-bottom:12px">
-      W&nbsp;{w_dot}&nbsp;&nbsp;D&nbsp;{d_dot}&nbsp;&nbsp;4H&nbsp;{h4_dot}
+    <div style="font-size:12px;margin-bottom:10px;letter-spacing:1px">
+      <span style="color:#64748b">W</span>&nbsp;{w_dot}
+      &nbsp;&nbsp;
+      <span style="color:#64748b">D</span>&nbsp;{d_dot}
+      &nbsp;&nbsp;
+      <span style="color:#64748b">4H</span>&nbsp;{h4_dot}
+      &nbsp;&nbsp;&nbsp;
+      <a href="{dashboard_url}" style="color:#3b82f6;font-size:11px;
+         text-decoration:none">&rarr; {dashboard_label}</a>
     </div>
 """)
 
@@ -392,35 +413,40 @@ def process_json(json_path, source_label, prev_states, today_str):
         if prev_points == 2 and info['points'] == 3:
             print(f'  ALERT: {ticker} ({source_label})  {prev_points} → {info["points"]} Punkte')
 
-            # Charts generieren
-            charts = []
-            d_b64  = render_chart(
-                entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
-                gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None
-            )
+            # Welcher Punkt ist neu hinzugekommen?
+            new_w  = info['weekly'] and not prev.get('weekly', False)
+            new_d  = info['daily']  and not prev.get('daily',  False)
+            new_h4 = info['h4']     and not prev.get('h4',     False)
+
+            # Charts: Weekly → Daily → 4H
             w_b64  = render_chart(
                 entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
                 gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
                 n_candles=30
+            )
+            d_b64  = render_chart(
+                entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
+                gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None
             )
             h4_b64 = render_chart(
                 entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
                 gws_price=info['struct_4h']['gws_price'] if info['struct_4h'] else None,
                 n_candles=60
             )
-            if d_b64:
-                charts.append((d_b64, 'Daily'))
-            if w_b64:
-                charts.append((w_b64, 'Weekly'))
-            if h4_b64:
-                charts.append((h4_b64, '4H'))
+            charts = []
+            if w_b64:  charts.append((w_b64,  'Weekly'))
+            if d_b64:  charts.append((d_b64,  'Daily'))
+            if h4_b64: charts.append((h4_b64, '4H'))
 
             alerts.append({
-                'ticker': ticker,
-                'score':  score,
-                'info':   info,
-                'source': source_label,
-                'charts': charts,
+                'ticker':     ticker,
+                'score':      score,
+                'info':       info,
+                'source':     source_label,
+                'charts':     charts,
+                'new_weekly': new_w,
+                'new_daily':  new_d,
+                'new_h4':     new_h4,
             })
 
     return new_states, alerts
@@ -460,31 +486,35 @@ def run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
     score  = entry.get('score', 0)
     print(f'Test-Aktie: {ticker}  ({best_points} Punkte, Score {score:.1f})')
 
-    charts = []
-    d_b64  = render_chart(
-        entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
-        gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None,
-    )
+    # Charts: Weekly → Daily → 4H
     w_b64  = render_chart(
         entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
         gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
         n_candles=30,
+    )
+    d_b64  = render_chart(
+        entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
+        gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None,
     )
     h4_b64 = render_chart(
         entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
         gws_price=info['struct_4h']['gws_price'] if info['struct_4h'] else None,
         n_candles=60,
     )
-    if d_b64:  charts.append((d_b64,  'Daily'))
+    charts = []
     if w_b64:  charts.append((w_b64,  'Weekly'))
+    if d_b64:  charts.append((d_b64,  'Daily'))
     if h4_b64: charts.append((h4_b64, '4H'))
 
     test_alert = [{
-        'ticker': f'[TEST] {ticker}',
-        'score':  score,
-        'info':   info,
-        'source': 'QQQ – Testmail',
-        'charts': charts,
+        'ticker':     f'[TEST] {ticker}',
+        'score':      score,
+        'info':       info,
+        'source':     'QQQ – Testmail',
+        'charts':     charts,
+        'new_weekly': False,
+        'new_daily':  False,
+        'new_h4':     True,   # Im Test: 4H als neu/gelb markieren
     }]
 
     # Subject als Test kennzeichnen
