@@ -278,7 +278,8 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
                 f'vertical-align:middle;margin:0 1px"></span>')
 
     for alert in alerts:
-        ticker   = alert['ticker']
+        ticker         = alert['ticker']
+        display_ticker = ticker.replace('.DE', '') if ticker.endswith('.DE') else ticker
         score    = alert['score']
         info     = alert['info']
         source   = alert.get('source', 'QQQ')
@@ -300,7 +301,7 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
               border-left:4px solid #ef4444;border-radius:8px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
       <span style="font-size:18px">&#128293;</span>
-      <span style="font-size:16px;font-weight:bold;color:#fca5a5">{ticker}</span>
+      <span style="font-size:16px;font-weight:bold;color:#fca5a5">{display_ticker}</span>
       <span style="font-size:11px;color:#64748b">({source})</span>
       <span style="margin-left:auto;font-size:11px;color:#94a3b8">
         RS-Score:&nbsp;<strong style="color:#f1f5f9">{score:.1f}</strong>

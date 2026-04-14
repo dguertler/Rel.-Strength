@@ -133,13 +133,6 @@
       "h4": true,
       "source": "QQQ"
     },
-    "GOOG": {
-      "points": 3,
-      "weekly": true,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
     "AMZN": {
       "points": 2,
       "weekly": false,
