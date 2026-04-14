@@ -40,6 +40,8 @@
 <script type="text/babel">
 const { useState, useMemo, useRef, useCallback, useEffect } = React;
 
+const displayTicker = t => t && t.endsWith('.DE') ? t.slice(0, -3) : (t ?? '');
+
 // ── GWS-D Analyse (korrekte Down-Retracement Logik) ──────────────────────────
 //
 // Ein Down-Retracement entsteht ERST wenn ein vorheriges Swing-Tief unterschritten wird.
@@ -1110,7 +1112,7 @@ function App() {
                   color:isBOC?"#fca5a5":rank===0?"#fbbf24":isTop?"#f1f5f9":"#475569",
                   display:"flex",alignItems:"center",gap:2}}>
                   {isBOC && <span className="flame-anim" style={{fontSize:11}}>🔥</span>}
-                  {item.t}
+                  {displayTicker(item.t)}
                   {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}
                 </span>
                 <span style={{fontFamily:"monospace",fontSize:11,fontWeight:600,color:item.s>0?"#4ade80":"#f87171"}}>
@@ -1190,7 +1192,7 @@ function App() {
                   color:isBOC?"#fca5a5":i<3?"#93c5fd":"#94a3b8",
                   fontFamily:"monospace", cursor:hasChart?"pointer":"default"
                 }}>
-                {isBOC&&"🔥"}{d.t}
+                {isBOC&&"🔥"}{displayTicker(d.t)}
               </span>
             );
           })}
@@ -1202,7 +1204,7 @@ function App() {
       {/* Strukturanalyse */}
       <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",padding:14,marginBottom:12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <p style={{margin:0,fontSize:15,fontWeight:800,color:"#f1f5f9",fontFamily:"monospace"}}>{selected ?? "–"}</p>
+          <p style={{margin:0,fontSize:15,fontWeight:800,color:"#f1f5f9",fontFamily:"monospace"}}>{selected ? displayTicker(selected) : "–"}</p>
           {selectedRs && (
             <span style={{fontSize:11,fontFamily:"monospace",color:selectedRs.s>0?"#4ade80":"#f87171"}}>
               RS Score: {selectedRs.s>0?"+":""}{Math.round(selectedRs.s)}
