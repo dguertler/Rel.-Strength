@@ -2,8 +2,8 @@ name: Breakout-Alarm (2→3 Punkte)
 
 on:
   schedule:
-    # Di–Sa 22:15 UTC (00:15 CET/CEST) – nach dem Abschluss des jeweiligen Börsentags
-    - cron: '15 22 * * 2-6'
+    # Mo–Fr 22:15 UTC (00:15 CET/CEST) – nach dem Abschluss des jeweiligen Börsentags
+    - cron: '15 22 * * 1-5'
   workflow_dispatch:
     inputs:
       test_mode:
