@@ -177,14 +177,10 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, gws_idx=None,
 
     n_full = len(ohlcv)
 
-    # Fenster dynamisch so wählen, dass das GWS-Swing-Hoch sichtbar ist.
-    # Startpunkt: 3 Kerzen vor dem GWS-Hoch (oder normales n_candles-Fenster,
-    # je nachdem was weiter zurückliegt). Cap: max. 2×n_candles.
+    # Fenster: 10 Kerzen vor dem GWS-Hoch bis zum Ende – so liegt das GWS
+    # immer bei ~x=10 und nicht am linken Rand.
     if gws_idx is not None:
-        gws_start    = max(0, gws_idx - 3)
-        normal_start = max(0, n_full - n_candles)
-        start_idx    = min(gws_start, normal_start)
-        start_idx    = max(start_idx, n_full - n_candles * 2)  # Cap
+        start_idx = max(0, gws_idx - 10)
     else:
         start_idx = max(0, n_full - n_candles)
 
