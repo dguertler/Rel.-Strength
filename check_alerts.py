@@ -175,10 +175,22 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, gws_idx=None,
     if not ohlcv:
         return None
 
-    candles = ohlcv[-n_candles:]
+    n_full = len(ohlcv)
+
+    # Fenster dynamisch so wählen, dass das GWS-Swing-Hoch sichtbar ist.
+    # Startpunkt: 3 Kerzen vor dem GWS-Hoch (oder normales n_candles-Fenster,
+    # je nachdem was weiter zurückliegt). Cap: max. 2×n_candles.
+    if gws_idx is not None:
+        gws_start    = max(0, gws_idx - 3)
+        normal_start = max(0, n_full - n_candles)
+        start_idx    = min(gws_start, normal_start)
+        start_idx    = max(start_idx, n_full - n_candles * 2)  # Cap
+    else:
+        start_idx = max(0, n_full - n_candles)
+
+    candles = ohlcv[start_idx:]
     n       = len(candles)
-    n_full  = len(ohlcv)
-    offset  = n_full - n  # Erstes sichtbares Element im vollständigen Array
+    offset  = start_idx
 
     fig, ax = plt.subplots(figsize=(9, 3.5))
     fig.patch.set_facecolor(BG_DARK)
@@ -198,13 +210,9 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, gws_idx=None,
         )
         ax.add_patch(rect)
 
-    # GWS-Linie als Segment (wie im Dashboard: GWS-Hoch → Breakout-Kerze)
-    if gws_price:
-        # x-Start: Position des GWS-Swing-Hochs (oder linker Rand)
-        if gws_idx is not None and gws_idx >= offset:
-            x_start = gws_idx - offset
-        else:
-            x_start = 0
+    # GWS-Linie als Segment: nur wenn Swing-Hoch im sichtbaren Fenster liegt
+    if gws_price and gws_idx is not None and gws_idx >= offset:
+        x_start = gws_idx - offset
 
         # x-Ende: Breakout-Kerze (oder rechter Rand)
         if breakout_idx is not None and breakout_idx >= offset:
