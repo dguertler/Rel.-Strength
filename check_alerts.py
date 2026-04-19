@@ -76,6 +76,7 @@ def analyze_daily_structure(ohlcv):
     return {
         'broken':      broken,
         'gws_price':   gws_high['price'] if gws_high else None,
+        'gws_idx':     gws_high['idx']   if gws_high else None,
         'breakout_idx': breakout_idx,
         'swing_highs': swing_highs[-6:],
         'swing_lows':  swing_lows[-6:],
@@ -110,6 +111,7 @@ def analyze_weekly_structure(ohlcv_w):
     return {
         'broken':       broken,
         'gws_price':    gws_high['price'] if gws_high else None,
+        'gws_idx':      gws_high['idx']   if gws_high else None,
         'breakout_idx': breakout_idx,
     }
 
@@ -129,6 +131,7 @@ def analyze_4h_structure(ohlcv_4h):
     return {
         'broken4h':     breakout_4h_idx is not None,
         'gws_price':    gws_high['price'] if gws_high else None,
+        'gws_idx':      gws_high['idx']   if gws_high else None,
         'breakout_idx': breakout_4h_idx,
     }
 
@@ -166,13 +169,16 @@ GRID_CLR  = '#1e293b'
 TEXT_CLR  = '#e2e8f0'
 
 
-def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40):
+def render_chart(ohlcv, ticker, timeframe, gws_price=None, gws_idx=None,
+                 breakout_idx=None, n_candles=40):
     """Zeichnet einen Kerzenchart und gibt ihn als base64-PNG zurück."""
     if not ohlcv:
         return None
 
     candles = ohlcv[-n_candles:]
-    n = len(candles)
+    n       = len(candles)
+    n_full  = len(ohlcv)
+    offset  = n_full - n  # Erstes sichtbares Element im vollständigen Array
 
     fig, ax = plt.subplots(figsize=(9, 3.5))
     fig.patch.set_facecolor(BG_DARK)
@@ -192,10 +198,35 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40):
         )
         ax.add_patch(rect)
 
-    # GWS-Linie
+    # GWS-Linie als Segment (wie im Dashboard: GWS-Hoch → Breakout-Kerze)
     if gws_price:
-        ax.axhline(gws_price, color=GWS_CLR, linewidth=1.2, linestyle='--',
-                   label=f'GWS  {gws_price:.2f}', zorder=3)
+        # x-Start: Position des GWS-Swing-Hochs (oder linker Rand)
+        if gws_idx is not None and gws_idx >= offset:
+            x_start = gws_idx - offset
+        else:
+            x_start = 0
+
+        # x-Ende: Breakout-Kerze (oder rechter Rand)
+        if breakout_idx is not None and breakout_idx >= offset:
+            x_end = min(breakout_idx - offset, n - 1)
+        else:
+            x_end = n - 1
+
+        ax.plot([x_start, x_end], [gws_price, gws_price],
+                color=GWS_CLR, linewidth=1.2, linestyle='--',
+                label=f'GWS  {gws_price:.2f}', zorder=3)
+
+        # Breakout-Kerze mit Amber-Rahmen markieren
+        if breakout_idx is not None and offset <= breakout_idx < offset + n:
+            boc_x  = breakout_idx - offset
+            boc_c  = candles[boc_x]
+            body_y = min(boc_c['c'], boc_c['o'])
+            body_h = max(abs(boc_c['c'] - boc_c['o']),
+                         (boc_c['h'] - boc_c['l']) * 0.01)
+            ax.add_patch(mpatches.Rectangle(
+                (boc_x - 0.35, body_y), 0.7, body_h,
+                facecolor='none', edgecolor=GWS_CLR, linewidth=1.5, zorder=4
+            ))
 
     # Achsen & Styling
     all_h = [c['h'] for c in candles]
@@ -422,16 +453,22 @@ def process_json(json_path, source_label, prev_states, today_str):
             # Charts: Weekly → Daily → 4H
             w_b64  = render_chart(
                 entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
-                gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
+                gws_price=info['struct_w']['gws_price']    if info['struct_w'] else None,
+                gws_idx=info['struct_w']['gws_idx']        if info['struct_w'] else None,
+                breakout_idx=info['struct_w']['breakout_idx'] if info['struct_w'] else None,
                 n_candles=30
             )
             d_b64  = render_chart(
                 entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
-                gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None
+                gws_price=info['struct_d']['gws_price']    if info['struct_d'] else None,
+                gws_idx=info['struct_d']['gws_idx']        if info['struct_d'] else None,
+                breakout_idx=info['struct_d']['breakout_idx'] if info['struct_d'] else None,
             )
             h4_b64 = render_chart(
                 entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
-                gws_price=info['struct_4h']['gws_price'] if info['struct_4h'] else None,
+                gws_price=info['struct_4h']['gws_price']    if info['struct_4h'] else None,
+                gws_idx=info['struct_4h']['gws_idx']        if info['struct_4h'] else None,
+                breakout_idx=info['struct_4h']['breakout_idx'] if info['struct_4h'] else None,
                 n_candles=60
             )
             charts = []
@@ -490,16 +527,22 @@ def run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
     # Charts: Weekly → Daily → 4H
     w_b64  = render_chart(
         entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
-        gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
+        gws_price=info['struct_w']['gws_price']    if info['struct_w'] else None,
+        gws_idx=info['struct_w']['gws_idx']        if info['struct_w'] else None,
+        breakout_idx=info['struct_w']['breakout_idx'] if info['struct_w'] else None,
         n_candles=30,
     )
     d_b64  = render_chart(
         entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
-        gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None,
+        gws_price=info['struct_d']['gws_price']    if info['struct_d'] else None,
+        gws_idx=info['struct_d']['gws_idx']        if info['struct_d'] else None,
+        breakout_idx=info['struct_d']['breakout_idx'] if info['struct_d'] else None,
     )
     h4_b64 = render_chart(
         entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
-        gws_price=info['struct_4h']['gws_price'] if info['struct_4h'] else None,
+        gws_price=info['struct_4h']['gws_price']    if info['struct_4h'] else None,
+        gws_idx=info['struct_4h']['gws_idx']        if info['struct_4h'] else None,
+        breakout_idx=info['struct_4h']['breakout_idx'] if info['struct_4h'] else None,
         n_candles=60,
     )
     charts = []
