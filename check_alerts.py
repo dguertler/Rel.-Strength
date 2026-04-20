@@ -21,16 +21,14 @@ import matplotlib.patches as mpatches
 # Exakte Portierung der analyzeStructure / analyzeWeeklyStructure / analyze4HStructure
 # Funktionen aus index.html
 
-def _find_swing_points(highs, lows, n):
-    """Swing-Hochs (aus Highs) und Swing-Tiefs (aus Lows), ±2 Bars."""
+def _find_swing_points(highs, lows, n, window=2):
+    """Swing-Hochs und Swing-Tiefs mit konfigurierbarem Fenster (±window Bars)."""
     swing_highs = []
     swing_lows  = []
-    for i in range(2, n - 2):
-        if (highs[i] >= highs[i-1] and highs[i] >= highs[i-2] and
-                highs[i] >= highs[i+1] and highs[i] >= highs[i+2]):
+    for i in range(window, n - window):
+        if all(highs[i] >= highs[i-k] and highs[i] >= highs[i+k] for k in range(1, window+1)):
             swing_highs.append({'idx': i, 'price': highs[i]})
-        if (lows[i] <= lows[i-1] and lows[i] <= lows[i-2] and
-                lows[i] <= lows[i+1] and lows[i] <= lows[i+2]):
+        if all(lows[i] <= lows[i-k] and lows[i] <= lows[i+k] for k in range(1, window+1)):
             swing_lows.append({'idx': i, 'price': lows[i]})
     return swing_highs, swing_lows
 
@@ -83,7 +81,7 @@ def analyze_daily_structure(ohlcv):
 
 
 def analyze_weekly_structure(ohlcv_w):
-    """Port von analyzeWeeklyStructure() aus index.html."""
+    """Port von analyzeWeeklyStructure() aus index.html (±1 Bar wie im JS)."""
     if not ohlcv_w or len(ohlcv_w) < 8:
         return None
     n      = len(ohlcv_w)
@@ -91,7 +89,7 @@ def analyze_weekly_structure(ohlcv_w):
     lows   = [c['l'] for c in ohlcv_w]
     closes = [c['c'] for c in ohlcv_w]
 
-    swing_highs, swing_lows = _find_swing_points(highs, lows, n)
+    swing_highs, swing_lows = _find_swing_points(highs, lows, n, window=1)
     gws_high, breakout_idx  = _gws_core(swing_highs, swing_lows, closes, n)
 
     # Trend (für den Fall ohne GWS-Muster – wie im JS)
