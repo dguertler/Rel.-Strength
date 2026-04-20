@@ -133,6 +133,16 @@ def analyze_4h_structure(ohlcv_4h):
     }
 
 
+def _breakout_date(ohlcv, struct):
+    """Gibt das Datum der Breakout-Kerze zurück (oder None)."""
+    if not struct or not ohlcv:
+        return None
+    idx = struct.get('breakout_idx')
+    if idx is not None and 0 <= idx < len(ohlcv):
+        return ohlcv[idx]['d']
+    return None
+
+
 def count_points(entry):
     """Berechnet die aktiven Punkte (0–3: W / D / 4H) für einen Ticker."""
     struct_w  = analyze_weekly_structure(entry.get('ohlcv_w',  []))
@@ -463,9 +473,9 @@ def process_json(json_path, source_label, prev_states, today_str):
                 'new_weekly':      new_w,
                 'new_daily':       new_d,
                 'new_h4':          new_h4,
-                'weekly_bar_date': entry['ohlcv_w'][-1]['d']  if entry.get('ohlcv_w')   else None,
-                'daily_bar_date':  entry['ohlcv'][-1]['d']    if entry.get('ohlcv')     else None,
-                'h4_bar_date':     entry['ohlcv_4h'][-1]['d'] if entry.get('ohlcv_4h') else None,
+                'weekly_bar_date': _breakout_date(entry.get('ohlcv_w',   []), info['struct_w']),
+                'daily_bar_date':  _breakout_date(entry.get('ohlcv',     []), info['struct_d']),
+                'h4_bar_date':     _breakout_date(entry.get('ohlcv_4h',  []), info['struct_4h']),
             })
 
     return new_states, alerts
