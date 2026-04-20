@@ -288,7 +288,7 @@ function analyze4HStructure(ohlcv4h) {
 }
 
 // ── Weekly Candlestick Chart ───────────────────────────────────────────────
-function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel }) {
+function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -435,6 +435,22 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel }) {
           </g>;
         })}
 
+        {/* Signal-Pfeile (Weekly-Chart: alle Timeframes) */}
+        {signals.map((sig, si) => {
+          const td = sig.weekly_bar_date?.slice(0,10);
+          if (!td) return null;
+          const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === td);
+          if (idx < 0) return null;
+          const x = toX(idx);
+          const yTip = Math.min(toY(ohlcvW[idx].l) + 4, PT + cH - 28);
+          const lbl = {weekly:'W', daily:'D', '4h':'4H'}[sig.trigger_tf] || sig.trigger_tf;
+          return <g key={si}>
+            <polygon points={`${x-4},${yTip+8} ${x+4},${yTip+8} ${x},${yTip}`} fill="#22c55e" opacity="0.9"/>
+            <line x1={x} x2={x} y1={yTip+8} y2={yTip+18} stroke="#22c55e" strokeWidth="1.5" opacity="0.9"/>
+            <text x={x} y={yTip+28} textAnchor="middle" fill="#22c55e" fontSize="7" fontFamily="monospace" opacity="0.85">{lbl}</text>
+          </g>;
+        })}
+
         {/* Aktueller Preis */}
         <line x1={PL} x2={PL+cW} y1={toY(ohlcvW[n-1].c)} y2={toY(ohlcvW[n-1].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.45"/>
         <rect x={PL+cW+2} y={toY(ohlcvW[n-1].c)-8} width={46} height={15} rx="3" fill="#1e293b"/>
@@ -465,6 +481,12 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel }) {
             <span style={{fontSize:9,color:"#64748b"}}>{benchLabel}</span>
           </div>
         )}
+        {signals.length > 0 && (
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <svg width="10" height="16"><polygon points="5,0 9,8 1,8" fill="#22c55e"/><line x1="5" x2="5" y1="8" y2="16" stroke="#22c55e" strokeWidth="1.5"/></svg>
+            <span style={{fontSize:9,color:"#22c55e"}}>Signal</span>
+          </div>
+        )}
         <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ohlcvW.length} Wochen · Weekly</div>
       </div>
     </div>
@@ -472,7 +494,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel }) {
 }
 
 // ── Daily Candlestick Chart ────────────────────────────────────────────────
-function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel }) {
+function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 270;
@@ -621,6 +643,22 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel }) {
           </g>;
         })}
 
+        {/* Signal-Pfeile (Daily-Chart: Daily + 4H) */}
+        {signals.filter(s => s.trigger_tf === 'daily' || s.trigger_tf === '4h').map((sig, si) => {
+          const td = sig.daily_bar_date?.slice(0,10);
+          if (!td) return null;
+          const idx = ohlcv.findIndex(d => d.d.slice(0,10) === td);
+          if (idx < 0) return null;
+          const x = toX(idx);
+          const yTip = Math.min(toY(ohlcv[idx].l) + 4, PT + cH - 28);
+          const lbl = {weekly:'W', daily:'D', '4h':'4H'}[sig.trigger_tf] || sig.trigger_tf;
+          return <g key={si}>
+            <polygon points={`${x-4},${yTip+8} ${x+4},${yTip+8} ${x},${yTip}`} fill="#22c55e" opacity="0.9"/>
+            <line x1={x} x2={x} y1={yTip+8} y2={yTip+18} stroke="#22c55e" strokeWidth="1.5" opacity="0.9"/>
+            <text x={x} y={yTip+28} textAnchor="middle" fill="#22c55e" fontSize="7" fontFamily="monospace" opacity="0.85">{lbl}</text>
+          </g>;
+        })}
+
         {/* Aktueller Preis */}
         <line x1={PL} x2={PL+cW} y1={toY(ohlcv[n-1].c)} y2={toY(ohlcv[n-1].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.45"/>
         <rect x={PL+cW+2} y={toY(ohlcv[n-1].c)-8} width={46} height={15} rx="3" fill="#1e293b"/>
@@ -651,6 +689,12 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel }) {
             <span style={{fontSize:9,color:"#64748b"}}>{benchLabel}</span>
           </div>
         )}
+        {signals.filter(s => s.trigger_tf === 'daily' || s.trigger_tf === '4h').length > 0 && (
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <svg width="10" height="16"><polygon points="5,0 9,8 1,8" fill="#22c55e"/><line x1="5" x2="5" y1="8" y2="16" stroke="#22c55e" strokeWidth="1.5"/></svg>
+            <span style={{fontSize:9,color:"#22c55e"}}>Signal</span>
+          </div>
+        )}
         <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{ohlcv.length} Tage · Daily</div>
       </div>
     </div>
@@ -658,7 +702,7 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel }) {
 }
 
 // ── 4H Candlestick Chart (60 Kerzen) ─────────────────────────────────────────
-function Chart4H({ ohlcv4h, structure4h, chartId }) {
+function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -794,6 +838,20 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           </g>;
         })}
 
+        {/* Signal-Pfeile (4H-Chart: nur 4H) */}
+        {signals.filter(s => s.trigger_tf === '4h').map((sig, si) => {
+          const td = sig.h4_bar_date?.slice(0,10);
+          if (!td) return null;
+          const idx = display4h.findIndex(d => d.d.slice(0,10) === td);
+          if (idx < 0) return null;
+          const x = toX(idx);
+          const yTip = Math.min(toY(display4h[idx].l) + 4, PT + cH - 20);
+          return <g key={si}>
+            <polygon points={`${x-4},${yTip+8} ${x+4},${yTip+8} ${x},${yTip}`} fill="#22c55e" opacity="0.9"/>
+            <line x1={x} x2={x} y1={yTip+8} y2={yTip+18} stroke="#22c55e" strokeWidth="1.5" opacity="0.9"/>
+          </g>;
+        })}
+
         {/* Aktueller Preis */}
         <line x1={PL} x2={PL+cW} y1={toY(display4h[n-1].c)} y2={toY(display4h[n-1].c)} stroke="#7dd3fc" strokeWidth="0.7" strokeDasharray="2,3" opacity="0.45"/>
         <rect x={PL+cW+2} y={toY(display4h[n-1].c)-8} width={46} height={15} rx="3" fill="#1e293b"/>
@@ -816,6 +874,12 @@ function Chart4H({ ohlcv4h, structure4h, chartId }) {
           <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#a78bfa" strokeWidth="1.1" strokeDasharray="4,4" opacity="0.3"/></svg>
           <span style={{fontSize:9,color:"#64748b"}}>Letzter Break</span>
         </div>
+        {signals.filter(s => s.trigger_tf === '4h').length > 0 && (
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <svg width="10" height="16"><polygon points="5,0 9,8 1,8" fill="#22c55e"/><line x1="5" x2="5" y1="8" y2="16" stroke="#22c55e" strokeWidth="1.5"/></svg>
+            <span style={{fontSize:9,color:"#22c55e"}}>Signal</span>
+          </div>
+        )}
         <div style={{marginLeft:"auto",fontSize:9,color:"#334155",fontFamily:"monospace"}}>{n} Kerzen (von {ohlcv4h.length}) · 4H</div>
       </div>
     </div>
@@ -906,6 +970,7 @@ function App() {
   const [showAll, setShowAll]   = useState(false);
   const [selected, setSelected] = useState(null);
   const [liveBench, setLiveBench] = useState({ w: null, d: null });
+  const [signals, setSignals] = useState({});
 
   // Live-Fetch Benchmark OHLCV (QQQ) von Yahoo Finance als Fallback
   useEffect(() => {
@@ -941,6 +1006,13 @@ function App() {
         if (first) setSelected(first.ticker);
       })
       .catch(e => setError(e.message));
+  }, []);
+
+  useEffect(() => {
+    fetch("signals.json")
+      .then(r => r.ok ? r.json() : {})
+      .then(json => setSignals(json))
+      .catch(() => {});
   }, []);
 
   const rsData = useMemo(() => {
@@ -979,6 +1051,8 @@ function App() {
   const structureW  = useMemo(() => analyzeWeeklyStructure(ohlcvW), [ohlcvW]);
   const structure   = useMemo(() => analyzeStructure(ohlcv), [ohlcv]);
   const structure4h = useMemo(() => analyze4HStructure(ohlcv4h), [ohlcv4h]);
+
+  const tickerSignals = useMemo(() => (selected && signals[selected]) ? signals[selected] : [], [signals, selected]);
 
   const benchOhlcvW = useMemo(() =>
     data?.benchmark_ohlcv_w?.length > 0 ? data.benchmark_ohlcv_w :
@@ -1216,7 +1290,7 @@ function App() {
             {/* Weekly Chart */}
             {ohlcvW && structureW ? (
               <ChartWeekly ohlcvW={ohlcvW} structureW={structureW} chartId={selected+"_w"}
-                benchOhlcv={benchOhlcvW} benchLabel={data.benchmark}/>
+                benchOhlcv={benchOhlcvW} benchLabel={data.benchmark} signals={tickerSignals}/>
             ) : (
               <div style={{background:"#07090f",borderRadius:8,border:"1px solid #1e293b",padding:"12px 16px",color:"#334155",fontSize:11,fontFamily:"monospace"}}>
                 Weekly-Daten fehlen – bitte Python-Skript neu ausführen (ohlcv_w)
@@ -1226,13 +1300,13 @@ function App() {
             {/* Daily Chart */}
             {ohlcv && structure && (
               <CandleChart ohlcv={ohlcv} structure={structure} chartId={selected+"_d"}
-                benchOhlcv={benchOhlcvD} benchLabel={data.benchmark}/>
+                benchOhlcv={benchOhlcvD} benchLabel={data.benchmark} signals={tickerSignals}/>
             )}
 
             {/* 4H Chart – volle Breite */}
             {show4H && (
               <div className="chart-full-width">
-                <Chart4H ohlcv4h={ohlcv4h} structure4h={structure4h} chartId={selected+"_4h"}/>
+                <Chart4H ohlcv4h={ohlcv4h} structure4h={structure4h} chartId={selected+"_4h"} signals={tickerSignals}/>
               </div>
             )}
           </div>

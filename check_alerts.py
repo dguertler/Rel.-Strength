@@ -377,6 +377,21 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 
+SIGNALS_FILE = 'signals.json'
+
+
+def load_signals():
+    if os.path.exists(SIGNALS_FILE):
+        with open(SIGNALS_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_signals(signals):
+    with open(SIGNALS_FILE, 'w') as f:
+        json.dump(signals, f, indent=2)
+
+
 # ── Hauptprogramm ────────────────────────────────────────────────────────────
 
 def process_json(json_path, source_label, prev_states, today_str):
@@ -440,14 +455,17 @@ def process_json(json_path, source_label, prev_states, today_str):
             if h4_b64: charts.append((h4_b64, '4H'))
 
             alerts.append({
-                'ticker':     ticker,
-                'score':      score,
-                'info':       info,
-                'source':     source_label,
-                'charts':     charts,
-                'new_weekly': new_w,
-                'new_daily':  new_d,
-                'new_h4':     new_h4,
+                'ticker':          ticker,
+                'score':           score,
+                'info':            info,
+                'source':          source_label,
+                'charts':          charts,
+                'new_weekly':      new_w,
+                'new_daily':       new_d,
+                'new_h4':          new_h4,
+                'weekly_bar_date': entry['ohlcv_w'][-1]['d']  if entry.get('ohlcv_w')   else None,
+                'daily_bar_date':  entry['ohlcv'][-1]['d']    if entry.get('ohlcv')     else None,
+                'h4_bar_date':     entry['ohlcv_4h'][-1]['d'] if entry.get('ohlcv_4h') else None,
             })
 
     return new_states, alerts
@@ -583,8 +601,19 @@ def main():
     if fresh_alerts:
         send_alert_email(fresh_alerts, smtp_host, smtp_port,
                          smtp_user, smtp_pass, to_addr)
+        signals = load_signals()
         for a in fresh_alerts:
             alerted[a['ticker']] = today_str
+            trigger_tf = 'weekly' if a['new_weekly'] else ('daily' if a['new_daily'] else '4h')
+            signals.setdefault(a['ticker'], []).append({
+                'signal_date':     today_str,
+                'trigger_tf':      trigger_tf,
+                'weekly_bar_date': a.get('weekly_bar_date'),
+                'daily_bar_date':  a.get('daily_bar_date'),
+                'h4_bar_date':     a.get('h4_bar_date'),
+                'source':          a['source'],
+            })
+        save_signals(signals)
     else:
         print('Keine neuen 2→3-Übergänge heute.')
 
