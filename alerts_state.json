@@ -14,6 +14,13 @@
       "h4": true,
       "source": "QQQ"
     },
+    "ON": {
+      "points": 3,
+      "weekly": true,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
     "GFS": {
       "points": 3,
       "weekly": true,
@@ -21,11 +28,11 @@
       "h4": true,
       "source": "QQQ"
     },
-    "ON": {
-      "points": 3,
-      "weekly": true,
-      "daily": true,
-      "h4": true,
+    "MU": {
+      "points": 0,
+      "weekly": false,
+      "daily": false,
+      "h4": false,
       "source": "QQQ"
     },
     "MRNA": {
@@ -35,21 +42,21 @@
       "h4": true,
       "source": "QQQ"
     },
-    "MU": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
+    "AMD": {
+      "points": 3,
+      "weekly": true,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "ODFL": {
+      "points": 3,
+      "weekly": true,
+      "daily": true,
       "h4": true,
       "source": "QQQ"
     },
     "LRCX": {
-      "points": 2,
-      "weekly": true,
-      "daily": true,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "KLAC": {
       "points": 2,
       "weekly": true,
       "daily": true,
@@ -63,7 +70,14 @@
       "h4": true,
       "source": "QQQ"
     },
-    "AMD": {
+    "KLAC": {
+      "points": 2,
+      "weekly": true,
+      "daily": true,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "ARM": {
       "points": 3,
       "weekly": true,
       "daily": true,
@@ -77,13 +91,6 @@
       "h4": false,
       "source": "QQQ"
     },
-    "ODFL": {
-      "points": 3,
-      "weekly": true,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
     "SIRI": {
       "points": 2,
       "weekly": true,
@@ -91,7 +98,7 @@
       "h4": true,
       "source": "QQQ"
     },
-    "ARM": {
+    "MCHP": {
       "points": 3,
       "weekly": true,
       "daily": true,
@@ -112,11 +119,11 @@
       "h4": false,
       "source": "QQQ"
     },
-    "MCHP": {
-      "points": 3,
+    "AMZN": {
+      "points": 2,
       "weekly": true,
       "daily": true,
-      "h4": true,
+      "h4": false,
       "source": "QQQ"
     },
     "ROST": {
@@ -133,25 +140,11 @@
       "h4": true,
       "source": "QQQ"
     },
-    "MSTR": {
+    "CSCO": {
       "points": 3,
       "weekly": true,
       "daily": true,
       "h4": true,
-      "source": "QQQ"
-    },
-    "AMZN": {
-      "points": 2,
-      "weekly": true,
-      "daily": true,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "ASML": {
-      "points": 2,
-      "weekly": true,
-      "daily": true,
-      "h4": false,
       "source": "QQQ"
     },
     "ILMN": {
@@ -161,14 +154,14 @@
       "h4": false,
       "source": "QQQ"
     },
-    "PCAR": {
-      "points": 2,
-      "weekly": false,
+    "ABNB": {
+      "points": 3,
+      "weekly": true,
       "daily": true,
       "h4": true,
       "source": "QQQ"
     },
-    "ABNB": {
+    "FANG": {
       "points": 3,
       "weekly": true,
       "daily": true,
@@ -182,16 +175,23 @@
       "h4": true,
       "source": "QQQ"
     },
-    "CSCO": {
+    "ASML": {
+      "points": 2,
+      "weekly": true,
+      "daily": true,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "CDNS": {
       "points": 3,
       "weekly": true,
       "daily": true,
       "h4": true,
       "source": "QQQ"
     },
-    "NVDA": {
-      "points": 3,
-      "weekly": true,
+    "PCAR": {
+      "points": 2,
+      "weekly": false,
       "daily": true,
       "h4": true,
       "source": "QQQ"
@@ -203,35 +203,14 @@
       "h4": true,
       "source": "QQQ"
     },
-    "APP": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "CDNS": {
+    "NVDA": {
       "points": 3,
       "weekly": true,
       "daily": true,
       "h4": true,
       "source": "QQQ"
     },
-    "PYPL": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "WELL": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "CHTR": {
+    "MSTR": {
       "points": 3,
       "weekly": true,
       "daily": true,
@@ -245,31 +224,59 @@
       "h4": true,
       "source": "QQQ"
     },
-    "DASH": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "COIN": {
+    "BIIB": {
       "points": 1,
       "weekly": false,
       "daily": false,
       "h4": true,
       "source": "QQQ"
     },
-    "FANG": {
-      "points": 1,
+    "CRWD": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "CHTR": {
+      "points": 3,
       "weekly": true,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "PYPL": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "BKNG": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "WELL": {
+      "points": 0,
+      "weekly": false,
       "daily": false,
       "h4": false,
       "source": "QQQ"
     },
-    "DDOG": {
-      "points": 2,
+    "SBUX": {
+      "points": 1,
       "weekly": false,
-      "daily": true,
+      "daily": false,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "REGN": {
+      "points": 1,
+      "weekly": false,
+      "daily": false,
       "h4": true,
       "source": "QQQ"
     },
@@ -280,9 +287,58 @@
       "h4": false,
       "source": "QQQ"
     },
-    "BKNG": {
+    "DDOG": {
       "points": 2,
       "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "APP": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "FTNT": {
+      "points": 1,
+      "weekly": false,
+      "daily": false,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "MSFT": {
+      "points": 2,
+      "weekly": true,
+      "daily": true,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "TTWO": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "META": {
+      "points": 2,
+      "weekly": true,
+      "daily": true,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "COST": {
+      "points": 3,
+      "weekly": true,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "CCEP": {
+      "points": 3,
+      "weekly": true,
       "daily": true,
       "h4": true,
       "source": "QQQ"
@@ -294,45 +350,17 @@
       "h4": true,
       "source": "QQQ"
     },
-    "SBUX": {
-      "points": 1,
+    "PANW": {
+      "points": 2,
       "weekly": false,
-      "daily": false,
+      "daily": true,
       "h4": true,
       "source": "QQQ"
     },
-    "BIIB": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "REGN": {
-      "points": 0,
-      "weekly": false,
-      "daily": false,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "META": {
+    "FAST": {
       "points": 2,
       "weekly": true,
-      "daily": true,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "HON": {
-      "points": 2,
-      "weekly": true,
-      "daily": true,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "CCEP": {
-      "points": 3,
-      "weekly": true,
-      "daily": true,
+      "daily": false,
       "h4": true,
       "source": "QQQ"
     },
@@ -343,27 +371,6 @@
       "h4": false,
       "source": "QQQ"
     },
-    "TTWO": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "CRWD": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "MSFT": {
-      "points": 3,
-      "weekly": true,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
     "AMGN": {
       "points": 1,
       "weekly": true,
@@ -371,18 +378,11 @@
       "h4": false,
       "source": "QQQ"
     },
-    "XEL": {
-      "points": 1,
-      "weekly": true,
-      "daily": false,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "COST": {
-      "points": 3,
+    "EA": {
+      "points": 2,
       "weekly": true,
       "daily": true,
-      "h4": true,
+      "h4": false,
       "source": "QQQ"
     },
     "LULU": {
@@ -392,7 +392,35 @@
       "h4": true,
       "source": "QQQ"
     },
-    "TSLA": {
+    "XEL": {
+      "points": 1,
+      "weekly": true,
+      "daily": false,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "ORLY": {
+      "points": 0,
+      "weekly": false,
+      "daily": false,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "HON": {
+      "points": 2,
+      "weekly": true,
+      "daily": true,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "PEP": {
+      "points": 0,
+      "weekly": false,
+      "daily": false,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "DASH": {
       "points": 2,
       "weekly": false,
       "daily": true,
@@ -406,9 +434,23 @@
       "h4": false,
       "source": "QQQ"
     },
-    "FAST": {
-      "points": 2,
-      "weekly": true,
+    "KDP": {
+      "points": 0,
+      "weekly": false,
+      "daily": false,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "OKTA": {
+      "points": 1,
+      "weekly": false,
+      "daily": false,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "COIN": {
+      "points": 1,
+      "weekly": false,
       "daily": false,
       "h4": true,
       "source": "QQQ"
@@ -420,84 +462,21 @@
       "h4": true,
       "source": "QQQ"
     },
-    "SMCI": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "EA": {
-      "points": 2,
-      "weekly": true,
-      "daily": true,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "PEP": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "DLTR": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "FTNT": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "GEHC": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "ISRG": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "KDP": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "PANW": {
-      "points": 1,
-      "weekly": false,
-      "daily": true,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "ORLY": {
+    "VRTX": {
       "points": 0,
       "weekly": false,
       "daily": false,
       "h4": false,
       "source": "QQQ"
     },
-    "GILD": {
+    "TSLA": {
       "points": 1,
-      "weekly": true,
-      "daily": false,
+      "weekly": false,
+      "daily": true,
       "h4": false,
       "source": "QQQ"
     },
-    "VRTX": {
+    "SMCI": {
       "points": 1,
       "weekly": false,
       "daily": false,
@@ -511,39 +490,25 @@
       "h4": true,
       "source": "QQQ"
     },
-    "DXCM": {
+    "DLTR": {
       "points": 1,
       "weekly": false,
       "daily": false,
       "h4": true,
       "source": "QQQ"
     },
-    "CTAS": {
-      "points": 1,
-      "weekly": false,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "MDLZ": {
-      "points": 2,
-      "weekly": true,
-      "daily": false,
-      "h4": true,
-      "source": "QQQ"
-    },
-    "RXRX": {
+    "GEHC": {
       "points": 2,
       "weekly": false,
       "daily": true,
       "h4": true,
       "source": "QQQ"
     },
-    "CEG": {
+    "GILD": {
       "points": 1,
-      "weekly": false,
+      "weekly": true,
       "daily": false,
-      "h4": true,
+      "h4": false,
       "source": "QQQ"
     },
     "PLTR": {
@@ -553,32 +518,11 @@
       "h4": false,
       "source": "QQQ"
     },
-    "IDXX": {
-      "points": 0,
-      "weekly": false,
-      "daily": false,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "NFLX": {
-      "points": 2,
-      "weekly": true,
-      "daily": true,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "OKTA": {
+    "CTAS": {
       "points": 1,
       "weekly": false,
       "daily": false,
       "h4": true,
-      "source": "QQQ"
-    },
-    "ADBE": {
-      "points": 1,
-      "weekly": false,
-      "daily": true,
-      "h4": false,
       "source": "QQQ"
     },
     "PAYX": {
@@ -595,25 +539,53 @@
       "h4": true,
       "source": "QQQ"
     },
-    "FSLR": {
-      "points": 1,
-      "weekly": false,
-      "daily": true,
-      "h4": false,
-      "source": "QQQ"
-    },
-    "TTD": {
+    "ISRG": {
       "points": 2,
       "weekly": false,
       "daily": true,
       "h4": true,
       "source": "QQQ"
     },
+    "MDLZ": {
+      "points": 2,
+      "weekly": true,
+      "daily": false,
+      "h4": true,
+      "source": "QQQ"
+    },
     "CTSH": {
+      "points": 0,
+      "weekly": false,
+      "daily": false,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "ADBE": {
+      "points": 1,
+      "weekly": false,
+      "daily": true,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "DXCM": {
       "points": 1,
       "weekly": false,
       "daily": false,
       "h4": true,
+      "source": "QQQ"
+    },
+    "IDXX": {
+      "points": 0,
+      "weekly": false,
+      "daily": false,
+      "h4": false,
+      "source": "QQQ"
+    },
+    "NFLX": {
+      "points": 2,
+      "weekly": true,
+      "daily": true,
+      "h4": false,
       "source": "QQQ"
     },
     "CPRT": {
@@ -623,7 +595,7 @@
       "h4": false,
       "source": "QQQ"
     },
-    "AXON": {
+    "CEG": {
       "points": 0,
       "weekly": false,
       "daily": false,
@@ -644,11 +616,25 @@
       "h4": true,
       "source": "QQQ"
     },
-    "TEAM": {
+    "RXRX": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "TTD": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "FSLR": {
       "points": 1,
       "weekly": false,
-      "daily": false,
-      "h4": true,
+      "daily": true,
+      "h4": false,
       "source": "QQQ"
     },
     "WDAY": {
@@ -658,14 +644,28 @@
       "h4": false,
       "source": "QQQ"
     },
-    "CSGP": {
+    "TEAM": {
       "points": 1,
       "weekly": false,
       "daily": false,
       "h4": true,
       "source": "QQQ"
     },
+    "AXON": {
+      "points": 0,
+      "weekly": false,
+      "daily": false,
+      "h4": false,
+      "source": "QQQ"
+    },
     "ZS": {
+      "points": 1,
+      "weekly": false,
+      "daily": false,
+      "h4": true,
+      "source": "QQQ"
+    },
+    "CSGP": {
       "points": 1,
       "weekly": false,
       "daily": false,
@@ -686,6 +686,13 @@
       "h4": true,
       "source": "DAX"
     },
+    "RWE.DE": {
+      "points": 1,
+      "weekly": true,
+      "daily": false,
+      "h4": false,
+      "source": "DAX"
+    },
     "BAYN.DE": {
       "points": 3,
       "weekly": true,
@@ -700,7 +707,7 @@
       "h4": true,
       "source": "DAX"
     },
-    "RWE.DE": {
+    "BAS.DE": {
       "points": 2,
       "weekly": true,
       "daily": true,
@@ -714,16 +721,9 @@
       "h4": true,
       "source": "DAX"
     },
-    "BAS.DE": {
-      "points": 2,
-      "weekly": true,
-      "daily": true,
-      "h4": false,
-      "source": "DAX"
-    },
     "BNR.DE": {
-      "points": 2,
-      "weekly": false,
+      "points": 3,
+      "weekly": true,
       "daily": true,
       "h4": true,
       "source": "DAX"
@@ -735,13 +735,6 @@
       "h4": false,
       "source": "DAX"
     },
-    "SIE.DE": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "DAX"
-    },
     "DB1.DE": {
       "points": 3,
       "weekly": true,
@@ -750,22 +743,15 @@
       "source": "DAX"
     },
     "SRT3.DE": {
-      "points": 2,
-      "weekly": false,
+      "points": 3,
+      "weekly": true,
       "daily": true,
       "h4": true,
       "source": "DAX"
     },
-    "CON.DE": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "DAX"
-    },
-    "DBK.DE": {
-      "points": 2,
-      "weekly": false,
+    "ALV.DE": {
+      "points": 3,
+      "weekly": true,
       "daily": true,
       "h4": true,
       "source": "DAX"
@@ -777,9 +763,23 @@
       "h4": false,
       "source": "DAX"
     },
-    "ALV.DE": {
+    "SIE.DE": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "DAX"
+    },
+    "HNR1.DE": {
       "points": 3,
       "weekly": true,
+      "daily": true,
+      "h4": true,
+      "source": "DAX"
+    },
+    "DBK.DE": {
+      "points": 2,
+      "weekly": false,
       "daily": true,
       "h4": true,
       "source": "DAX"
@@ -791,14 +791,7 @@
       "h4": false,
       "source": "DAX"
     },
-    "MBG.DE": {
-      "points": 0,
-      "weekly": false,
-      "daily": false,
-      "h4": false,
-      "source": "DAX"
-    },
-    "HNR1.DE": {
+    "MUV2.DE": {
       "points": 3,
       "weekly": true,
       "daily": true,
@@ -812,13 +805,6 @@
       "h4": true,
       "source": "DAX"
     },
-    "AIR.DE": {
-      "points": 2,
-      "weekly": false,
-      "daily": true,
-      "h4": true,
-      "source": "DAX"
-    },
     "MRK.DE": {
       "points": 2,
       "weekly": false,
@@ -826,21 +812,21 @@
       "h4": true,
       "source": "DAX"
     },
-    "MUV2.DE": {
-      "points": 3,
-      "weekly": true,
-      "daily": true,
-      "h4": true,
+    "MBG.DE": {
+      "points": 0,
+      "weekly": false,
+      "daily": false,
+      "h4": false,
       "source": "DAX"
     },
-    "MTX.DE": {
+    "CON.DE": {
       "points": 2,
       "weekly": false,
       "daily": true,
       "h4": true,
       "source": "DAX"
     },
-    "VOW3.DE": {
+    "AIR.DE": {
       "points": 2,
       "weekly": false,
       "daily": true,
@@ -861,7 +847,14 @@
       "h4": true,
       "source": "DAX"
     },
-    "DTE.DE": {
+    "VOW3.DE": {
+      "points": 2,
+      "weekly": false,
+      "daily": true,
+      "h4": true,
+      "source": "DAX"
+    },
+    "FME.DE": {
       "points": 0,
       "weekly": false,
       "daily": false,
@@ -882,7 +875,7 @@
       "h4": true,
       "source": "DAX"
     },
-    "FME.DE": {
+    "DTE.DE": {
       "points": 0,
       "weekly": false,
       "daily": false,
@@ -896,11 +889,18 @@
       "h4": false,
       "source": "DAX"
     },
-    "SHL.DE": {
+    "MTX.DE": {
       "points": 2,
       "weekly": false,
       "daily": true,
       "h4": true,
+      "source": "DAX"
+    },
+    "SHL.DE": {
+      "points": 1,
+      "weekly": false,
+      "daily": true,
+      "h4": false,
       "source": "DAX"
     },
     "RHM.DE": {
@@ -918,20 +918,20 @@
       "source": "DAX"
     },
     "QIA.DE": {
-      "points": 3,
+      "points": 2,
       "weekly": true,
       "daily": true,
-      "h4": true,
+      "h4": false,
       "source": "DAX"
     },
-    "BEI.DE": {
+    "SAP.DE": {
       "points": 2,
       "weekly": false,
       "daily": true,
       "h4": true,
       "source": "DAX"
     },
-    "SAP.DE": {
+    "BEI.DE": {
       "points": 2,
       "weekly": false,
       "daily": true,
@@ -969,6 +969,8 @@
     "HNR1.DE": "2026-04-21",
     "MUV2.DE": "2026-04-21",
     "SY1.DE": "2026-04-21",
-    "QIA.DE": "2026-04-21"
+    "QIA.DE": "2026-04-21",
+    "BNR.DE": "2026-04-22",
+    "SRT3.DE": "2026-04-22"
   }
 }
