@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.trigger-sp500']  # Manueller Trigger
+    paths: ['.trigger-sp500']
 
 jobs:
   update:
@@ -27,8 +27,14 @@ jobs:
       - name: Abhängigkeiten installieren
         run: pip install yfinance pandas
 
-      - name: S&P 500 Skript ausführen
-        run: python sp500_colab.py
+      - name: Teil 1 laden (Financials, Healthcare, Consumer, Energy, Industrials)
+        run: python sp500_colab_1.py
+
+      - name: Teil 2 laden (Tech, Comm, Utilities, Real Estate, Materials)
+        run: python sp500_colab_2.py
+
+      - name: Daten zusammenführen
+        run: python sp500_merge.py
 
       - name: JSON committen und pushen
         run: |
