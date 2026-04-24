@@ -30,12 +30,18 @@
       .desktop-left { width:560px; flex-shrink:0; }
       .desktop-right { flex:1; min-width:0; position:sticky; top:16px; align-self:flex-start; }
     }
-    .nav-switch { position:fixed; top:12px; left:12px; z-index:9999; display:inline-flex; align-items:center; gap:6px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:6px 13px; font-size:12px; font-weight:700; color:#94a3b8; text-decoration:none; font-family:monospace; white-space:nowrap; box-shadow:0 2px 8px #00000066; transition:border-color .15s, color .15s; }
+    .nav-bar { position:fixed; top:12px; left:12px; z-index:9999; display:inline-flex; align-items:center; gap:5px; }
+    .nav-switch { display:inline-flex; align-items:center; gap:6px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:6px 13px; font-size:12px; font-weight:700; color:#94a3b8; text-decoration:none; font-family:monospace; white-space:nowrap; box-shadow:0 2px 8px #00000066; transition:border-color .15s, color .15s; }
     .nav-switch:hover { border-color:#3b82f6; color:#e2e8f0; }
+    .nav-switch.active { border-color:#3b82f6; color:#e2e8f0; background:#1a2f4a; }
   </style>
 </head>
 <body>
-<a href="dax.html" class="nav-switch">DAX &rarr;</a>
+<div class="nav-bar">
+  <a href="index.html" class="nav-switch active">QQQ</a>
+  <a href="dax.html" class="nav-switch">DAX</a>
+  <a href="sp500.html" class="nav-switch">SPX</a>
+</div>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useMemo, useRef, useCallback, useEffect } = React;
@@ -1104,7 +1110,7 @@ function App() {
     <div style={{minHeight:"100vh",background:"#060b14",color:"#e2e8f0",fontFamily:"'Inter',system-ui,sans-serif",padding:"16px 12px"}}>
 
       {/* Header */}
-      <div style={{marginBottom:14,paddingLeft:110}}>
+      <div style={{marginBottom:14,paddingLeft:200}}>
         <h1 style={{margin:0,fontSize:18,fontWeight:800,color:"#f8fafc"}}>⚡ RS · QQQ</h1>
         <p style={{margin:"2px 0 0",color:"#475569",fontSize:11}}>
           Outperformance vs. Nasdaq 100 · {data.timestamp}

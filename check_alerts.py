@@ -299,6 +299,9 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
         if source == 'DAX':
             dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/dax.html'
             dashboard_label = 'DAX-Dashboard'
+        elif source == 'SPX':
+            dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/sp500.html'
+            dashboard_label = 'S&P 500-Dashboard'
         else:
             dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/'
             dashboard_label = 'Nasdaq-Dashboard'
@@ -598,6 +601,12 @@ def main():
     new_dax, alerts_dax = process_json('rs_dax.json', 'DAX', prev_states, today_str)
     all_new_states.update(new_dax)
     all_alerts.extend(alerts_dax)
+
+    # S&P 500 Aktien
+    print('\n── S&P 500 (rs_sp500.json) ──')
+    new_sp500, alerts_sp500 = process_json('rs_sp500.json', 'SPX', prev_states, today_str)
+    all_new_states.update(new_sp500)
+    all_alerts.extend(alerts_sp500)
 
     # Bereits heute gemeldete Ticker herausfiltern
     fresh_alerts = [a for a in all_alerts
