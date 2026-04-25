@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RS · QQQ Dashboard</title>
+  <title>RS · Backtest SNDK</title>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -16,10 +16,6 @@
     select, button { outline: none; }
     .chart-wrap { position: relative; }
     .chart-wrap svg { display: block; }
-    @keyframes redGlow { 0%,100%{box-shadow:0 0 6px #ef444455} 50%{box-shadow:0 0 16px #ef4444aa} }
-    .red-glow { animation: redGlow 1.3s ease-in-out infinite; }
-    @keyframes flamePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.75;transform:scale(1.2)} }
-    .flame-anim { display:inline-block; animation: flamePulse 0.9s ease-in-out infinite; }
     .charts-grid { display:flex; flex-direction:column; gap:10px; }
     @media (min-width:768px) {
       .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -27,21 +23,24 @@
     }
     @media (min-width:1100px) {
       .desktop-layout { display:flex; flex-direction:row; align-items:flex-start; gap:16px; }
-      .desktop-left { width:560px; flex-shrink:0; }
+      .desktop-left  { width:560px; flex-shrink:0; }
       .desktop-right { flex:1; min-width:0; position:sticky; top:16px; align-self:flex-start; }
     }
     .nav-bar { position:fixed; top:12px; left:12px; z-index:9999; display:inline-flex; align-items:center; gap:5px; }
-    .nav-switch { display:inline-flex; align-items:center; gap:6px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:6px 13px; font-size:12px; font-weight:700; color:#94a3b8; text-decoration:none; font-family:monospace; white-space:nowrap; box-shadow:0 2px 8px #00000066; transition:border-color .15s, color .15s; }
-    .nav-switch:hover { border-color:#3b82f6; color:#e2e8f0; }
-    .nav-switch.active { border-color:#3b82f6; color:#e2e8f0; background:#1a2f4a; }
+    .nav-switch { display:inline-flex; align-items:center; gap:6px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:6px 13px; font-size:12px; font-weight:700; color:#94a3b8; text-decoration:none; font-family:monospace; white-space:nowrap; box-shadow:0 2px 8px #00000066; transition:border-color .15s,color .15s; }
+    .nav-switch:hover  { border-color:#3b82f6; color:#e2e8f0; }
+    .nav-switch.active { border-color:#f59e0b; color:#fbbf24; background:#1a1a0a; }
+    .tbl-row { cursor:pointer; transition:background .1s; }
+    .tbl-row:hover { background:#1e293b !important; }
+    .dot { display:inline-block; width:9px; height:9px; border-radius:50%; }
   </style>
 </head>
 <body>
 <div class="nav-bar">
-  <a href="index.html" class="nav-switch active">QQQ</a>
-  <a href="dax.html" class="nav-switch">DAX</a>
-  <a href="sp500.html" class="nav-switch">SPX</a>
-  <a href="backtest.html" class="nav-switch">BACKTEST</a>
+  <a href="index.html"  class="nav-switch">QQQ</a>
+  <a href="dax.html"    class="nav-switch">DAX</a>
+  <a href="sp500.html"  class="nav-switch">SPX</a>
+  <a href="backtest.html" class="nav-switch active">BACKTEST</a>
 </div>
 <div id="root"></div>
 <script type="text/babel">
@@ -293,8 +292,6 @@ function analyze4HStructure(ohlcv4h) {
     swingLows:  swingLows.slice(-8),
   };
 }
-
-// ── Weekly Candlestick Chart ───────────────────────────────────────────────
 function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
@@ -890,447 +887,290 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
   );
 }
 
-// ── Hilfskomponenten ───────────────────────────────────────────────────────
-// ── Live-Fetch Benchmark-OHLCV (Yahoo Finance → Stooq Fallback) ──────────
-async function fetchYFChart(ticker, interval, range) {
-  // Versuch 1: Yahoo Finance v8
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&events=history`;
-    const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    if (r.ok) {
-      const j = await r.json();
-      const res = j?.chart?.result?.[0];
-      if (res) {
-        const ts = res.timestamp || [];
-        const q  = res.indicators?.quote?.[0] || {};
-        const { open:o=[], high:h=[], low:l=[], close:c=[] } = q;
-        const result = [];
-        for (let i = 0; i < ts.length; i++) {
-          if (c[i] == null) continue;
-          const d = new Date(ts[i]*1000).toISOString().slice(0,10);
-          result.push({ d, o:+o[i].toFixed(2), h:+h[i].toFixed(2), l:+l[i].toFixed(2), c:+c[i].toFixed(2) });
-        }
-        if (result.length > 0) return result;
-      }
-    }
-  } catch {}
 
-  // Versuch 2: Stooq.com CSV (CORS-freundlich)
-  try {
-    const stooqSym = ticker === "QQQ" ? "QQQ.US" : encodeURIComponent(ticker);
-    const si = interval === "1wk" ? "w" : "d";
-    const url2 = `https://stooq.com/q/d/l/?s=${stooqSym}&i=${si}`;
-    const r2 = await fetch(url2);
-    if (r2.ok) {
-      const text = await r2.text();
-      const lines = text.trim().split('\n');
-      const result = [];
-      for (let i = 1; i < lines.length; i++) {
-        const [d, o, h, l, c] = lines[i].split(',');
-        if (!c || c === 'null' || isNaN(+c)) continue;
-        result.push({ d, o:+o, h:+h, l:+l, c:+c });
-      }
-      // Stooq gibt neueste zuerst – umdrehen für chronologische Reihenfolge
-      result.reverse();
-      if (result.length > 0) return result;
-    }
-  } catch {}
-
-  return [];
+// ── Hilfsfunktionen ────────────────────────────────────────────────────────
+function isoWeek(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const startW1 = new Date(jan4);
+  startW1.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7));
+  const wn = Math.round((d - startW1) / 604800000) + 1;
+  return { kw: wn, year: d.getUTCFullYear() };
 }
 
-const WINDOWS = ["5T","10T","20T","50T","6M"];
-
-function Cell({ v }) {
-  if (v == null) return <span style={{color:"#334155"}}>—</span>;
-  return <span style={{color:v>0?"#4ade80":"#f87171",fontFamily:"monospace",fontSize:11}}>{v>0?"+":""}{Math.round(v)}</span>;
+function getWeekEnd(weekStartStr) {
+  const d = new Date(weekStartStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 6); // Samstag → deckt Fr-Schluss ab
+  return d.toISOString().slice(0, 10);
 }
 
-// ── W/D/4H Breach-Punkte Spalten ───────────────────────────────────────────
-function BreachDots({ structW, structD, struct4H, changedW, changedD, changed4H }) {
-  const dot = (active, changed) => (
-    <span style={{
-      display:"inline-block", width:7, height:7, borderRadius:"50%",
-      background: active ? "#4ade80" : "#1e293b",
-      border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #334155",
-      flexShrink: 0, boxSizing:"border-box",
-    }}/>
-  );
-  const col = { display:"flex", alignItems:"center", justifyContent:"center", width:18 };
+function PktDot({ val, has }) {
+  if (!has) return <span style={{color:'#334155',fontSize:11,fontFamily:'monospace'}}>–</span>;
+  return <span className="dot" style={{background: val ? '#4ade80' : '#1e293b', border: val ? 'none' : '1px solid #334155'}}/>;
+}
+
+function PktBadge({ pts, has4h }) {
+  const max = has4h ? 3 : 2;
+  const colors = ['#1e293b','#854d0e','#713f12','#14532d'];
+  const textColors = ['#475569','#fbbf24','#fde047','#4ade80'];
   return (
-    <div style={{display:"flex", gap:1, alignItems:"center"}}>
-      <div style={col}>{dot(structW?.broken,  changedW)}</div>
-      <div style={col}>{dot(structD?.broken,  changedD)}</div>
-      <div style={col}>{dot(struct4H?.broken4h, changed4H)}</div>
-    </div>
+    <span style={{
+      display:'inline-block', minWidth:28, textAlign:'center',
+      background: pts >= max ? colors[3] : pts >= 2 ? colors[2] : pts >= 1 ? colors[1] : colors[0],
+      color: pts >= max ? textColors[3] : pts >= 2 ? textColors[2] : pts >= 1 ? textColors[1] : textColors[0],
+      borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:12, fontWeight:700
+    }}>{pts}{has4h ? '' : '*'}</span>
   );
 }
 
-// ── Haupt-App ──────────────────────────────────────────────────────────────
-function App() {
-  const [data, setData]         = useState(null);
-  const [error, setError]       = useState(null);
-  const [sortBy, setSortBy]     = useState("score");
-  const [showAll, setShowAll]   = useState(false);
-  const [selected, setSelected] = useState(null);
-  const [liveBench, setLiveBench] = useState({ w: null, d: null });
-  const [signals, setSignals] = useState({});
-
-  // Live-Fetch Benchmark OHLCV (QQQ) von Yahoo Finance als Fallback
-  useEffect(() => {
-    Promise.all([
-      fetchYFChart("QQQ", "1wk", "60wk"),
-      fetchYFChart("QQQ", "1d",  "3mo"),
-    ]).then(([w, d]) => {
-      if (w.length > 0 || d.length > 0) setLiveBench({ w, d });
-    });
-  }, []);
+// ── Backtest App ────────────────────────────────────────────────────────────
+function BacktestApp() {
+  const [data,        setData]        = useState(null);
+  const [loadError,   setLoadError]   = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [selectedIdx, setSelectedIdx] = useState(null);
+  const chartRef = useRef(null);
 
   useEffect(() => {
-    fetch("rs_full.json")
+    fetch('backtest_sndk.json')
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(json => {
-        // Beide Formate unterstützen: Array (alt) und Objekt mit data-Key (neu)
-        const arr = Array.isArray(json) ? json : json.data;
-        // Letztes Datum aus den täglichen Kerzen ableiten (zuverlässiger als timestamp-Feld)
-        const lastDate = arr.reduce((best, d) => {
-          const last = d.ohlcv?.[d.ohlcv.length - 1]?.d;
-          return last > best ? last : best;
-        }, "");
-        const normalized = {
-          timestamp: lastDate || (Array.isArray(json) ? "–" : json.timestamp),
-          benchmark: "QQQ",
-          top20: arr.slice(0, 20).map(d => d.ticker),
-          data: arr,
-          benchmark_ohlcv_w: Array.isArray(json) ? [] : (json.benchmark_ohlcv_w || []),
-          benchmark_ohlcv:   Array.isArray(json) ? [] : (json.benchmark_ohlcv   || []),
-        };
-        setData(normalized);
-        const first = normalized.data.find(d => d.ohlcv?.length > 0);
-        if (first) setSelected(first.ticker);
-      })
-      .catch(e => setError(e.message));
+      .then(d  => { setData(d); setLoading(false); })
+      .catch(e => { setLoadError(e.message); setLoading(false); });
   }, []);
 
-  useEffect(() => {
-    fetch("signals.json")
-      .then(r => r.ok ? r.json() : {})
-      .then(json => setSignals(json))
-      .catch(() => {});
-  }, []);
-
-  const rsData = useMemo(() => {
+  // ── Pre-Compute aller Wochen mit historisch korrekt geschnittenen Daten ──
+  const weekRows = useMemo(() => {
     if (!data) return [];
-    return data.data.map(d => ({ t: d.ticker, s: d.score, w: d.windows }));
-  }, [data]);
+    return data.ohlcv_w.map((week, i) => {
+      const weekEnd = getWeekEnd(week.d);
 
-  const sorted = useMemo(() =>
-    [...rsData].sort((a, b) =>
-      sortBy === "score" ? b.s - a.s : (b.w[sortBy]??-999) - (a.w[sortBy]??-999)
-    ), [rsData, sortBy]);
+      // Historisch korrekter Schnitt: nur Daten die zu diesem Zeitpunkt sichtbar waren
+      const wSlice  = data.ohlcv_w.slice(Math.max(0, i - 59), i + 1);          // letzte 60 Wochen
+      const dSlice  = data.ohlcv_d .filter(d => d.d          <= weekEnd).slice(-60); // letzte 60 Tage
+      const h4Slice = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90); // letzte 90 4H
 
-  const rows = showAll ? sorted : sorted.slice(0, 20);
+      const structW  = analyzeWeeklyStructure(wSlice);
+      const structD  = analyzeStructure(dSlice);
+      const has4h    = h4Slice.length >= 8;
+      const struct4H = has4h ? analyze4HStructure(h4Slice) : null;
 
-  // Weekly OHLCV
-  const ohlcvW = useMemo(() => {
-    if (!data || !selected) return null;
-    const entry = data.data.find(d => d.ticker === selected);
-    return entry?.ohlcv_w?.length > 0 ? entry.ohlcv_w : null;
-  }, [data, selected]);
+      const pW  = structW ?.broken    ? 1 : 0;
+      const pD  = structD ?.broken    ? 1 : 0;
+      const p4H = has4h ? (struct4H?.broken4h ? 1 : 0) : null;
+      const pts = pW + pD + (has4h ? p4H : 0);
+      const { kw, year } = isoWeek(week.d);
 
-  // Daily OHLCV
-  const ohlcv = useMemo(() => {
-    if (!data || !selected) return null;
-    const entry = data.data.find(d => d.ticker === selected);
-    return entry?.ohlcv?.length > 0 ? entry.ohlcv : null;
-  }, [data, selected]);
-
-  // 4H OHLCV: nur echte Daten
-  const ohlcv4h = useMemo(() => {
-    if (!data || !selected) return null;
-    const entry = data.data.find(d => d.ticker === selected);
-    return entry?.ohlcv_4h?.length > 0 ? entry.ohlcv_4h : null;
-  }, [data, selected]);
-
-  const structureW  = useMemo(() => analyzeWeeklyStructure(ohlcvW), [ohlcvW]);
-  const structure   = useMemo(() => analyzeStructure(ohlcv), [ohlcv]);
-  const structure4h = useMemo(() => analyze4HStructure(ohlcv4h), [ohlcv4h]);
-
-  const tickerSignals = useMemo(() => (selected && signals[selected]) ? signals[selected] : [], [signals, selected]);
-
-  const benchOhlcvW = useMemo(() =>
-    data?.benchmark_ohlcv_w?.length > 0 ? data.benchmark_ohlcv_w :
-    liveBench.w?.length > 0             ? liveBench.w             : null,
-  [data, liveBench]);
-  const benchOhlcvD = useMemo(() =>
-    data?.benchmark_ohlcv?.length > 0 ? data.benchmark_ohlcv :
-    liveBench.d?.length > 0           ? liveBench.d           : null,
-  [data, liveBench]);
-
-  // Struktur ALLER Ticker (für Badges und Breach-Punkte in Tabelle)
-  const structureMap = useMemo(() => {
-    if (!data) return {};
-    const map = {};
-    data.data.forEach(entry => {
-      const d = map[entry.ticker] = {};
-      if (entry.ohlcv?.length > 0)    d.daily  = analyzeStructure(entry.ohlcv);
-      if (entry.ohlcv_w?.length > 0)  d.weekly = analyzeWeeklyStructure(entry.ohlcv_w);
-      if (entry.ohlcv_4h?.length > 0) d.h4     = analyze4HStructure(entry.ohlcv_4h);
+      return { week, i, weekEnd, kw, year, wSlice, dSlice, h4Slice, structW, structD, struct4H, pW, pD, p4H, has4h, pts };
     });
-    return map;
   }, [data]);
 
-  // Status-Änderungen tracken (localStorage) → gelber Rand für 7 Tage
+  const sel = selectedIdx !== null ? weekRows[selectedIdx] : null;
 
-  // 4H Chart: immer anzeigen wenn Daten vorhanden
-  const show4H = ohlcv4h && structure4h;
-
-  const selectedRs = rsData.find(d => d.t === selected);
-  const top20      = data?.top20 ?? [];
-
-  const sel = {
-    background:"#1e293b", border:"1px solid #334155",
-    color:"#e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:12, cursor:"pointer"
+  const handleRowClick = (i) => {
+    setSelectedIdx(prev => prev === i ? null : i);
+    setTimeout(() => chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
-  if (error) return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#060b14",color:"#f87171",fontFamily:"monospace",flexDirection:"column",gap:8}}>
-      <span style={{fontSize:18}}>⚠ Fehler beim Laden</span>
-      <span style={{fontSize:12,color:"#475569"}}>{error}</span>
-      <span style={{fontSize:11,color:"#334155"}}>Stelle sicher, dass rs_full.json im selben Verzeichnis liegt.</span>
+  // Neueste zuerst
+  const tableRows = [...weekRows].reverse();
+
+  if (loading) return (
+    <div style={{padding:'80px 24px',textAlign:'center',color:'#475569',fontFamily:'monospace'}}>
+      Lade backtest_sndk.json …
     </div>
   );
-  if (!data) return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#060b14",color:"#475569",fontFamily:"monospace",flexDirection:"column",gap:8}}>
-      <span style={{fontSize:24}}>⟳</span>
-      <span style={{fontSize:12}}>Lade rs_full.json …</span>
+
+  if (loadError) return (
+    <div style={{padding:'80px 24px',textAlign:'center',fontFamily:'monospace'}}>
+      <div style={{color:'#f87171',fontSize:15,marginBottom:16}}>Keine Daten gefunden</div>
+      <div style={{color:'#64748b',fontSize:13,marginBottom:8}}>Bitte zuerst ausführen:</div>
+      <code style={{background:'#1e293b',color:'#fbbf24',padding:'8px 18px',borderRadius:6,fontSize:13,display:'inline-block'}}>
+        python3 load_backtest.py
+      </code>
+      <div style={{color:'#334155',fontSize:11,marginTop:12}}>({loadError})</div>
     </div>
   );
 
   return (
-    <div style={{minHeight:"100vh",background:"#060b14",color:"#e2e8f0",fontFamily:"'Inter',system-ui,sans-serif",padding:"16px 12px"}}>
+    <div style={{padding:'56px 12px 32px'}}>
 
-      {/* Header */}
-      <div style={{marginBottom:14,paddingLeft:200}}>
-        <h1 style={{margin:0,fontSize:18,fontWeight:800,color:"#f8fafc"}}>⚡ RS · QQQ</h1>
-        <p style={{margin:"2px 0 0",color:"#475569",fontSize:11}}>
-          Outperformance vs. Nasdaq 100 · {data.timestamp}
-          {(() => {
-            const last = new Date(data.timestamp);
-            const diffDays = (Date.now() - last) / 86400000;
-            const ok = !isNaN(diffDays) && diffDays <= 5;
-            return <span title={ok ? "Daten aktuell" : "Daten veraltet"} style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:ok?"#22c55e":"#ef4444",marginLeft:5,verticalAlign:"middle"}}/>;
-          })()}
-        </p>
+      {/* ── Header ── */}
+      <div style={{marginBottom:14,display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
+        <div>
+          <span style={{fontSize:20,fontWeight:800,color:'#f1f5f9',fontFamily:'monospace'}}>SNDK</span>
+          <span style={{fontSize:12,color:'#475569',marginLeft:10,fontFamily:'monospace'}}>Backtest · historische GWS-Punkte</span>
+        </div>
+        <div style={{marginLeft:'auto',fontSize:11,color:'#334155',fontFamily:'monospace'}}>
+          {weekRows.length} Wochen · Stand {data.generated}
+        </div>
       </div>
 
-      {/* Steuerung */}
-      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"flex-end"}}>
-        <div style={{display:"flex",flexDirection:"column",gap:2}}>
-          <label style={{fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>Sortieren</label>
-          <select style={sel} value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="score">Score</option>
-            {WINDOWS.map(w => <option key={w} value={w}>{w}</option>)}
-          </select>
-        </div>
+      <div style={{marginBottom:10,fontSize:11,color:'#475569',fontFamily:'monospace'}}>
+        Legende:&nbsp;
+        <span className="dot" style={{background:'#4ade80',display:'inline-block',verticalAlign:'middle'}}/> = GWS gebrochen &nbsp;
+        <span className="dot" style={{background:'#1e293b',border:'1px solid #334155',display:'inline-block',verticalAlign:'middle'}}/> = kein Bruch &nbsp;
+        <span style={{color:'#94a3b8'}}>* = kein 4H-Daten für diese Woche</span>
       </div>
 
       <div className="desktop-layout">
-      <div className="desktop-left">
-      {/* RS-Tabelle */}
-      {/* Spalten: # | Ticker | Score | W D 4H (3 Punkte-Spalten eng) | 5T 10T 20T 50T 6M */}
-      <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",marginBottom:12,overflowX:"auto"}}>
-        <div style={{minWidth:480}}>
-          {/* Header-Zeile */}
-          <div style={{
-            display:"grid",
-            gridTemplateColumns:"22px 58px 56px 18px 18px 18px repeat(5,1fr)",
-            padding:"6px 10px", background:"#1e293b", gap:2,
-            fontSize:9, color:"#475569", textTransform:"uppercase", letterSpacing:0.5,
-            alignItems:"center"
-          }}>
-            <span>#</span>
-            <span>Ticker</span>
-            <span>Score</span>
-            <span style={{textAlign:"center",color:"#f59e0b"}}>W</span>
-            <span style={{textAlign:"center",color:"#ef4444"}}>D</span>
-            <span style={{textAlign:"center",color:"#a78bfa"}}>4H</span>
-            {WINDOWS.map(w => <span key={w} style={{textAlign:"center"}}>{w}</span>)}
+
+        {/* ── Linke Spalte: Tabelle ── */}
+        <div className="desktop-left">
+          <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
+
+            {/* Tabellen-Header */}
+            <div style={{display:'grid',gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px',gap:0,
+              background:'#0f172a',borderBottom:'1px solid #1e293b',padding:'7px 12px',
+              fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.05em'}}>
+              <span>KW</span><span>Datum</span><span style={{textAlign:'right'}}>Close</span>
+              <span style={{textAlign:'center'}}>W</span>
+              <span style={{textAlign:'center'}}>D</span>
+              <span style={{textAlign:'center'}}>4H</span>
+              <span style={{textAlign:'center'}}>Pkt</span>
+            </div>
+
+            {/* Scroll-Container */}
+            <div style={{maxHeight:'75vh',overflowY:'auto'}}>
+              {tableRows.map(row => {
+                const isSel = selectedIdx === row.i;
+                const bgPts = row.pts >= 3 ? '#0a1a0a'
+                            : row.pts === 2 && row.has4h ? '#1a1200'
+                            : row.pts >= 2 ? '#1a1200'
+                            : row.pts === 1 ? '#0f0f0f'
+                            : '#060b14';
+                const borderLeft = row.pts >= 3 ? '3px solid #4ade80'
+                                 : row.pts >= 2 ? '3px solid #fbbf24'
+                                 : row.pts >= 1 ? '3px solid #334155'
+                                 : '3px solid transparent';
+                return (
+                  <div key={row.i}
+                    className="tbl-row"
+                    onClick={() => handleRowClick(row.i)}
+                    style={{
+                      display:'grid', gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px',
+                      gap:0, padding:'5px 12px',
+                      background: isSel ? '#1a2f4a' : bgPts,
+                      borderLeft: isSel ? '3px solid #3b82f6' : borderLeft,
+                      borderBottom:'1px solid #0f172a',
+                      alignItems:'center'
+                    }}>
+                    <span style={{fontFamily:'monospace',fontSize:11,color: isSel?'#93c5fd':'#64748b'}}>
+                      KW {row.kw} / {row.year}
+                    </span>
+                    <span style={{fontFamily:'monospace',fontSize:11,color: isSel?'#e2e8f0':'#94a3b8'}}>
+                      {row.week.d}
+                    </span>
+                    <span style={{fontFamily:'monospace',fontSize:11,textAlign:'right',
+                      color: isSel?'#e2e8f0':'#cbd5e1', fontWeight:600}}>
+                      {row.week.c.toFixed(2)}
+                    </span>
+                    <span style={{textAlign:'center'}}><PktDot val={row.pW}  has={true}/></span>
+                    <span style={{textAlign:'center'}}><PktDot val={row.pD}  has={row.dSlice.length >= 10}/></span>
+                    <span style={{textAlign:'center'}}><PktDot val={row.p4H} has={row.has4h}/></span>
+                    <span style={{textAlign:'center'}}><PktBadge pts={row.pts} has4h={row.has4h}/></span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        </div>
 
-          {rows.map(item => {
-            const rank       = sorted.indexOf(item);
-            const isTop      = rank < 20;
-            const hasChart   = data.data.find(d=>d.ticker===item.t)?.ohlcv?.length > 0;
-            const structs    = structureMap[item.t] || {};
-            const isBOC      = structs.weekly?.broken && structs.daily?.broken && structs.h4?.broken4h;
-
-            return (
-              <div key={item.t}
-                onClick={() => hasChart && setSelected(item.t)}
-                style={{
-                  display:"grid",
-                  gridTemplateColumns:"22px 58px 56px 18px 18px 18px repeat(5,1fr)",
-                  padding:"6px 10px", gap:2,
-                  borderTop:`1px solid ${isBOC?"#ef444422":"#0a0f1e"}`,
-                  background: isBOC
-                    ? (item.t===selected?"#3a0808":"#160303")
-                    : item.t===selected ? "#1a2f4a"
-                    : isTop ? (rank%2===0?"#0d1526":"#0a1020") : "#07090f",
-                  opacity: isTop ? 1 : (isBOC ? 0.85 : 0.25),
-                  alignItems:"center",
-                  cursor: hasChart ? "pointer" : "default",
-                  borderLeft: isBOC ? "2px solid #ef4444"
-                    : item.t===selected ? "2px solid #3b82f6" : "2px solid transparent",
-                }}>
-                <span style={{fontSize:10,fontWeight:700,color:rank===0?"#f59e0b":rank<3?"#94a3b8":"#334155"}}>{rank+1}</span>
-                {/* Ticker-Zelle: Feuer vor dem Namen, kein extra Signal */}
-                <span style={{fontWeight:700,fontSize:11,fontFamily:"monospace",
-                  color:isBOC?"#fca5a5":rank===0?"#fbbf24":isTop?"#f1f5f9":"#475569",
-                  display:"flex",alignItems:"center",gap:2}}>
-                  {isBOC && <span className="flame-anim" style={{fontSize:11}}>🔥</span>}
-                  {item.t}
-                  {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}
+        {/* ── Rechte Spalte: Charts ── */}
+        <div className="desktop-right" ref={chartRef}>
+          {sel ? (
+            <div>
+              {/* Ausgewählte Woche Info */}
+              <div style={{background:'#0f172a',border:'1px solid #1e293b',borderRadius:10,
+                padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                <span style={{fontFamily:'monospace',fontSize:14,fontWeight:800,color:'#f1f5f9'}}>
+                  SNDK · KW {sel.kw} / {sel.year}
                 </span>
-                <span style={{fontFamily:"monospace",fontSize:11,fontWeight:600,color:item.s>0?"#4ade80":"#f87171"}}>
-                  {item.s>0?"+":""}{Math.round(item.s)}
+                <span style={{fontFamily:'monospace',fontSize:11,color:'#64748b'}}>{sel.week.d}</span>
+                <span style={{fontFamily:'monospace',fontSize:12,color:'#cbd5e1',marginLeft:'auto'}}>
+                  Close: <strong>{sel.week.c.toFixed(2)}</strong>
                 </span>
-                {/* W-Breach Punkt */}
-                {(() => {
-                  const active = structs.weekly?.broken;
-                  const changed = structs.weekly?.recentBreakout;
-                  return <div style={{display:"flex",justifyContent:"center"}}>
-                    <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
-                      border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
-                    }}/>
-                  </div>;
-                })()}
-                {/* D-Breach Punkt */}
-                {(() => {
-                  const active = structs.daily?.broken;
-                  const changed = structs.daily?.recentBreakout;
-                  return <div style={{display:"flex",justifyContent:"center"}}>
-                    <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
-                      border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
-                    }}/>
-                  </div>;
-                })()}
-                {/* 4H-Breach Punkt */}
-                {(() => {
-                  const active = structs.h4?.broken4h;
-                  const changed = structs.h4?.recentBreakout;
-                  return <div style={{display:"flex",justifyContent:"center"}}>
-                    <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",boxSizing:"border-box",
-                      background: changed ? "#eab308" : active ? "#4ade80" : "transparent",
-                      border: changed ? "1.5px solid #eab308" : active ? "1px solid #22c55e" : "1px solid #1e293b",
-                    }}/>
-                  </div>;
-                })()}
-                {WINDOWS.map(w => (
-                  <div key={w} style={{textAlign:"center"}}><Cell v={item.w[w]}/></div>
-                ))}
+                <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                  {[['W', sel.pW, true],['D', sel.pD, sel.dSlice.length >= 10],['4H', sel.p4H, sel.has4h]].map(([lbl,val,has]) => (
+                    <span key={lbl} style={{fontFamily:'monospace',fontSize:11,
+                      color: !has ? '#334155' : val ? '#4ade80' : '#ef4444'}}>
+                      {lbl}: {!has ? '–' : val ? '✓' : '✗'}
+                    </span>
+                  ))}
+                  <span style={{marginLeft:4}}><PktBadge pts={sel.pts} has4h={sel.has4h}/></span>
+                </div>
               </div>
-            );
-          })}
 
-          {/* Toggle Alle / Zurück auf Top 20 */}
-          <div style={{textAlign:"center",padding:"8px",borderTop:"1px solid #0a0f1e"}}>
-            {showAll ? (
-              <button onClick={() => setShowAll(false)}
-                style={{background:"none",border:"1px solid #334155",color:"#64748b",borderRadius:6,padding:"4px 14px",fontSize:11,cursor:"pointer"}}>
-                ↑ Zurück auf Top 20
-              </button>
-            ) : sorted.length > 20 ? (
-              <button onClick={() => setShowAll(true)}
-                style={{background:"none",border:"1px solid #334155",color:"#64748b",borderRadius:6,padding:"4px 14px",fontSize:11,cursor:"pointer"}}>
-                Alle {rsData.length} anzeigen ↓
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </div>
+              <div className="charts-grid">
+                {/* Weekly Chart */}
+                {sel.wSlice.length >= 8 ? (
+                  <ChartWeekly
+                    ohlcvW={sel.wSlice}
+                    structureW={sel.structW}
+                    chartId={`bt_w_${sel.i}`}/>
+                ) : (
+                  <div style={{background:'#07090f',borderRadius:8,border:'1px solid #1e293b',
+                    padding:'20px',color:'#334155',fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
+                    Zu wenig Weekly-Daten
+                  </div>
+                )}
 
-      {/* Portfolio-Schnellauswahl */}
-      <div style={{background:"#0f172a",borderRadius:10,padding:12,border:"1px solid #1e293b",marginBottom:12}}>
-        <p style={{margin:"0 0 6px",fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>Portfolio · Top 20</p>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-          {sorted.slice(0,20).map((d,i) => {
-            const hasChart = data.data.find(e=>e.ticker===d.t)?.ohlcv?.length > 0;
-            const isBOC   = structureMap[d.t]?.daily?.broken;
-            return (
-              <span key={d.t}
-                onClick={()=>hasChart&&setSelected(d.t)}
-                style={{
-                  background:isBOC?"#160303":i<3?"#1a2f4a":"#1e293b",
-                  border:`1px solid ${d.t===selected?"#3b82f6":isBOC?"#ef4444":i<3?"#2563eb":"#334155"}`,
-                  borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700,
-                  color:isBOC?"#fca5a5":i<3?"#93c5fd":"#94a3b8",
-                  fontFamily:"monospace", cursor:hasChart?"pointer":"default"
-                }}>
-                {isBOC&&"🔥"}{d.t}
+                {/* Daily Chart */}
+                {sel.dSlice.length >= 10 ? (
+                  <CandleChart
+                    ohlcv={sel.dSlice}
+                    structure={sel.structD}
+                    chartId={`bt_d_${sel.i}`}/>
+                ) : (
+                  <div style={{background:'#07090f',borderRadius:8,border:'1px solid #1e293b',
+                    padding:'20px',color:'#334155',fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
+                    Keine Daily-Daten für diese Woche
+                  </div>
+                )}
+
+                {/* 4H Chart – volle Breite */}
+                {sel.has4h && sel.struct4H ? (
+                  <div className="chart-full-width">
+                    <Chart4H
+                      ohlcv4h={sel.h4Slice}
+                      structure4h={sel.struct4H}
+                      chartId={`bt_4h_${sel.i}`}/>
+                  </div>
+                ) : (
+                  <div className="chart-full-width" style={{background:'#07090f',borderRadius:8,
+                    border:'1px solid #1e293b',padding:'14px',color:'#334155',
+                    fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
+                    4H-Daten nur für die letzten ~730 Tage verfügbar
+                  </div>
+                )}
+              </div>
+
+              {/* Hinweis historische Simulation */}
+              <p style={{fontSize:9,color:'#1e293b',marginTop:8,fontFamily:'monospace',textAlign:'center'}}>
+                Historische Simulation · Daten geschnitten auf KW {sel.kw}/{sel.year} ({sel.weekEnd}) ·
+                W: {sel.wSlice.length} Kerzen · D: {sel.dSlice.length} Kerzen · 4H: {sel.h4Slice.length} Kerzen
+              </p>
+            </div>
+          ) : (
+            <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,
+              padding:'40px 24px',textAlign:'center',color:'#334155',fontFamily:'monospace',fontSize:13}}>
+              ← Woche in der Tabelle anklicken<br/>
+              <span style={{fontSize:11,color:'#1e293b',display:'block',marginTop:8}}>
+                Charts zeigen den historisch korrekten Stand dieser KW
               </span>
-            );
-          })}
-        </div>
-      </div>
-
-      </div>{/* end desktop-left */}
-      <div className="desktop-right">
-      {/* Strukturanalyse */}
-      <div style={{background:"#0f172a",borderRadius:10,border:"1px solid #1e293b",padding:14,marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <p style={{margin:0,fontSize:15,fontWeight:800,color:"#f1f5f9",fontFamily:"monospace"}}>{selected ?? "–"}</p>
-          {selectedRs && (
-            <span style={{fontSize:11,fontFamily:"monospace",color:selectedRs.s>0?"#4ade80":"#f87171"}}>
-              RS Score: {selectedRs.s>0?"+":""}{Math.round(selectedRs.s)}
-            </span>
+            </div>
           )}
         </div>
 
-        {ohlcv ? (
-          <div className="charts-grid">
-            {/* Weekly Chart */}
-            {ohlcvW && structureW ? (
-              <ChartWeekly ohlcvW={ohlcvW} structureW={structureW} chartId={selected+"_w"}
-                benchOhlcv={benchOhlcvW} benchLabel={data.benchmark} signals={tickerSignals}/>
-            ) : (
-              <div style={{background:"#07090f",borderRadius:8,border:"1px solid #1e293b",padding:"12px 16px",color:"#334155",fontSize:11,fontFamily:"monospace"}}>
-                Weekly-Daten fehlen – bitte Python-Skript neu ausführen (ohlcv_w)
-              </div>
-            )}
-
-            {/* Daily Chart */}
-            {ohlcv && structure && (
-              <CandleChart ohlcv={ohlcv} structure={structure} chartId={selected+"_d"}
-                benchOhlcv={benchOhlcvD} benchLabel={data.benchmark} signals={tickerSignals}/>
-            )}
-
-            {/* 4H Chart – volle Breite */}
-            {show4H && (
-              <div className="chart-full-width">
-                <Chart4H ohlcv4h={ohlcv4h} structure4h={structure4h} chartId={selected+"_4h"} signals={tickerSignals}/>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{color:"#475569",fontSize:12,textAlign:"center",padding:"20px 0"}}>
-            Klick auf einen Ticker mit ▸ für Strukturanalyse.
-          </div>
-        )}
-      </div>
-      </div>{/* end desktop-right */}
       </div>{/* end desktop-layout */}
 
-      <p style={{textAlign:"center",color:"#1e293b",fontSize:9,marginTop:8}}>
-        Echte Daten via yfinance · Kein Handelssignal · Stand {data.timestamp}
+      <p style={{textAlign:'center',color:'#1e293b',fontSize:9,marginTop:16,fontFamily:'monospace'}}>
+        Daten via yfinance · Kein Handelssignal · Backtest-Modus · Datenladen: python3 load_backtest.py
       </p>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+ReactDOM.createRoot(document.getElementById('root')).render(<BacktestApp/>);
 </script>
 </body>
 </html>
