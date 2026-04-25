@@ -123,7 +123,7 @@ function analyzeStructure(ohlcv) {
     }
   }
 
-  const broken       = breakoutIdx !== null;
+  const broken       = breakoutIdx !== null || (gwsdHigh === null && trend === "bullish");
   const currentClose = closes[n - 1];
 
   let trend = "neutral";
@@ -279,13 +279,21 @@ function analyze4HStructure(ohlcv4h) {
     }
   }
 
+  let trend4h = "neutral";
+  if (swingHighs.length >= 2) {
+    const last4h = swingHighs[swingHighs.length - 1];
+    const prev4h = swingHighs[swingHighs.length - 2];
+    if (last4h.price > prev4h.price) trend4h = "bullish";
+    else if (last4h.price < prev4h.price) trend4h = "bearish";
+  }
+
   const recentBreakout = breakout4hIdx !== null && (() => {
     const breakoutDate = new Date(ohlcv4h[breakout4hIdx].d.replace(' ', 'T'));
     const lastDate     = new Date(ohlcv4h[n - 1].d.replace(' ', 'T'));
     return (lastDate - breakoutDate) / (1000 * 60 * 60 * 24) <= 7;
   })();
   return {
-    gws4hHigh, breakout4hIdx, broken4h: breakout4hIdx !== null,
+    gws4hHigh, breakout4hIdx, broken4h: breakout4hIdx !== null || (gws4hHigh === null && trend4h === "bullish"),
     prevGws4hHigh, prevBreakout4hIdx,
     recentBreakout,
     swingHighs: swingHighs.slice(-8),

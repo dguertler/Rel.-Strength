@@ -70,7 +70,16 @@ def analyze_daily_structure(ohlcv):
     swing_highs, swing_lows = _find_swing_points(highs, lows, n)
     gws_high, breakout_idx  = _gws_core(swing_highs, swing_lows, closes, n)
 
-    broken = breakout_idx is not None
+    trend = None
+    if len(swing_highs) >= 2:
+        last = swing_highs[-1]
+        prev = swing_highs[-2]
+        if last['price'] > prev['price']:
+            trend = 'bullish'
+        elif last['price'] < prev['price']:
+            trend = 'bearish'
+
+    broken = breakout_idx is not None or (gws_high is None and trend == 'bullish')
     return {
         'broken':      broken,
         'gws_price':   gws_high['price'] if gws_high else None,
@@ -124,8 +133,17 @@ def analyze_4h_structure(ohlcv_4h):
     swing_highs, swing_lows   = _find_swing_points(highs, lows, n)
     gws_high, breakout_4h_idx = _gws_core(swing_highs, swing_lows, closes, n)
 
+    trend = None
+    if len(swing_highs) >= 2:
+        last = swing_highs[-1]
+        prev = swing_highs[-2]
+        if last['price'] > prev['price']:
+            trend = 'bullish'
+        elif last['price'] < prev['price']:
+            trend = 'bearish'
+
     return {
-        'broken4h':     breakout_4h_idx is not None,
+        'broken4h':     breakout_4h_idx is not None or (gws_high is None and trend == 'bullish'),
         'gws_price':    gws_high['price'] if gws_high else None,
         'breakout_idx': breakout_4h_idx,
     }
