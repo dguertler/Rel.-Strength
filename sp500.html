@@ -433,6 +433,15 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
           const x2 = toX(gwswLineEnd);
           return <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwswColor} strokeWidth="1.8" strokeDasharray="5,4"/>;
         })()}
+                {/* Trend-Fallback: kein GWS aber höhere Hochs (Weekly) */}
+        {broken && !gwswHigh && structureW?.swingHighs?.length >= 2 && (() => {
+          const lastSH = structureW.swingHighs[structureW.swingHighs.length - 1];
+          const y = toY(lastSH.price);
+          return <>
+            <line x1={PL} x2={PL+cW} y1={y} y2={y} stroke="#4ade80" strokeWidth="1.2" strokeDasharray="3,6" opacity="0.7"/>
+            <text x={PL+6} y={y-4} fill="#4ade80" fontSize="8" fontFamily="monospace" opacity="0.8">Trend ↑</text>
+          </>;
+        })()}
 
         {/* Kerzen */}
         {ohlcvW.map((d, i) => {
@@ -641,6 +650,16 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
           return <line x1={x1} x2={x2} y1={y} y2={y} stroke={gwsdColor} strokeWidth="1.8" strokeDasharray="5,4"/>;
         })()}
 
+                {/* Trend-Fallback: kein GWS aber höhere Hochs (Daily) */}
+        {broken && !gwsdHigh && structure?.swingHighs?.length >= 2 && (() => {
+          const lastSH = structure.swingHighs[structure.swingHighs.length - 1];
+          const y = toY(lastSH.price);
+          return <>
+            <line x1={PL} x2={PL+cW} y1={y} y2={y} stroke="#4ade80" strokeWidth="1.2" strokeDasharray="3,6" opacity="0.7"/>
+            <text x={PL+6} y={y-4} fill="#4ade80" fontSize="8" fontFamily="monospace" opacity="0.8">Trend ↑</text>
+          </>;
+        })()}
+
         {/* Kerzen */}
         {ohlcv.map((d, i) => {
           const bull = d.c >= d.o;
@@ -832,6 +851,18 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
           const x2 = toX(lineEnd4h);
           return <>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={col4h} strokeWidth="1.8" strokeDasharray="4,3"/>
+          </>;
+        })()}
+
+                {/* Trend-Fallback: kein GWS aber höhere Hochs (4H) */}
+        {broken4h && !gws4hHigh && structure4h?.swingHighs?.length >= 2 && (() => {
+          const lastSH4h = structure4h.swingHighs[structure4h.swingHighs.length - 1];
+          const localIdx = lastSH4h.idx - offset;
+          if (localIdx < 0) return null;
+          const y = toY(lastSH4h.price);
+          return <>
+            <line x1={PL} x2={PL+cW} y1={y} y2={y} stroke="#4ade80" strokeWidth="1.2" strokeDasharray="3,6" opacity="0.7"/>
+            <text x={PL+6} y={y-4} fill="#4ade80" fontSize="8" fontFamily="monospace" opacity="0.8">Trend ↑</text>
           </>;
         })()}
 
