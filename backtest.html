@@ -123,9 +123,6 @@ function analyzeStructure(ohlcv) {
     }
   }
 
-  const broken       = breakoutIdx !== null || (gwsdHigh === null && trend === "bullish");
-  const currentClose = closes[n - 1];
-
   let trend = "neutral";
   if (swingHighs.length >= 2) {
     const last = swingHighs[swingHighs.length - 1];
@@ -133,6 +130,9 @@ function analyzeStructure(ohlcv) {
     if (last.price > prev.price) trend = "bullish";
     else if (last.price < prev.price) trend = "bearish";
   }
+
+  const broken       = breakoutIdx !== null || (gwsdHigh === null && trend === "bullish");
+  const currentClose = closes[n - 1];
 
   const recentBreakout = broken && (n - 1 - breakoutIdx <= 7);
 
