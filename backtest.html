@@ -1131,7 +1131,7 @@ function BacktestApp() {
     // Schneller Lookup: Wochenmontag → weekRow-Index
     const weekRowMap = new Map(weekRows.map((r, idx) => [r.week.d, idx]));
 
-    let inTrade = false, entryPrice = null, entryDate = null;
+    let inTrade = false, entryPrice = null, entryDate = null, entryTime = null;
     let cachedWeekStart = null, cachedWStruct = null;
 
     for (let i = 0; i < ohlcv_d.length; i++) {
@@ -1167,7 +1167,9 @@ function BacktestApp() {
       if (!inTrade) {
         if (pts === 3 && has4h) {
           inTrade = true;
-          entryPrice = h4Slice[h4Slice.length - 1].c;
+          const entryBar = h4Slice[h4Slice.length - 1];
+          entryPrice = entryBar.c;
+          entryTime  = entryBar.d;
           entryDate  = dayDate;
           setMark(wRowIdx, { type:'entry', price: entryPrice });
         }
@@ -1175,9 +1177,9 @@ function BacktestApp() {
         if (pW === 0 || pD === 0) {
           const exitPrice = day.c;
           const pnl = (exitPrice - entryPrice) / entryPrice;
-          results.push({ entryDate, entryPrice, exitDate: dayDate, exitPrice, pnl, win: pnl > 0 });
+          results.push({ entryDate, entryTime, entryPrice, exitDate: dayDate, exitPrice, pnl, win: pnl > 0 });
           setMark(wRowIdx, { type:'exit', price: exitPrice, pnl });
-          inTrade = false; entryPrice = null; entryDate = null;
+          inTrade = false; entryPrice = null; entryDate = null; entryTime = null;
         } else {
           setMark(wRowIdx, { type:'active' });
         }
@@ -1264,6 +1266,39 @@ function BacktestApp() {
       </div>
 
       <MetricsPanel metrics={metrics}/>
+
+      {/* ── Trade-Liste ── */}
+      {trades.length > 0 && (
+        <div style={{marginBottom:14,background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
+          <div style={{display:'grid',gridTemplateColumns:'148px 56px 76px 104px 76px 72px',
+            padding:'6px 14px',background:'#0f172a',borderBottom:'1px solid #1e293b',
+            fontSize:9,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.06em'}}>
+            <span>Kauf Datum</span><span style={{textAlign:'right'}}>Zeit</span>
+            <span style={{textAlign:'right'}}>Kauf Kurs</span>
+            <span style={{paddingLeft:14}}>Verkauf Datum</span>
+            <span style={{textAlign:'right'}}>Verk. Kurs</span>
+            <span style={{textAlign:'right'}}>Rendite</span>
+          </div>
+          {[...trades].reverse().map((t, k) => {
+            const entryDateStr = t.entryTime ? t.entryTime.slice(0,10) : t.entryDate;
+            const entryTimeStr = t.entryTime ? t.entryTime.slice(11,16) : '–';
+            return (
+              <div key={k} style={{display:'grid',gridTemplateColumns:'148px 56px 76px 104px 76px 72px',
+                padding:'5px 14px',borderBottom:'1px solid #0f172a',fontFamily:'monospace',fontSize:11,
+                background: t.win ? '#06120a' : '#120608',alignItems:'center'}}>
+                <span style={{color:'#22c55e'}}>{entryDateStr}</span>
+                <span style={{textAlign:'right',color:'#475569',fontSize:10}}>{entryTimeStr}</span>
+                <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.entryPrice.toFixed(2)}</span>
+                <span style={{paddingLeft:14,color:'#94a3b8'}}>{t.exitDate}</span>
+                <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.exitPrice.toFixed(2)}</span>
+                <span style={{textAlign:'right',fontWeight:700,color: t.win ? '#4ade80' : '#f87171'}}>
+                  {t.pnl >= 0 ? '+' : ''}{(t.pnl * 100).toFixed(1)}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="desktop-layout">
 
