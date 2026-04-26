@@ -56,13 +56,15 @@ ohlcv_d = df_to_ohlcv(raw_d)
 print(f"    {len(ohlcv_d)} Kerzen  "
       f"({ohlcv_d[0]['d'] if ohlcv_d else 'N/A'} – {ohlcv_d[-1]['d'] if ohlcv_d else 'N/A'})")
 
-# ── 4H via 1H (letzte 730 Tage – yfinance-Maximum) ──────────────────────────
-print("  4H via 1H (period=730d) ...")
+# ── 4H via 1H (letzte 729 Tage – yfinance-Maximum für 1H) ───────────────────
+print("  4H via 1H (letzte 729 Tage) ...")
 ohlcv_4h = []
 try:
+    from datetime import timedelta
+    start_1h = (datetime.now() - timedelta(days=729)).strftime("%Y-%m-%d")
     raw_1h = yf.download(
-        TICKER, period="730d", interval="1h",
-        prepost=True, auto_adjust=True, progress=False
+        TICKER, start=start_1h, interval="1h",
+        auto_adjust=True, progress=False
     )
     if not raw_1h.empty:
         if isinstance(raw_1h.columns, pd.MultiIndex):
