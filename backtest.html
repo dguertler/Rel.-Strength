@@ -968,6 +968,35 @@ function PktBadge({ pts, has4h }) {
   );
 }
 
+// ── Metriken Panel ─────────────────────────────────────────────────────────
+function MetricsPanel({ metrics }) {
+  if (!metrics) return null;
+  const { totalReturn, finalCapital, tradeCount, winrate, profitFactor } = metrics;
+  const retColor  = totalReturn >= 0 ? '#4ade80' : '#f87171';
+  const wrColor   = winrate >= 50 ? '#4ade80' : '#fbbf24';
+  const pfColor   = profitFactor === null ? '#4ade80'
+                  : profitFactor >= 1.5 ? '#4ade80'
+                  : profitFactor >= 1   ? '#fbbf24' : '#f87171';
+  const pfVal     = profitFactor === null ? '∞' : profitFactor.toFixed(2);
+  const cards = [
+    { label:'Rendite',       value:`${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(1)}%`, sub:`${finalCapital.toFixed(0)}€ von 10.000€`, color: retColor },
+    { label:'Trades',        value:`${tradeCount}`,   color:'#94a3b8' },
+    { label:'Winrate',       value:`${winrate.toFixed(0)}%`, color: wrColor },
+    { label:'Profit Faktor', value: pfVal,            color: pfColor },
+  ];
+  return (
+    <div style={{display:'flex',gap:0,marginBottom:14,background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
+      {cards.map((c, k) => (
+        <div key={k} style={{flex:1,padding:'12px 16px',borderRight: k < 3 ? '1px solid #1e293b' : 'none'}}>
+          <div style={{fontSize:9,color:'#475569',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{c.label}</div>
+          <div style={{fontSize:22,fontWeight:800,color:c.color,fontFamily:'monospace',lineHeight:1}}>{c.value}</div>
+          {c.sub && <div style={{fontSize:9,color:'#64748b',fontFamily:'monospace',marginTop:3}}>{c.sub}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Backtest App ────────────────────────────────────────────────────────────
 function BacktestApp() {
   const [data,        setData]        = useState(null);
@@ -1008,6 +1037,58 @@ function BacktestApp() {
       return { week, i, weekEnd, kw, year, wSlice, dSlice, h4Slice, structW, structD, struct4H, pW, pD, p4H, has4h, pts };
     });
   }, [data]);
+
+  // ── Backtest Simulation ─────────────────────────────────────────────────
+  // Eintritt: alle 3 Punkte grün (W=1, D=1, 4H=1) → Kauf zum letzten 4H-Close
+  // Austritt: Weekly ODER Daily nicht mehr grün → Verkauf zum Weekly-Close
+  const { trades, tradeMarkers } = useMemo(() => {
+    if (!weekRows.length) return { trades: [], tradeMarkers: new Map() };
+    const results = [];
+    const markers = new Map(); // weekIdx → { type, price, pnl? }
+    let inTrade = false, entryPrice = null, entryDate = null, entryWeekIdx = null;
+
+    for (let i = 0; i < weekRows.length; i++) {
+      const row = weekRows[i];
+      if (!inTrade) {
+        if (row.pts === 3 && row.has4h && row.h4Slice.length > 0) {
+          inTrade     = true;
+          entryPrice  = row.h4Slice[row.h4Slice.length - 1].c;
+          entryDate   = row.week.d;
+          entryWeekIdx = i;
+          markers.set(i, { type:'entry', price: entryPrice });
+        }
+      } else {
+        if (row.pW === 0 || row.pD === 0) {
+          const exitPrice = row.week.c;
+          const pnl = (exitPrice - entryPrice) / entryPrice;
+          results.push({ entryDate, entryPrice, entryWeekIdx, exitDate: row.week.d, exitPrice, exitWeekIdx: i, pnl, win: pnl > 0 });
+          markers.set(i, { type:'exit', price: exitPrice, pnl });
+          inTrade = false; entryPrice = null; entryDate = null; entryWeekIdx = null;
+        } else {
+          markers.set(i, { type:'active' });
+        }
+      }
+    }
+    return { trades: results, tradeMarkers: markers };
+  }, [weekRows]);
+
+  const metrics = useMemo(() => {
+    if (!trades.length) return null;
+    const init = 10000;
+    let cap = init;
+    trades.forEach(t => { cap *= (1 + t.pnl); });
+    const wins   = trades.filter(t => t.win);
+    const losses = trades.filter(t => !t.win);
+    const grossW = wins.reduce((s, t) => s + t.pnl, 0);
+    const grossL = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
+    return {
+      totalReturn:  (cap - init) / init * 100,
+      finalCapital: cap,
+      tradeCount:   trades.length,
+      winrate:      trades.length ? wins.length / trades.length * 100 : 0,
+      profitFactor: grossL === 0 ? null : grossW / grossL,
+    };
+  }, [trades]);
 
   const sel = selectedIdx !== null ? weekRows[selectedIdx] : null;
 
@@ -1057,6 +1138,8 @@ function BacktestApp() {
         <span style={{color:'#94a3b8'}}>* = kein 4H-Daten für diese Woche</span>
       </div>
 
+      <MetricsPanel metrics={metrics}/>
+
       <div className="desktop-layout">
 
         {/* ── Linke Spalte: Tabelle ── */}
@@ -1064,7 +1147,7 @@ function BacktestApp() {
           <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
 
             {/* Tabellen-Header */}
-            <div style={{display:'grid',gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px',gap:0,
+            <div style={{display:'grid',gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px 84px',gap:0,
               background:'#0f172a',borderBottom:'1px solid #1e293b',padding:'7px 12px',
               fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.05em'}}>
               <span>KW</span><span>Datum</span><span style={{textAlign:'right'}}>Close</span>
@@ -1072,30 +1155,36 @@ function BacktestApp() {
               <span style={{textAlign:'center'}}>D</span>
               <span style={{textAlign:'center'}}>4H</span>
               <span style={{textAlign:'center'}}>Pkt</span>
+              <span style={{textAlign:'right'}}>Trade</span>
             </div>
 
             {/* Scroll-Container */}
             <div style={{maxHeight:'75vh',overflowY:'auto'}}>
               {tableRows.map(row => {
-                const isSel = selectedIdx === row.i;
-                const bgPts = row.pts >= 3 ? '#0a1a0a'
-                            : row.pts === 2 && row.has4h ? '#1a1200'
-                            : row.pts >= 2 ? '#1a1200'
-                            : row.pts === 1 ? '#0f0f0f'
-                            : '#060b14';
-                const borderLeft = row.pts >= 3 ? '3px solid #4ade80'
-                                 : row.pts >= 2 ? '3px solid #fbbf24'
-                                 : row.pts >= 1 ? '3px solid #334155'
-                                 : '3px solid transparent';
+                const isSel   = selectedIdx === row.i;
+                const marker  = tradeMarkers.get(row.i);
+                let bgPts = row.pts >= 3 ? '#0a1a0a'
+                          : row.pts >= 2 ? '#1a1200'
+                          : row.pts === 1 ? '#0f0f0f'
+                          : '#060b14';
+                let borderLeft = row.pts >= 3 ? '3px solid #4ade80'
+                               : row.pts >= 2 ? '3px solid #fbbf24'
+                               : row.pts >= 1 ? '3px solid #334155'
+                               : '3px solid transparent';
+                if (marker?.type === 'entry')                        { bgPts = '#0a2214'; borderLeft = '3px solid #22c55e'; }
+                if (marker?.type === 'active')                       { bgPts = '#0a1a10'; }
+                if (marker?.type === 'exit' && marker.pnl > 0)      { bgPts = '#071520'; borderLeft = '3px solid #60a5fa'; }
+                if (marker?.type === 'exit' && marker.pnl <= 0)     { bgPts = '#1a0707'; borderLeft = '3px solid #f87171'; }
+                if (isSel) { bgPts = '#1a2f4a'; borderLeft = '3px solid #3b82f6'; }
                 return (
                   <div key={row.i}
                     className="tbl-row"
                     onClick={() => handleRowClick(row.i)}
                     style={{
-                      display:'grid', gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px',
+                      display:'grid', gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px 84px',
                       gap:0, padding:'5px 12px',
-                      background: isSel ? '#1a2f4a' : bgPts,
-                      borderLeft: isSel ? '3px solid #3b82f6' : borderLeft,
+                      background: bgPts,
+                      borderLeft: borderLeft,
                       borderBottom:'1px solid #0f172a',
                       alignItems:'center'
                     }}>
@@ -1114,6 +1203,20 @@ function BacktestApp() {
                     <span style={{textAlign:'center'}}><PktDot val={row.pD}  has={row.dSlice.length >= 10}/></span>
                     <span style={{textAlign:'center'}}><PktDot val={row.p4H} has={row.has4h}/></span>
                     <span style={{textAlign:'center'}}><PktBadge pts={row.pts} has4h={row.has4h}/></span>
+                    <span style={{textAlign:'right',fontFamily:'monospace',fontSize:9,lineHeight:1.3}}>
+                      {marker?.type === 'entry' && (
+                        <span style={{color:'#22c55e',fontWeight:700}}>▲ KAUF<br/>{marker.price.toFixed(2)}</span>
+                      )}
+                      {marker?.type === 'exit' && (
+                        <span style={{color: marker.pnl > 0 ? '#60a5fa' : '#f87171', fontWeight:700}}>
+                          {marker.pnl > 0 ? '✓' : '✗'} VERK<br/>
+                          {marker.pnl >= 0 ? '+' : ''}{(marker.pnl * 100).toFixed(1)}%
+                        </span>
+                      )}
+                      {marker?.type === 'active' && (
+                        <span style={{color:'#334155'}}>▪ im Trade</span>
+                      )}
+                    </span>
                   </div>
                 );
               })}
