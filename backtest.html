@@ -705,8 +705,7 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
 
         {/* Kauf/Verkauf-Pfeile (Backtest) */}
         {tradeArrows.map((a, ai) => {
-          let idx = -1;
-          ohlcv.forEach((d, i) => { if (d.d >= a.weekDate && d.d <= a.weekEndDate) idx = i; });
+          const idx = ohlcv.findIndex(d => d.d === a.date);
           if (idx < 0) return null;
           const x = toX(idx);
           if (a.type === 'entry') {
@@ -933,7 +932,7 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [], tradeArrows = []
         {/* Kauf/Verkauf-Pfeile (Backtest) */}
         {tradeArrows.map((a, ai) => {
           let idx = -1;
-          display4h.forEach((d, i) => { const day = d.d.slice(0,10); if (day >= a.weekDate && day <= a.weekEndDate) idx = i; });
+          display4h.forEach((d, i) => { if (d.d.slice(0,10) === a.date) idx = i; });
           if (idx < 0) return null;
           const x = toX(idx);
           if (a.type === 'entry') {
@@ -1014,6 +1013,13 @@ function isoWeek(dateStr) {
 function getWeekEnd(weekStartStr) {
   const d = new Date(weekStartStr + 'T12:00:00Z');
   d.setUTCDate(d.getUTCDate() + 6); // Samstag → deckt Fr-Schluss ab
+  return d.toISOString().slice(0, 10);
+}
+
+function getWeekStart(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const diff = (d.getUTCDay() + 6) % 7; // Tage seit Montag
+  d.setUTCDate(d.getUTCDate() - diff);
   return d.toISOString().slice(0, 10);
 }
 
@@ -1106,39 +1112,79 @@ function BacktestApp() {
     });
   }, [data]);
 
-  // ── Backtest Simulation ─────────────────────────────────────────────────
-  // Eintritt: alle 3 Punkte grün (W=1, D=1, 4H=1) → Kauf zum letzten 4H-Close
-  // Austritt: Weekly ODER Daily nicht mehr grün → Verkauf zum Weekly-Close
+  // ── Backtest Simulation (täglich) ──────────────────────────────────────────
+  // Eintritt: Daily-Close > Weekly-GWS-Preis UND Daily-GWS grün UND 4H-GWS grün
+  //           → Kauf zum letzten 4H-Close des Tages
+  // Austritt: Daily-Close fällt unter Weekly-GWS ODER Daily-GWS nicht mehr grün
+  //           → Verkauf zum Daily-Close
   const { trades, tradeMarkers } = useMemo(() => {
-    if (!weekRows.length) return { trades: [], tradeMarkers: new Map() };
+    if (!data || !weekRows.length) return { trades: [], tradeMarkers: new Map() };
+    const { ohlcv_d, ohlcv_w, ohlcv_4h } = data;
     const results = [];
-    const markers = new Map(); // weekIdx → { type, price, pnl? }
-    let inTrade = false, entryPrice = null, entryDate = null, entryWeekIdx = null;
+    const markers = new Map();
+    const prio = { exit:3, entry:2, active:1 };
+    const setMark = (idx, m) => {
+      const ex = markers.get(idx);
+      if (idx >= 0 && (!ex || prio[m.type] > prio[ex.type])) markers.set(idx, m);
+    };
 
-    for (let i = 0; i < weekRows.length; i++) {
-      const row = weekRows[i];
+    // Schneller Lookup: Wochenmontag → weekRow-Index
+    const weekRowMap = new Map(weekRows.map((r, idx) => [r.week.d, idx]));
+
+    let inTrade = false, entryPrice = null, entryDate = null;
+    let cachedWeekStart = null, cachedWStruct = null;
+
+    for (let i = 0; i < ohlcv_d.length; i++) {
+      const day = ohlcv_d[i];
+      const dayDate = day.d;
+
+      // Weekly-Struktur nur neu berechnen wenn neue Woche beginnt
+      const weekStart = getWeekStart(dayDate);
+      if (weekStart !== cachedWeekStart) {
+        const wSlice = ohlcv_w.filter(w => w.d < weekStart).slice(-60);
+        cachedWStruct = wSlice.length >= 8 ? analyzeWeeklyStructure(wSlice) : null;
+        cachedWeekStart = weekStart;
+      }
+      if (!cachedWStruct) continue;
+
+      // pW: Daily-Close > Weekly-GWS-Preis (oder kein GWS = Uptrend = grün)
+      const gwsWPrice = cachedWStruct.gwswHigh?.price ?? null;
+      const pW = gwsWPrice === null ? 1 : (day.c > gwsWPrice ? 1 : 0);
+
+      // pD: Daily-GWS-Struktur
+      const dSlice = ohlcv_d.slice(Math.max(0, i - 59), i + 1);
+      const dStruct = analyzeStructure(dSlice);
+      const pD = dStruct?.broken ? 1 : 0;
+
+      // p4H: 4H-Struktur bis Ende dieses Tages
+      const h4Slice = ohlcv_4h.filter(b => b.d.slice(0,10) <= dayDate).slice(-90);
+      const has4h = h4Slice.length >= 8;
+      const p4H = has4h ? (analyze4HStructure(h4Slice)?.broken4h ? 1 : 0) : 0;
+
+      const pts = pW + pD + (has4h ? p4H : 0);
+      const wRowIdx = weekRowMap.get(weekStart) ?? -1;
+
       if (!inTrade) {
-        if (row.pts === 3 && row.has4h && row.h4Slice.length > 0) {
-          inTrade     = true;
-          entryPrice  = row.h4Slice[row.h4Slice.length - 1].c;
-          entryDate   = row.week.d;
-          entryWeekIdx = i;
-          markers.set(i, { type:'entry', price: entryPrice });
+        if (pts === 3 && has4h) {
+          inTrade = true;
+          entryPrice = h4Slice[h4Slice.length - 1].c;
+          entryDate  = dayDate;
+          setMark(wRowIdx, { type:'entry', price: entryPrice });
         }
       } else {
-        if (row.pW === 0 || row.pD === 0) {
-          const exitPrice = row.week.c;
+        if (pW === 0 || pD === 0) {
+          const exitPrice = day.c;
           const pnl = (exitPrice - entryPrice) / entryPrice;
-          results.push({ entryDate, entryPrice, entryWeekIdx, exitDate: row.week.d, exitPrice, exitWeekIdx: i, pnl, win: pnl > 0 });
-          markers.set(i, { type:'exit', price: exitPrice, pnl });
-          inTrade = false; entryPrice = null; entryDate = null; entryWeekIdx = null;
+          results.push({ entryDate, entryPrice, exitDate: dayDate, exitPrice, pnl, win: pnl > 0 });
+          setMark(wRowIdx, { type:'exit', price: exitPrice, pnl });
+          inTrade = false; entryPrice = null; entryDate = null;
         } else {
-          markers.set(i, { type:'active' });
+          setMark(wRowIdx, { type:'active' });
         }
       }
     }
     return { trades: results, tradeMarkers: markers };
-  }, [weekRows]);
+  }, [data, weekRows]);
 
   const metrics = useMemo(() => {
     if (!trades.length) return null;
@@ -1159,10 +1205,14 @@ function BacktestApp() {
   }, [trades]);
 
   const tradeArrows = useMemo(() =>
-    trades.flatMap(t => [
-      { type: 'entry', weekDate: t.entryDate, weekEndDate: getWeekEnd(t.entryDate) },
-      { type: 'exit',  weekDate: t.exitDate,  weekEndDate: getWeekEnd(t.exitDate)  },
-    ])
+    trades.flatMap(t => {
+      const eWS = getWeekStart(t.entryDate);
+      const xWS = getWeekStart(t.exitDate);
+      return [
+        { type:'entry', date: t.entryDate, weekDate: eWS, weekEndDate: getWeekEnd(eWS) },
+        { type:'exit',  date: t.exitDate,  weekDate: xWS, weekEndDate: getWeekEnd(xWS) },
+      ];
+    })
   , [trades]);
 
   const sel = selectedIdx !== null ? weekRows[selectedIdx] : null;
