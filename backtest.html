@@ -1117,7 +1117,7 @@ function BacktestApp() {
   //           → Kauf zum letzten 4H-Close des Tages
   // Austritt: Daily-Close fällt unter Weekly-GWS ODER Daily-GWS nicht mehr grün
   //           → Verkauf zum Daily-Close
-  const { trades, tradeMarkers } = useMemo(() => {
+  const { trades, tradeMarkers, openTrade } = useMemo(() => {
     if (!data || !weekRows.length) return { trades: [], tradeMarkers: new Map() };
     const { ohlcv_d, ohlcv_w, ohlcv_4h } = data;
     const results = [];
@@ -1185,7 +1185,18 @@ function BacktestApp() {
         }
       }
     }
-    return { trades: results, tradeMarkers: markers };
+    let openTrade = null;
+    if (inTrade) {
+      const lastDay = ohlcv_d[ohlcv_d.length - 1];
+      openTrade = {
+        entryDate, entryTime, entryPrice,
+        exitDate: lastDay.d, exitPrice: lastDay.c,
+        pnl: (lastDay.c - entryPrice) / entryPrice,
+        win: lastDay.c > entryPrice,
+        open: true,
+      };
+    }
+    return { trades: results, tradeMarkers: markers, openTrade };
   }, [data, weekRows]);
 
   const metrics = useMemo(() => {
@@ -1268,42 +1279,50 @@ function BacktestApp() {
       <MetricsPanel metrics={metrics}/>
 
       {/* ── Trade-Liste ── */}
-      {trades.length > 0 && (
-        <div style={{marginBottom:14,background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
-          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
-            <div style={{minWidth:460}}>
-              <div style={{display:'grid',gridTemplateColumns:'100px 46px 70px 100px 70px 64px',
-                padding:'6px 10px',background:'#0f172a',borderBottom:'1px solid #1e293b',
-                fontSize:9,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>
-                <span>Kauf Datum</span>
-                <span style={{textAlign:'right'}}>Zeit</span>
-                <span style={{textAlign:'right'}}>Kauf</span>
-                <span style={{paddingLeft:10}}>Verkauf Datum</span>
-                <span style={{textAlign:'right'}}>Verkauf</span>
-                <span style={{textAlign:'right'}}>Rendite</span>
+      {(trades.length > 0 || openTrade) && (() => {
+        const cols = '100px 46px 70px 100px 70px 70px';
+        const renderRow = (t, k) => {
+          const entryDateStr = t.entryTime ? t.entryTime.slice(0,10) : t.entryDate;
+          const entryTimeStr = t.entryTime ? t.entryTime.slice(11,16) : '–';
+          return (
+            <div key={k} style={{display:'grid',gridTemplateColumns:cols,
+              padding:'5px 10px',borderBottom:'1px solid #0f172a',fontFamily:'monospace',fontSize:11,
+              background: t.open ? '#0d1020' : t.win ? '#06120a' : '#120608',
+              alignItems:'center',whiteSpace:'nowrap'}}>
+              <span style={{color:'#22c55e'}}>{entryDateStr}</span>
+              <span style={{textAlign:'right',color:'#475569',fontSize:10}}>{entryTimeStr}</span>
+              <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.entryPrice.toFixed(2)}</span>
+              <span style={{paddingLeft:10,color: t.open ? '#fbbf24' : '#94a3b8'}}>
+                {t.open ? <span>offen <span style={{fontSize:9,color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 3px'}}>läuft</span></span> : t.exitDate}
+              </span>
+              <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.exitPrice.toFixed(2)}</span>
+              <span style={{textAlign:'right',fontWeight:700,color: t.win ? '#4ade80' : '#f87171'}}>
+                {t.open ? '~' : ''}{t.pnl >= 0 ? '+' : ''}{(t.pnl * 100).toFixed(1)}%
+              </span>
+            </div>
+          );
+        };
+        return (
+          <div style={{marginBottom:14,background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
+            <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+              <div style={{minWidth:460}}>
+                <div style={{display:'grid',gridTemplateColumns:cols,
+                  padding:'6px 10px',background:'#0f172a',borderBottom:'1px solid #1e293b',
+                  fontSize:9,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>
+                  <span>Kauf Datum</span>
+                  <span style={{textAlign:'right'}}>Zeit</span>
+                  <span style={{textAlign:'right'}}>Kauf</span>
+                  <span style={{paddingLeft:10}}>Verkauf Datum</span>
+                  <span style={{textAlign:'right'}}>Verkauf</span>
+                  <span style={{textAlign:'right'}}>Rendite</span>
+                </div>
+                {openTrade && renderRow(openTrade, 'open')}
+                {[...trades].reverse().map((t, k) => renderRow(t, k))}
               </div>
-              {[...trades].reverse().map((t, k) => {
-                const entryDateStr = t.entryTime ? t.entryTime.slice(0,10) : t.entryDate;
-                const entryTimeStr = t.entryTime ? t.entryTime.slice(11,16) : '–';
-                return (
-                  <div key={k} style={{display:'grid',gridTemplateColumns:'100px 46px 70px 100px 70px 64px',
-                    padding:'5px 10px',borderBottom:'1px solid #0f172a',fontFamily:'monospace',fontSize:11,
-                    background: t.win ? '#06120a' : '#120608',alignItems:'center',whiteSpace:'nowrap'}}>
-                    <span style={{color:'#22c55e'}}>{entryDateStr}</span>
-                    <span style={{textAlign:'right',color:'#475569',fontSize:10}}>{entryTimeStr}</span>
-                    <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.entryPrice.toFixed(2)}</span>
-                    <span style={{paddingLeft:10,color:'#94a3b8'}}>{t.exitDate}</span>
-                    <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.exitPrice.toFixed(2)}</span>
-                    <span style={{textAlign:'right',fontWeight:700,color: t.win ? '#4ade80' : '#f87171'}}>
-                      {t.pnl >= 0 ? '+' : ''}{(t.pnl * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                );
-              })}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="desktop-layout">
 
