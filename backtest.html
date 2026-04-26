@@ -1101,7 +1101,8 @@ function BacktestApp() {
                       borderBottom:'1px solid #0f172a',
                       alignItems:'center'
                     }}>
-                    <span style={{fontFamily:'monospace',fontSize:11,color: isSel?'#93c5fd':'#64748b'}}>
+                    <span style={{fontFamily:'monospace',fontSize:11,color: isSel?'#93c5fd':'#64748b'}}
+                      title={`W:${row.structW?.broken} D:${row.structD?.broken} 4H:${row.struct4H?.broken4h} | dSlice:${row.dSlice.length} gwsD:${row.structD?.gwsdHigh?.price}`}>
                       KW {row.kw} / {row.year}
                     </span>
                     <span style={{fontFamily:'monospace',fontSize:11,color: isSel?'#e2e8f0':'#94a3b8'}}>
