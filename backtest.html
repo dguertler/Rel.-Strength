@@ -1076,19 +1076,38 @@ function MetricsPanel({ metrics }) {
 }
 
 // ── Backtest App ────────────────────────────────────────────────────────────
+const KNOWN_TICKERS = ['SNDK','MRVL','ARM','NVDA','TSLA','AAPL','META','GOOGL','AMZN','MSFT'];
+
 function BacktestApp() {
-  const [data,        setData]        = useState(null);
-  const [loadError,   setLoadError]   = useState(null);
-  const [loading,     setLoading]     = useState(true);
-  const [selectedIdx, setSelectedIdx] = useState(null);
+  const [data,             setData]             = useState(null);
+  const [loadError,        setLoadError]        = useState(null);
+  const [loading,          setLoading]          = useState(true);
+  const [selectedIdx,      setSelectedIdx]      = useState(null);
+  const [ticker,           setTicker]           = useState('SNDK');
+  const [availableTickers, setAvailableTickers] = useState(['SNDK']);
   const chartRef = useRef(null);
 
+  // Einmalig: prüfen welche Backtest-Dateien vorhanden sind
   useEffect(() => {
-    fetch('backtest_sndk.json')
+    Promise.all(
+      KNOWN_TICKERS.map(t =>
+        fetch(`backtest_${t.toLowerCase()}.json`, { method:'HEAD' })
+          .then(r => r.ok ? t : null).catch(() => null)
+      )
+    ).then(res => {
+      const found = res.filter(Boolean);
+      setAvailableTickers(found.length ? found : ['SNDK']);
+    });
+  }, []);
+
+  // Daten laden wenn Ticker wechselt
+  useEffect(() => {
+    setData(null); setLoadError(null); setLoading(true); setSelectedIdx(null);
+    fetch(`backtest_${ticker.toLowerCase()}.json`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d  => { setData(d); setLoading(false); })
       .catch(e => { setLoadError(e.message); setLoading(false); });
-  }, []);
+  }, [ticker]);
 
   // ── Pre-Compute aller Wochen mit historisch korrekt geschnittenen Daten ──
   const weekRows = useMemo(() => {
@@ -1248,16 +1267,16 @@ function BacktestApp() {
 
   if (loading) return (
     <div style={{padding:'80px 24px',textAlign:'center',color:'#475569',fontFamily:'monospace'}}>
-      Lade backtest_sndk.json …
+      Lade backtest_{ticker.toLowerCase()}.json …
     </div>
   );
 
   if (loadError) return (
     <div style={{padding:'80px 24px',textAlign:'center',fontFamily:'monospace'}}>
-      <div style={{color:'#f87171',fontSize:15,marginBottom:16}}>Keine Daten gefunden</div>
+      <div style={{color:'#f87171',fontSize:15,marginBottom:16}}>Keine Daten für {ticker}</div>
       <div style={{color:'#64748b',fontSize:13,marginBottom:8}}>Bitte zuerst ausführen:</div>
       <code style={{background:'#1e293b',color:'#fbbf24',padding:'8px 18px',borderRadius:6,fontSize:13,display:'inline-block'}}>
-        python3 load_backtest.py
+        BACKTEST_TICKER={ticker} python3 load_backtest.py
       </code>
       <div style={{color:'#334155',fontSize:11,marginTop:12}}>({loadError})</div>
     </div>
@@ -1267,11 +1286,16 @@ function BacktestApp() {
     <div style={{padding:'56px 12px 32px'}}>
 
       {/* ── Header ── */}
-      <div style={{marginBottom:14,display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
-        <div>
-          <span style={{fontSize:20,fontWeight:800,color:'#f1f5f9',fontFamily:'monospace'}}>SNDK</span>
-          <span style={{fontSize:12,color:'#475569',marginLeft:10,fontFamily:'monospace'}}>Backtest · historische GWS-Punkte</span>
-        </div>
+      <div style={{marginBottom:14,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+        <select value={ticker} onChange={e => setTicker(e.target.value)} style={{
+          background:'#1a1a0a',border:'1px solid #f59e0b',borderRadius:8,
+          color:'#fbbf24',fontFamily:'monospace',fontSize:16,fontWeight:800,
+          padding:'5px 10px',cursor:'pointer',appearance:'none',WebkitAppearance:'none',
+          minWidth:90,
+        }}>
+          {availableTickers.map(t => <option key={t} value={t} style={{background:'#1e293b',color:'#e2e8f0'}}>{t}</option>)}
+        </select>
+        <span style={{fontSize:12,color:'#475569',fontFamily:'monospace'}}>Backtest · historische GWS-Punkte</span>
         <div style={{marginLeft:'auto',fontSize:11,color:'#334155',fontFamily:'monospace'}}>
           {weekRows.length} Wochen · Stand {data.generated}
         </div>
