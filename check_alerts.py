@@ -21,16 +21,14 @@ import matplotlib.patches as mpatches
 # Exakte Portierung der analyzeStructure / analyzeWeeklyStructure / analyze4HStructure
 # Funktionen aus index.html
 
-def _find_swing_points(highs, lows, n):
-    """Swing-Hochs (aus Highs) und Swing-Tiefs (aus Lows), ±2 Bars."""
+def _find_swing_points(highs, lows, n, window=2):
+    """Swing-Hochs und Swing-Tiefs mit konfigurierbarem Fenster (±window Bars)."""
     swing_highs = []
     swing_lows  = []
-    for i in range(2, n - 2):
-        if (highs[i] >= highs[i-1] and highs[i] >= highs[i-2] and
-                highs[i] >= highs[i+1] and highs[i] >= highs[i+2]):
+    for i in range(window, n - window):
+        if all(highs[i] >= highs[i-k] and highs[i] >= highs[i+k] for k in range(1, window+1)):
             swing_highs.append({'idx': i, 'price': highs[i]})
-        if (lows[i] <= lows[i-1] and lows[i] <= lows[i-2] and
-                lows[i] <= lows[i+1] and lows[i] <= lows[i+2]):
+        if all(lows[i] <= lows[i-k] and lows[i] <= lows[i+k] for k in range(1, window+1)):
             swing_lows.append({'idx': i, 'price': lows[i]})
     return swing_highs, swing_lows
 
@@ -72,7 +70,16 @@ def analyze_daily_structure(ohlcv):
     swing_highs, swing_lows = _find_swing_points(highs, lows, n)
     gws_high, breakout_idx  = _gws_core(swing_highs, swing_lows, closes, n)
 
-    broken = breakout_idx is not None
+    trend = None
+    if len(swing_highs) >= 2:
+        last = swing_highs[-1]
+        prev = swing_highs[-2]
+        if last['price'] > prev['price']:
+            trend = 'bullish'
+        elif last['price'] < prev['price']:
+            trend = 'bearish'
+
+    broken = breakout_idx is not None or (gws_high is None and trend == 'bullish')
     return {
         'broken':      broken,
         'gws_price':   gws_high['price'] if gws_high else None,
@@ -83,7 +90,7 @@ def analyze_daily_structure(ohlcv):
 
 
 def analyze_weekly_structure(ohlcv_w):
-    """Port von analyzeWeeklyStructure() aus index.html."""
+    """Port von analyzeWeeklyStructure() aus index.html (±1 Bar wie im JS)."""
     if not ohlcv_w or len(ohlcv_w) < 8:
         return None
     n      = len(ohlcv_w)
@@ -91,7 +98,7 @@ def analyze_weekly_structure(ohlcv_w):
     lows   = [c['l'] for c in ohlcv_w]
     closes = [c['c'] for c in ohlcv_w]
 
-    swing_highs, swing_lows = _find_swing_points(highs, lows, n)
+    swing_highs, swing_lows = _find_swing_points(highs, lows, n, window=1)
     gws_high, breakout_idx  = _gws_core(swing_highs, swing_lows, closes, n)
 
     # Trend (für den Fall ohne GWS-Muster – wie im JS)
@@ -126,11 +133,30 @@ def analyze_4h_structure(ohlcv_4h):
     swing_highs, swing_lows   = _find_swing_points(highs, lows, n)
     gws_high, breakout_4h_idx = _gws_core(swing_highs, swing_lows, closes, n)
 
+    trend = None
+    if len(swing_highs) >= 2:
+        last = swing_highs[-1]
+        prev = swing_highs[-2]
+        if last['price'] > prev['price']:
+            trend = 'bullish'
+        elif last['price'] < prev['price']:
+            trend = 'bearish'
+
     return {
-        'broken4h':     breakout_4h_idx is not None,
+        'broken4h':     breakout_4h_idx is not None or (gws_high is None and trend == 'bullish'),
         'gws_price':    gws_high['price'] if gws_high else None,
         'breakout_idx': breakout_4h_idx,
     }
+
+
+def _breakout_date(ohlcv, struct):
+    """Gibt das Datum der Breakout-Kerze zurück (oder None)."""
+    if not struct or not ohlcv:
+        return None
+    idx = struct.get('breakout_idx')
+    if idx is not None and 0 <= idx < len(ohlcv):
+        return ohlcv[idx]['d']
+    return None
 
 
 def count_points(entry):
@@ -291,6 +317,9 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
         if source == 'DAX':
             dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/dax.html'
             dashboard_label = 'DAX-Dashboard'
+        elif source == 'SPX':
+            dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/sp500.html'
+            dashboard_label = 'S&P 500-Dashboard'
         else:
             dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/'
             dashboard_label = 'Nasdaq-Dashboard'
@@ -377,6 +406,21 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 
+SIGNALS_FILE = 'signals.json'
+
+
+def load_signals():
+    if os.path.exists(SIGNALS_FILE):
+        with open(SIGNALS_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_signals(signals):
+    with open(SIGNALS_FILE, 'w') as f:
+        json.dump(signals, f, indent=2)
+
+
 # ── Hauptprogramm ────────────────────────────────────────────────────────────
 
 def process_json(json_path, source_label, prev_states, today_str):
@@ -440,14 +484,17 @@ def process_json(json_path, source_label, prev_states, today_str):
             if h4_b64: charts.append((h4_b64, '4H'))
 
             alerts.append({
-                'ticker':     ticker,
-                'score':      score,
-                'info':       info,
-                'source':     source_label,
-                'charts':     charts,
-                'new_weekly': new_w,
-                'new_daily':  new_d,
-                'new_h4':     new_h4,
+                'ticker':          ticker,
+                'score':           score,
+                'info':            info,
+                'source':          source_label,
+                'charts':          charts,
+                'new_weekly':      new_w,
+                'new_daily':       new_d,
+                'new_h4':          new_h4,
+                'weekly_bar_date': _breakout_date(entry.get('ohlcv_w',   []), info['struct_w']),
+                'daily_bar_date':  _breakout_date(entry.get('ohlcv',     []), info['struct_d']),
+                'h4_bar_date':     _breakout_date(entry.get('ohlcv_4h',  []), info['struct_4h']),
             })
 
     return new_states, alerts
@@ -573,6 +620,12 @@ def main():
     all_new_states.update(new_dax)
     all_alerts.extend(alerts_dax)
 
+    # S&P 500 Aktien
+    print('\n── S&P 500 (rs_sp500.json) ──')
+    new_sp500, alerts_sp500 = process_json('rs_sp500.json', 'SPX', prev_states, today_str)
+    all_new_states.update(new_sp500)
+    all_alerts.extend(alerts_sp500)
+
     # Bereits heute gemeldete Ticker herausfiltern
     fresh_alerts = [a for a in all_alerts
                     if alerted.get(a['ticker']) != today_str]
@@ -583,8 +636,19 @@ def main():
     if fresh_alerts:
         send_alert_email(fresh_alerts, smtp_host, smtp_port,
                          smtp_user, smtp_pass, to_addr)
+        signals = load_signals()
         for a in fresh_alerts:
             alerted[a['ticker']] = today_str
+            trigger_tf = 'weekly' if a['new_weekly'] else ('daily' if a['new_daily'] else '4h')
+            signals.setdefault(a['ticker'], []).append({
+                'signal_date':     today_str,
+                'trigger_tf':      trigger_tf,
+                'weekly_bar_date': a.get('weekly_bar_date'),
+                'daily_bar_date':  a.get('daily_bar_date'),
+                'h4_bar_date':     a.get('h4_bar_date'),
+                'source':          a['source'],
+            })
+        save_signals(signals)
     else:
         print('Keine neuen 2→3-Übergänge heute.')
 
