@@ -1270,33 +1270,38 @@ function BacktestApp() {
       {/* ── Trade-Liste ── */}
       {trades.length > 0 && (
         <div style={{marginBottom:14,background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'148px 56px 76px 104px 76px 72px',
-            padding:'6px 14px',background:'#0f172a',borderBottom:'1px solid #1e293b',
-            fontSize:9,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.06em'}}>
-            <span>Kauf Datum</span><span style={{textAlign:'right'}}>Zeit</span>
-            <span style={{textAlign:'right'}}>Kauf Kurs</span>
-            <span style={{paddingLeft:14}}>Verkauf Datum</span>
-            <span style={{textAlign:'right'}}>Verk. Kurs</span>
-            <span style={{textAlign:'right'}}>Rendite</span>
-          </div>
-          {[...trades].reverse().map((t, k) => {
-            const entryDateStr = t.entryTime ? t.entryTime.slice(0,10) : t.entryDate;
-            const entryTimeStr = t.entryTime ? t.entryTime.slice(11,16) : '–';
-            return (
-              <div key={k} style={{display:'grid',gridTemplateColumns:'148px 56px 76px 104px 76px 72px',
-                padding:'5px 14px',borderBottom:'1px solid #0f172a',fontFamily:'monospace',fontSize:11,
-                background: t.win ? '#06120a' : '#120608',alignItems:'center'}}>
-                <span style={{color:'#22c55e'}}>{entryDateStr}</span>
-                <span style={{textAlign:'right',color:'#475569',fontSize:10}}>{entryTimeStr}</span>
-                <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.entryPrice.toFixed(2)}</span>
-                <span style={{paddingLeft:14,color:'#94a3b8'}}>{t.exitDate}</span>
-                <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.exitPrice.toFixed(2)}</span>
-                <span style={{textAlign:'right',fontWeight:700,color: t.win ? '#4ade80' : '#f87171'}}>
-                  {t.pnl >= 0 ? '+' : ''}{(t.pnl * 100).toFixed(1)}%
-                </span>
+          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+            <div style={{minWidth:460}}>
+              <div style={{display:'grid',gridTemplateColumns:'100px 46px 70px 100px 70px 64px',
+                padding:'6px 10px',background:'#0f172a',borderBottom:'1px solid #1e293b',
+                fontSize:9,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>
+                <span>Kauf Datum</span>
+                <span style={{textAlign:'right'}}>Zeit</span>
+                <span style={{textAlign:'right'}}>Kauf</span>
+                <span style={{paddingLeft:10}}>Verkauf Datum</span>
+                <span style={{textAlign:'right'}}>Verkauf</span>
+                <span style={{textAlign:'right'}}>Rendite</span>
               </div>
-            );
-          })}
+              {[...trades].reverse().map((t, k) => {
+                const entryDateStr = t.entryTime ? t.entryTime.slice(0,10) : t.entryDate;
+                const entryTimeStr = t.entryTime ? t.entryTime.slice(11,16) : '–';
+                return (
+                  <div key={k} style={{display:'grid',gridTemplateColumns:'100px 46px 70px 100px 70px 64px',
+                    padding:'5px 10px',borderBottom:'1px solid #0f172a',fontFamily:'monospace',fontSize:11,
+                    background: t.win ? '#06120a' : '#120608',alignItems:'center',whiteSpace:'nowrap'}}>
+                    <span style={{color:'#22c55e'}}>{entryDateStr}</span>
+                    <span style={{textAlign:'right',color:'#475569',fontSize:10}}>{entryTimeStr}</span>
+                    <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.entryPrice.toFixed(2)}</span>
+                    <span style={{paddingLeft:10,color:'#94a3b8'}}>{t.exitDate}</span>
+                    <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.exitPrice.toFixed(2)}</span>
+                    <span style={{textAlign:'right',fontWeight:700,color: t.win ? '#4ade80' : '#f87171'}}>
+                      {t.pnl >= 0 ? '+' : ''}{(t.pnl * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
