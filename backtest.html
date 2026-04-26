@@ -1045,15 +1045,19 @@ function PktBadge({ pts, has4h }) {
 // ── Metriken Panel ─────────────────────────────────────────────────────────
 function MetricsPanel({ metrics }) {
   if (!metrics) return null;
-  const { totalReturn, finalCapital, tradeCount, winrate, profitFactor } = metrics;
+  const { totalReturn, totalReturnClosed, finalCapital, tradeCount, winrate, profitFactor, hasOpen } = metrics;
   const retColor  = totalReturn >= 0 ? '#4ade80' : '#f87171';
   const wrColor   = winrate >= 50 ? '#4ade80' : '#fbbf24';
   const pfColor   = profitFactor === null ? '#4ade80'
                   : profitFactor >= 1.5 ? '#4ade80'
                   : profitFactor >= 1   ? '#fbbf24' : '#f87171';
   const pfVal     = profitFactor === null ? '∞' : profitFactor.toFixed(2);
+  const retLabel  = hasOpen ? `~${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(1)}%` : `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(1)}%`;
+  const retSub    = hasOpen
+    ? `${finalCapital.toFixed(0)}€ · abgeschl. ${totalReturnClosed >= 0 ? '+' : ''}${totalReturnClosed.toFixed(1)}%`
+    : `${finalCapital.toFixed(0)}€ von 10.000€`;
   const cards = [
-    { label:'Rendite',       value:`${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(1)}%`, sub:`${finalCapital.toFixed(0)}€ von 10.000€`, color: retColor },
+    { label:'Rendite',       value: retLabel, sub: retSub, color: retColor },
     { label:'Trades',        value:`${tradeCount}`,   color:'#94a3b8' },
     { label:'Winrate',       value:`${winrate.toFixed(0)}%`, color: wrColor },
     { label:'Profit Faktor', value: pfVal,            color: pfColor },
@@ -1200,17 +1204,21 @@ function BacktestApp() {
   }, [data, weekRows]);
 
   const metrics = useMemo(() => {
-    if (!trades.length) return null;
+    if (!trades.length && !openTrade) return null;
     const init = 10000;
     let cap = init;
     trades.forEach(t => { cap *= (1 + t.pnl); });
+    const capClosed = cap;
+    if (openTrade) cap *= (1 + openTrade.pnl);
     const wins   = trades.filter(t => t.win);
     const losses = trades.filter(t => !t.win);
     const grossW = wins.reduce((s, t) => s + t.pnl, 0);
     const grossL = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
     return {
-      totalReturn:  (cap - init) / init * 100,
+      totalReturn:       (cap - init) / init * 100,
+      totalReturnClosed: (capClosed - init) / init * 100,
       finalCapital: cap,
+      hasOpen: !!openTrade,
       tradeCount:   trades.length,
       winrate:      trades.length ? wins.length / trades.length * 100 : 0,
       profitFactor: grossL === 0 ? null : grossW / grossL,
