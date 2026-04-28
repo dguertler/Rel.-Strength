@@ -309,10 +309,18 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
         score    = alert['score']
         info     = alert['info']
         source   = alert.get('source', 'QQQ')
+        is_top20 = alert.get('is_top20', False)
 
         w_dot  = dot_html(info['weekly'], alert.get('new_weekly', False))
         d_dot  = dot_html(info['daily'],  alert.get('new_daily',  False))
         h4_dot = dot_html(info['h4'],     alert.get('new_h4',     False))
+
+        top20_badge = (
+            '<span style="font-size:10px;font-weight:bold;color:#0f172a;'
+            'background:#facc15;border-radius:4px;padding:1px 6px;'
+            'letter-spacing:0.5px">TOP 20</span>'
+            if is_top20 else ''
+        )
 
         if source == 'DAX':
             dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/dax.html'
@@ -331,6 +339,7 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
       <span style="font-size:18px">&#128293;</span>
       <span style="font-size:16px;font-weight:bold;color:#fca5a5">{display_ticker}</span>
+      {top20_badge}
       <span style="font-size:11px;color:#64748b">({source})</span>
       <span style="margin-left:auto;font-size:11px;color:#94a3b8">
         RS-Score:&nbsp;<strong style="color:#f1f5f9">{score:.1f}</strong>
@@ -435,6 +444,7 @@ def process_json(json_path, source_label, prev_states, today_str):
     with open(json_path) as f:
         data = json.load(f)
 
+    top20      = set(data.get('top20', []))
     new_states = {}
     alerts     = []
 
@@ -488,6 +498,7 @@ def process_json(json_path, source_label, prev_states, today_str):
                 'score':           score,
                 'info':            info,
                 'source':          source_label,
+                'is_top20':        ticker in top20,
                 'charts':          charts,
                 'new_weekly':      new_w,
                 'new_daily':       new_d,
