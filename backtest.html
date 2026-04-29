@@ -308,7 +308,7 @@ function analyze4HStructure(ohlcv4h) {
     swingLows:  swingLows.slice(-8),
   };
 }
-function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, signals = [], tradeArrows = [] }) {
+function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -464,28 +464,6 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
           </g>;
         })}
 
-        {/* Kauf/Verkauf-Pfeile (Backtest) */}
-        {tradeArrows.map((a, ai) => {
-          const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === a.weekDate.slice(0,10));
-          if (idx < 0) return null;
-          const x = toX(idx);
-          if (a.type === 'entry') {
-            const yTip  = Math.min(toY(ohlcvW[idx].l) + 3, PT + cH - 16);
-            const yBase = yTip + 10;
-            return <g key={`ta${ai}`}>
-              <polygon points={`${x-5},${yBase} ${x+5},${yBase} ${x},${yTip}`} fill="#22c55e" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yBase} y2={Math.min(yBase+6, PT+cH)} stroke="#22c55e" strokeWidth="1.5" opacity="0.9"/>
-            </g>;
-          } else {
-            const yTip  = Math.max(toY(ohlcvW[idx].h) - 3, PT + 16);
-            const yBase = yTip - 10;
-            return <g key={`ta${ai}`}>
-              <polygon points={`${x-5},${yBase} ${x+5},${yBase} ${x},${yTip}`} fill="#ef4444" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yBase} y2={Math.max(yBase-6, PT)} stroke="#ef4444" strokeWidth="1.5" opacity="0.9"/>
-            </g>;
-          }
-        })}
-
         {/* Signal-Pfeile (Weekly-Chart: alle Timeframes) */}
         {signals.filter(s => s.weekly_bar_date).map((sig, si) => {
           const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === sig.weekly_bar_date.slice(0,10));
@@ -544,7 +522,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
 }
 
 // ── Daily Candlestick Chart ────────────────────────────────────────────────
-function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signals = [], tradeArrows = [] }) {
+function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 270;
@@ -703,28 +681,6 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
           </g>;
         })}
 
-        {/* Kauf/Verkauf-Pfeile (Backtest) */}
-        {tradeArrows.map((a, ai) => {
-          const idx = ohlcv.findIndex(d => d.d === a.date);
-          if (idx < 0) return null;
-          const x = toX(idx);
-          if (a.type === 'entry') {
-            const yTip  = Math.min(toY(ohlcv[idx].l) + 3, PT + cH - 16);
-            const yBase = yTip + 10;
-            return <g key={`ta${ai}`}>
-              <polygon points={`${x-5},${yBase} ${x+5},${yBase} ${x},${yTip}`} fill="#22c55e" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yBase} y2={Math.min(yBase+6, PT+cH)} stroke="#22c55e" strokeWidth="1.5" opacity="0.9"/>
-            </g>;
-          } else {
-            const yTip  = Math.max(toY(ohlcv[idx].h) - 3, PT + 16);
-            const yBase = yTip - 10;
-            return <g key={`ta${ai}`}>
-              <polygon points={`${x-5},${yBase} ${x+5},${yBase} ${x},${yTip}`} fill="#ef4444" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yBase} y2={Math.max(yBase-6, PT)} stroke="#ef4444" strokeWidth="1.5" opacity="0.9"/>
-            </g>;
-          }
-        })}
-
         {/* Signal-Pfeile (Daily-Chart: alle Signale mit daily_bar_date) */}
         {signals.filter(s => s.daily_bar_date).map((sig, si) => {
           const idx = ohlcv.findIndex(d => d.d.slice(0,10) === sig.daily_bar_date.slice(0,10));
@@ -783,7 +739,7 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
 }
 
 // ── 4H Candlestick Chart (60 Kerzen) ─────────────────────────────────────────
-function Chart4H({ ohlcv4h, structure4h, chartId, signals = [], tradeArrows = [] }) {
+function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -929,29 +885,6 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [], tradeArrows = []
           </g>;
         })}
 
-        {/* Kauf/Verkauf-Pfeile (Backtest) */}
-        {tradeArrows.map((a, ai) => {
-          let idx = -1;
-          display4h.forEach((d, i) => { if (d.d.slice(0,10) === a.date) idx = i; });
-          if (idx < 0) return null;
-          const x = toX(idx);
-          if (a.type === 'entry') {
-            const yTip  = Math.min(toY(display4h[idx].l) + 3, PT + cH - 16);
-            const yBase = yTip + 10;
-            return <g key={`ta${ai}`}>
-              <polygon points={`${x-5},${yBase} ${x+5},${yBase} ${x},${yTip}`} fill="#22c55e" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yBase} y2={Math.min(yBase+6, PT+cH)} stroke="#22c55e" strokeWidth="1.5" opacity="0.9"/>
-            </g>;
-          } else {
-            const yTip  = Math.max(toY(display4h[idx].h) - 3, PT + 16);
-            const yBase = yTip - 10;
-            return <g key={`ta${ai}`}>
-              <polygon points={`${x-5},${yBase} ${x+5},${yBase} ${x},${yTip}`} fill="#ef4444" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yBase} y2={Math.max(yBase-6, PT)} stroke="#ef4444" strokeWidth="1.5" opacity="0.9"/>
-            </g>;
-          }
-        })}
-
         {/* Signal-Pfeile (4H-Chart: alle Signale mit h4_bar_date) */}
         {signals.filter(s => s.h4_bar_date).map((sig, si) => {
           const idx = display4h.findIndex(d => d.d.slice(0,16) === sig.h4_bar_date.slice(0,16));
@@ -1016,13 +949,6 @@ function getWeekEnd(weekStartStr) {
   return d.toISOString().slice(0, 10);
 }
 
-function getWeekStart(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  const diff = (d.getUTCDay() + 6) % 7; // Tage seit Montag
-  d.setUTCDate(d.getUTCDate() - diff);
-  return d.toISOString().slice(0, 10);
-}
-
 function PktDot({ val, has }) {
   if (!has) return <span style={{color:'#334155',fontSize:11,fontFamily:'monospace'}}>–</span>;
   return <span className="dot" style={{background: val ? '#4ade80' : '#1e293b', border: val ? 'none' : '1px solid #334155'}}/>;
@@ -1042,72 +968,20 @@ function PktBadge({ pts, has4h }) {
   );
 }
 
-// ── Metriken Panel ─────────────────────────────────────────────────────────
-function MetricsPanel({ metrics }) {
-  if (!metrics) return null;
-  const { totalReturn, totalReturnClosed, finalCapital, tradeCount, winrate, profitFactor, hasOpen } = metrics;
-  const retColor  = totalReturn >= 0 ? '#4ade80' : '#f87171';
-  const wrColor   = winrate >= 50 ? '#4ade80' : '#fbbf24';
-  const pfColor   = profitFactor === null ? '#4ade80'
-                  : profitFactor >= 1.5 ? '#4ade80'
-                  : profitFactor >= 1   ? '#fbbf24' : '#f87171';
-  const pfVal     = profitFactor === null ? '∞' : profitFactor.toFixed(2);
-  const retLabel  = hasOpen ? `~${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(1)}%` : `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(1)}%`;
-  const retSub    = hasOpen
-    ? `${finalCapital.toFixed(0)}€ · abgeschl. ${totalReturnClosed >= 0 ? '+' : ''}${totalReturnClosed.toFixed(1)}%`
-    : `${finalCapital.toFixed(0)}€ von 10.000€`;
-  const cards = [
-    { label:'Rendite',       value: retLabel, sub: retSub, color: retColor },
-    { label:'Trades',        value:`${tradeCount}`,   color:'#94a3b8' },
-    { label:'Winrate',       value:`${winrate.toFixed(0)}%`, color: wrColor },
-    { label:'Profit Faktor', value: pfVal,            color: pfColor },
-  ];
-  return (
-    <div style={{display:'flex',gap:0,marginBottom:14,background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
-      {cards.map((c, k) => (
-        <div key={k} style={{flex:1,padding:'12px 16px',borderRight: k < 3 ? '1px solid #1e293b' : 'none'}}>
-          <div style={{fontSize:9,color:'#475569',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{c.label}</div>
-          <div style={{fontSize:22,fontWeight:800,color:c.color,fontFamily:'monospace',lineHeight:1}}>{c.value}</div>
-          {c.sub && <div style={{fontSize:9,color:'#64748b',fontFamily:'monospace',marginTop:3}}>{c.sub}</div>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Backtest App ────────────────────────────────────────────────────────────
-const KNOWN_TICKERS = ['SNDK','MRVL','ARM','NVDA','TSLA','AAPL','META','GOOGL','AMZN','MSFT'];
-
 function BacktestApp() {
-  const [data,             setData]             = useState(null);
-  const [loadError,        setLoadError]        = useState(null);
-  const [loading,          setLoading]          = useState(true);
-  const [selectedIdx,      setSelectedIdx]      = useState(null);
-  const [ticker,           setTicker]           = useState('SNDK');
-  const [availableTickers, setAvailableTickers] = useState(['SNDK']);
+  const [data,        setData]        = useState(null);
+  const [loadError,   setLoadError]   = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [selectedIdx, setSelectedIdx] = useState(null);
   const chartRef = useRef(null);
 
-  // Einmalig: prüfen welche Backtest-Dateien vorhanden sind
   useEffect(() => {
-    Promise.all(
-      KNOWN_TICKERS.map(t =>
-        fetch(`backtest_${t.toLowerCase()}.json`, { method:'HEAD' })
-          .then(r => r.ok ? t : null).catch(() => null)
-      )
-    ).then(res => {
-      const found = res.filter(Boolean);
-      setAvailableTickers(found.length ? found : ['SNDK']);
-    });
-  }, []);
-
-  // Daten laden wenn Ticker wechselt
-  useEffect(() => {
-    setData(null); setLoadError(null); setLoading(true); setSelectedIdx(null);
-    fetch(`backtest_${ticker.toLowerCase()}.json`)
+    fetch('backtest_sndk.json')
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d  => { setData(d); setLoading(false); })
       .catch(e => { setLoadError(e.message); setLoading(false); });
-  }, [ticker]);
+  }, []);
 
   // ── Pre-Compute aller Wochen mit historisch korrekt geschnittenen Daten ──
   const weekRows = useMemo(() => {
@@ -1135,128 +1009,6 @@ function BacktestApp() {
     });
   }, [data]);
 
-  // ── Backtest Simulation (täglich) ──────────────────────────────────────────
-  // Eintritt: Daily-Close > Weekly-GWS-Preis UND Daily-GWS grün UND 4H-GWS grün
-  //           → Kauf zum letzten 4H-Close des Tages
-  // Austritt: Daily-Close fällt unter Weekly-GWS ODER Daily-GWS nicht mehr grün
-  //           → Verkauf zum Daily-Close
-  const { trades, tradeMarkers, openTrade } = useMemo(() => {
-    if (!data || !weekRows.length) return { trades: [], tradeMarkers: new Map() };
-    const { ohlcv_d, ohlcv_w, ohlcv_4h } = data;
-    const results = [];
-    const markers = new Map();
-    const prio = { exit:3, entry:2, active:1 };
-    const setMark = (idx, m) => {
-      const ex = markers.get(idx);
-      if (idx >= 0 && (!ex || prio[m.type] > prio[ex.type])) markers.set(idx, m);
-    };
-
-    // Schneller Lookup: Wochenmontag → weekRow-Index
-    const weekRowMap = new Map(weekRows.map((r, idx) => [r.week.d, idx]));
-
-    let inTrade = false, entryPrice = null, entryDate = null, entryTime = null;
-    let cachedWeekStart = null, cachedWStruct = null;
-
-    for (let i = 0; i < ohlcv_d.length; i++) {
-      const day = ohlcv_d[i];
-      const dayDate = day.d;
-
-      // Weekly-Struktur nur neu berechnen wenn neue Woche beginnt
-      const weekStart = getWeekStart(dayDate);
-      if (weekStart !== cachedWeekStart) {
-        const wSlice = ohlcv_w.filter(w => w.d < weekStart).slice(-60);
-        cachedWStruct = wSlice.length >= 8 ? analyzeWeeklyStructure(wSlice) : null;
-        cachedWeekStart = weekStart;
-      }
-      if (!cachedWStruct) continue;
-
-      // pW Eintritt: Daily-Close überschreitet Weekly-GWS-Preis intraweek
-      // pW Austritt: basiert auf abgeschlossenen Wochenkerzen (= was der Weekly-Dot zeigt)
-      const gwsWPrice = cachedWStruct.gwswHigh?.price ?? null;
-      const pW_entry = gwsWPrice === null ? 1 : (day.c > gwsWPrice ? 1 : 0);
-      const pW_exit  = cachedWStruct.broken ? 1 : 0;
-
-      // pD: Daily-GWS-Struktur
-      const dSlice = ohlcv_d.slice(Math.max(0, i - 59), i + 1);
-      const dStruct = analyzeStructure(dSlice);
-      const pD = dStruct?.broken ? 1 : 0;
-
-      // p4H: 4H-Struktur bis Ende dieses Tages
-      const h4Slice = ohlcv_4h.filter(b => b.d.slice(0,10) <= dayDate).slice(-90);
-      const has4h = h4Slice.length >= 8;
-      const p4H = has4h ? (analyze4HStructure(h4Slice)?.broken4h ? 1 : 0) : 0;
-
-      const ptsEntry = pW_entry + pD + (has4h ? p4H : 0);
-      const wRowIdx = weekRowMap.get(weekStart) ?? -1;
-
-      if (!inTrade) {
-        if (ptsEntry === 3 && has4h) {
-          inTrade = true;
-          const entryBar = h4Slice[h4Slice.length - 1];
-          entryPrice = entryBar.c;
-          entryTime  = entryBar.d;
-          entryDate  = dayDate;
-          setMark(wRowIdx, { type:'entry', price: entryPrice });
-        }
-      } else {
-        if (pW_exit === 0 || pD === 0) {
-          const exitPrice = day.c;
-          const pnl = (exitPrice - entryPrice) / entryPrice;
-          results.push({ entryDate, entryTime, entryPrice, exitDate: dayDate, exitPrice, pnl, win: pnl > 0 });
-          setMark(wRowIdx, { type:'exit', price: exitPrice, pnl });
-          inTrade = false; entryPrice = null; entryDate = null; entryTime = null;
-        } else {
-          setMark(wRowIdx, { type:'active' });
-        }
-      }
-    }
-    let openTrade = null;
-    if (inTrade) {
-      const lastDay = ohlcv_d[ohlcv_d.length - 1];
-      openTrade = {
-        entryDate, entryTime, entryPrice,
-        exitDate: lastDay.d, exitPrice: lastDay.c,
-        pnl: (lastDay.c - entryPrice) / entryPrice,
-        win: lastDay.c > entryPrice,
-        open: true,
-      };
-    }
-    return { trades: results, tradeMarkers: markers, openTrade };
-  }, [data, weekRows]);
-
-  const metrics = useMemo(() => {
-    if (!trades.length && !openTrade) return null;
-    const init = 10000;
-    let cap = init;
-    trades.forEach(t => { cap *= (1 + t.pnl); });
-    const capClosed = cap;
-    if (openTrade) cap *= (1 + openTrade.pnl);
-    const wins   = trades.filter(t => t.win);
-    const losses = trades.filter(t => !t.win);
-    const grossW = wins.reduce((s, t) => s + t.pnl, 0);
-    const grossL = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
-    return {
-      totalReturn:       (cap - init) / init * 100,
-      totalReturnClosed: (capClosed - init) / init * 100,
-      finalCapital: cap,
-      hasOpen: !!openTrade,
-      tradeCount:   trades.length,
-      winrate:      trades.length ? wins.length / trades.length * 100 : 0,
-      profitFactor: grossL === 0 ? null : grossW / grossL,
-    };
-  }, [trades]);
-
-  const tradeArrows = useMemo(() =>
-    trades.flatMap(t => {
-      const eWS = getWeekStart(t.entryDate);
-      const xWS = getWeekStart(t.exitDate);
-      return [
-        { type:'entry', date: t.entryDate, weekDate: eWS, weekEndDate: getWeekEnd(eWS) },
-        { type:'exit',  date: t.exitDate,  weekDate: xWS, weekEndDate: getWeekEnd(xWS) },
-      ];
-    })
-  , [trades]);
-
   const sel = selectedIdx !== null ? weekRows[selectedIdx] : null;
 
   const handleRowClick = (i) => {
@@ -1269,16 +1021,16 @@ function BacktestApp() {
 
   if (loading) return (
     <div style={{padding:'80px 24px',textAlign:'center',color:'#475569',fontFamily:'monospace'}}>
-      Lade backtest_{ticker.toLowerCase()}.json …
+      Lade backtest_sndk.json …
     </div>
   );
 
   if (loadError) return (
     <div style={{padding:'80px 24px',textAlign:'center',fontFamily:'monospace'}}>
-      <div style={{color:'#f87171',fontSize:15,marginBottom:16}}>Keine Daten für {ticker}</div>
+      <div style={{color:'#f87171',fontSize:15,marginBottom:16}}>Keine Daten gefunden</div>
       <div style={{color:'#64748b',fontSize:13,marginBottom:8}}>Bitte zuerst ausführen:</div>
       <code style={{background:'#1e293b',color:'#fbbf24',padding:'8px 18px',borderRadius:6,fontSize:13,display:'inline-block'}}>
-        BACKTEST_TICKER={ticker} python3 load_backtest.py
+        python3 load_backtest.py
       </code>
       <div style={{color:'#334155',fontSize:11,marginTop:12}}>({loadError})</div>
     </div>
@@ -1288,16 +1040,11 @@ function BacktestApp() {
     <div style={{padding:'56px 12px 32px'}}>
 
       {/* ── Header ── */}
-      <div style={{marginBottom:14,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-        <select value={ticker} onChange={e => setTicker(e.target.value)} style={{
-          background:'#1a1a0a',border:'1px solid #f59e0b',borderRadius:8,
-          color:'#fbbf24',fontFamily:'monospace',fontSize:16,fontWeight:800,
-          padding:'5px 10px',cursor:'pointer',appearance:'none',WebkitAppearance:'none',
-          minWidth:90,
-        }}>
-          {availableTickers.map(t => <option key={t} value={t} style={{background:'#1e293b',color:'#e2e8f0'}}>{t}</option>)}
-        </select>
-        <span style={{fontSize:12,color:'#475569',fontFamily:'monospace'}}>Backtest · historische GWS-Punkte</span>
+      <div style={{marginBottom:14,display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
+        <div>
+          <span style={{fontSize:20,fontWeight:800,color:'#f1f5f9',fontFamily:'monospace'}}>SNDK</span>
+          <span style={{fontSize:12,color:'#475569',marginLeft:10,fontFamily:'monospace'}}>Backtest · historische GWS-Punkte</span>
+        </div>
         <div style={{marginLeft:'auto',fontSize:11,color:'#334155',fontFamily:'monospace'}}>
           {weekRows.length} Wochen · Stand {data.generated}
         </div>
@@ -1310,54 +1057,6 @@ function BacktestApp() {
         <span style={{color:'#94a3b8'}}>* = kein 4H-Daten für diese Woche</span>
       </div>
 
-      <MetricsPanel metrics={metrics}/>
-
-      {/* ── Trade-Liste ── */}
-      {(trades.length > 0 || openTrade) && (() => {
-        const cols = '100px 46px 70px 100px 70px 70px';
-        const renderRow = (t, k) => {
-          const entryDateStr = t.entryTime ? t.entryTime.slice(0,10) : t.entryDate;
-          const entryTimeStr = t.entryTime ? t.entryTime.slice(11,16) : '–';
-          return (
-            <div key={k} style={{display:'grid',gridTemplateColumns:cols,
-              padding:'5px 10px',borderBottom:'1px solid #0f172a',fontFamily:'monospace',fontSize:11,
-              background: t.open ? '#0d1020' : t.win ? '#06120a' : '#120608',
-              alignItems:'center',whiteSpace:'nowrap'}}>
-              <span style={{color:'#22c55e'}}>{entryDateStr}</span>
-              <span style={{textAlign:'right',color:'#475569',fontSize:10}}>{entryTimeStr}</span>
-              <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.entryPrice.toFixed(2)}</span>
-              <span style={{paddingLeft:10,color: t.open ? '#fbbf24' : '#94a3b8'}}>
-                {t.open ? <span>offen <span style={{fontSize:9,color:'#fbbf24',border:'1px solid #fbbf24',borderRadius:3,padding:'1px 3px'}}>läuft</span></span> : t.exitDate}
-              </span>
-              <span style={{textAlign:'right',color:'#cbd5e1',fontWeight:600}}>{t.exitPrice.toFixed(2)}</span>
-              <span style={{textAlign:'right',fontWeight:700,color: t.win ? '#4ade80' : '#f87171'}}>
-                {t.open ? '~' : ''}{t.pnl >= 0 ? '+' : ''}{(t.pnl * 100).toFixed(1)}%
-              </span>
-            </div>
-          );
-        };
-        return (
-          <div style={{marginBottom:14,background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
-            <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
-              <div style={{minWidth:460}}>
-                <div style={{display:'grid',gridTemplateColumns:cols,
-                  padding:'6px 10px',background:'#0f172a',borderBottom:'1px solid #1e293b',
-                  fontSize:9,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>
-                  <span>Kauf Datum</span>
-                  <span style={{textAlign:'right'}}>Zeit</span>
-                  <span style={{textAlign:'right'}}>Kauf</span>
-                  <span style={{paddingLeft:10}}>Verkauf Datum</span>
-                  <span style={{textAlign:'right'}}>Verkauf</span>
-                  <span style={{textAlign:'right'}}>Rendite</span>
-                </div>
-                {openTrade && renderRow(openTrade, 'open')}
-                {[...trades].reverse().map((t, k) => renderRow(t, k))}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       <div className="desktop-layout">
 
         {/* ── Linke Spalte: Tabelle ── */}
@@ -1365,7 +1064,7 @@ function BacktestApp() {
           <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
 
             {/* Tabellen-Header */}
-            <div style={{display:'grid',gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px 84px',gap:0,
+            <div style={{display:'grid',gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px',gap:0,
               background:'#0f172a',borderBottom:'1px solid #1e293b',padding:'7px 12px',
               fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.05em'}}>
               <span>KW</span><span>Datum</span><span style={{textAlign:'right'}}>Close</span>
@@ -1373,36 +1072,30 @@ function BacktestApp() {
               <span style={{textAlign:'center'}}>D</span>
               <span style={{textAlign:'center'}}>4H</span>
               <span style={{textAlign:'center'}}>Pkt</span>
-              <span style={{textAlign:'right'}}>Trade</span>
             </div>
 
             {/* Scroll-Container */}
             <div style={{maxHeight:'75vh',overflowY:'auto'}}>
               {tableRows.map(row => {
-                const isSel   = selectedIdx === row.i;
-                const marker  = tradeMarkers.get(row.i);
-                let bgPts = row.pts >= 3 ? '#0a1a0a'
-                          : row.pts >= 2 ? '#1a1200'
-                          : row.pts === 1 ? '#0f0f0f'
-                          : '#060b14';
-                let borderLeft = row.pts >= 3 ? '3px solid #4ade80'
-                               : row.pts >= 2 ? '3px solid #fbbf24'
-                               : row.pts >= 1 ? '3px solid #334155'
-                               : '3px solid transparent';
-                if (marker?.type === 'entry')                        { bgPts = '#0a2214'; borderLeft = '3px solid #22c55e'; }
-                if (marker?.type === 'active')                       { bgPts = '#0a1a10'; }
-                if (marker?.type === 'exit' && marker.pnl > 0)      { bgPts = '#071520'; borderLeft = '3px solid #60a5fa'; }
-                if (marker?.type === 'exit' && marker.pnl <= 0)     { bgPts = '#1a0707'; borderLeft = '3px solid #f87171'; }
-                if (isSel) { bgPts = '#1a2f4a'; borderLeft = '3px solid #3b82f6'; }
+                const isSel = selectedIdx === row.i;
+                const bgPts = row.pts >= 3 ? '#0a1a0a'
+                            : row.pts === 2 && row.has4h ? '#1a1200'
+                            : row.pts >= 2 ? '#1a1200'
+                            : row.pts === 1 ? '#0f0f0f'
+                            : '#060b14';
+                const borderLeft = row.pts >= 3 ? '3px solid #4ade80'
+                                 : row.pts >= 2 ? '3px solid #fbbf24'
+                                 : row.pts >= 1 ? '3px solid #334155'
+                                 : '3px solid transparent';
                 return (
                   <div key={row.i}
                     className="tbl-row"
                     onClick={() => handleRowClick(row.i)}
                     style={{
-                      display:'grid', gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px 84px',
+                      display:'grid', gridTemplateColumns:'72px 96px 72px 36px 36px 36px 40px',
                       gap:0, padding:'5px 12px',
-                      background: bgPts,
-                      borderLeft: borderLeft,
+                      background: isSel ? '#1a2f4a' : bgPts,
+                      borderLeft: isSel ? '3px solid #3b82f6' : borderLeft,
                       borderBottom:'1px solid #0f172a',
                       alignItems:'center'
                     }}>
@@ -1421,20 +1114,6 @@ function BacktestApp() {
                     <span style={{textAlign:'center'}}><PktDot val={row.pD}  has={row.dSlice.length >= 10}/></span>
                     <span style={{textAlign:'center'}}><PktDot val={row.p4H} has={row.has4h}/></span>
                     <span style={{textAlign:'center'}}><PktBadge pts={row.pts} has4h={row.has4h}/></span>
-                    <span style={{textAlign:'right',fontFamily:'monospace',fontSize:9,lineHeight:1.3}}>
-                      {marker?.type === 'entry' && (
-                        <span style={{color:'#22c55e',fontWeight:700}}>▲ KAUF<br/>{marker.price.toFixed(2)}</span>
-                      )}
-                      {marker?.type === 'exit' && (
-                        <span style={{color: marker.pnl > 0 ? '#60a5fa' : '#f87171', fontWeight:700}}>
-                          {marker.pnl > 0 ? '✓' : '✗'} VERK<br/>
-                          {marker.pnl >= 0 ? '+' : ''}{(marker.pnl * 100).toFixed(1)}%
-                        </span>
-                      )}
-                      {marker?.type === 'active' && (
-                        <span style={{color:'#334155'}}>▪ im Trade</span>
-                      )}
-                    </span>
                   </div>
                 );
               })}
@@ -1473,8 +1152,7 @@ function BacktestApp() {
                   <ChartWeekly
                     ohlcvW={sel.wSlice}
                     structureW={sel.structW}
-                    chartId={`bt_w_${sel.i}`}
-                    tradeArrows={tradeArrows}/>
+                    chartId={`bt_w_${sel.i}`}/>
                 ) : (
                   <div style={{background:'#07090f',borderRadius:8,border:'1px solid #1e293b',
                     padding:'20px',color:'#334155',fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
@@ -1487,8 +1165,7 @@ function BacktestApp() {
                   <CandleChart
                     ohlcv={sel.dSlice}
                     structure={sel.structD}
-                    chartId={`bt_d_${sel.i}`}
-                    tradeArrows={tradeArrows}/>
+                    chartId={`bt_d_${sel.i}`}/>
                 ) : (
                   <div style={{background:'#07090f',borderRadius:8,border:'1px solid #1e293b',
                     padding:'20px',color:'#334155',fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
@@ -1502,8 +1179,7 @@ function BacktestApp() {
                     <Chart4H
                       ohlcv4h={sel.h4Slice}
                       structure4h={sel.struct4H}
-                      chartId={`bt_4h_${sel.i}`}
-                      tradeArrows={tradeArrows}/>
+                      chartId={`bt_4h_${sel.i}`}/>
                   </div>
                 ) : (
                   <div className="chart-full-width" style={{background:'#07090f',borderRadius:8,
