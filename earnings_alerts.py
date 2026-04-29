@@ -1,7 +1,7 @@
 import subprocess
 subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "-q"])
 
-import json, os, sys, io, base64, smtplib, time
+import json, os, sys, io, base64, smtplib
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -58,7 +58,6 @@ def _gws_core(swing_highs, swing_lows, closes, n):
 
 
 def _get_gws_price(ohlcv, window=2):
-    """Gibt nur den GWS-Preis zurück (oder None), ohne Breakout-Analyse."""
     if not ohlcv or len(ohlcv) < 10:
         return None
     n      = len(ohlcv)
@@ -70,10 +69,26 @@ def _get_gws_price(ohlcv, window=2):
     return gws['price'] if gws else None
 
 
+# ── Kursbewegung aus lokalen OHLCV-Daten ─────────────────────────────────────
+
+def _get_day_change(ohlcv, target_date):
+    """
+    Gibt die prozentuale Kursveränderung (Vortagsclose → Tagesclose)
+    am target_date zurück. Keine API-Calls – nur lokale Daten.
+    """
+    target_str = str(target_date)
+    for i in range(1, len(ohlcv)):
+        if ohlcv[i]['d'][:10] == target_str:
+            prev_c = ohlcv[i - 1]['c']
+            curr_c = ohlcv[i]['c']
+            if prev_c and prev_c != 0:
+                return (curr_c / prev_c - 1) * 100
+    return None
+
+
 # ── Chart-Rendering ───────────────────────────────────────────────────────────
 
 def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earnings_date=None):
-    """Zeichnet Kerzenchart als base64-PNG; markiert optional den Earnings-Tag."""
     if not ohlcv:
         return None
     candles = ohlcv[-n_candles:]
@@ -96,7 +111,6 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earning
         ax.axhline(gws_price, color=GWS_CLR, linewidth=1.2, linestyle='--',
                    label=f'GWS  {gws_price:.2f}', zorder=3)
 
-    # Earnings-Tag im Daily-Chart als vertikale Linie markieren
     if earnings_date:
         earnings_str = str(earnings_date)
         for i, c in enumerate(candles):
@@ -138,12 +152,13 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earning
     return base64.b64encode(buf.read()).decode('utf-8')
 
 
-# ── yfinance Earnings-Daten ───────────────────────────────────────────────────
+# ── yfinance: Earnings-Termin bestätigen ──────────────────────────────────────
 
-def _fetch_earnings_for_ticker(ticker_symbol, target_date):
+def _verify_and_fetch_earnings(ticker_symbol, target_date):
     """
-    Gibt Earnings-Daten zurück, wenn der Ticker am target_date berichtet hat.
-    Sonst None.
+    Prüft ob der Ticker am target_date (±1 Tag) einen Earnings-Termin hatte.
+    Gibt dict mit verfügbaren EPS-Daten zurück – auch wenn Reported EPS
+    noch nicht befüllt ist (yfinance braucht oft 1-2 Tage dafür).
     """
     try:
         t  = yf.Ticker(ticker_symbol)
@@ -156,24 +171,23 @@ def _fetch_earnings_for_ticker(ticker_symbol, target_date):
                 d = idx.date()
             except AttributeError:
                 d = pd.Timestamp(idx).date()
-            if d != target_date:
+
+            # ±1 Tag: fängt Pre-Market (gleicher Tag) und After-Hours (nächster Tag) ab
+            if abs((d - target_date).days) > 1:
                 continue
 
-            row     = ed.loc[idx]
-            eps_act = row.get('Reported EPS')
-            if pd.isna(eps_act):
-                return None
-
+            row      = ed.loc[idx]
             eps_est  = row.get('EPS Estimate')
+            eps_act  = row.get('Reported EPS')
             surprise = row.get('Surprise(%)')
 
             result = {
-                'eps_actual':   float(eps_act),
-                'eps_estimate': float(eps_est)  if pd.notna(eps_est)  else None,
-                'surprise_pct': float(surprise) if pd.notna(surprise) else None,
+                'eps_actual':   float(eps_act)   if pd.notna(eps_act)   else None,
+                'eps_estimate': float(eps_est)   if pd.notna(eps_est)   else None,
+                'surprise_pct': float(surprise)  if pd.notna(surprise)  else None,
             }
 
-            # Umsatz aus Quartalszahlen
+            # Umsatz aus Quartalszahlen (optional)
             try:
                 qf = t.quarterly_financials
                 if qf is not None and not qf.empty:
@@ -191,71 +205,102 @@ def _fetch_earnings_for_ticker(ticker_symbol, target_date):
                 pass
 
             return result
+
         return None
     except Exception:
         return None
 
 
+# ── Kern-Logik ────────────────────────────────────────────────────────────────
+
 def fetch_earnings_highlights(tickers_data, target_date,
-                               min_surprise_pct=5.0, max_workers=6, max_results=15):
+                               min_price_change_pct=3.0, max_workers=6, max_results=15):
     """
-    Prüft alle Ticker parallel auf Earnings am target_date.
-    Gibt Liste von (ticker_symbol, entry, earnings_data) zurück – sortiert nach Surprise%.
+    Zweistufig:
+    1. Starke Kursbewegungen am target_date aus lokalen OHLCV-Daten ermitteln
+       (kein API-Call, sofort verfügbar).
+    2. Nur für diese Kandidaten via yfinance den Earnings-Termin bestätigen.
     """
-    print(f'Prüfe {len(tickers_data)} Ticker auf Earnings vom {target_date} '
-          f'(min. Surprise: +{min_surprise_pct}%)...')
+    print(f'Schritt 1: Kursbewegungen >= {min_price_change_pct}% am {target_date} '
+          f'aus lokalen Daten ({len(tickers_data)} Ticker)...')
+
+    big_movers = []
+    for ticker_symbol, entry in tickers_data:
+        change = _get_day_change(entry.get('ohlcv', []), target_date)
+        if change is not None and change >= min_price_change_pct:
+            big_movers.append((ticker_symbol, entry, change))
+
+    print(f'  {len(big_movers)} Aktien mit starker Bewegung gefunden.')
+    if not big_movers:
+        return []
+
+    print(f'Schritt 2: Earnings-Termin via yfinance bestätigen '
+          f'({len(big_movers)} Kandidaten)...')
     highlights = []
 
-    def check(item):
-        ticker_symbol, entry = item
-        data = _fetch_earnings_for_ticker(ticker_symbol, target_date)
-        return ticker_symbol, entry, data
+    def verify(item):
+        ticker_symbol, entry, price_change = item
+        data = _verify_and_fetch_earnings(ticker_symbol, target_date)
+        return ticker_symbol, entry, price_change, data
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(check, item): item for item in tickers_data}
-        done = 0
+        futures = {executor.submit(verify, item): item for item in big_movers}
         for future in as_completed(futures):
-            ticker_symbol, entry, earnings_data = future.result()
-            done += 1
-            if done % 100 == 0:
-                print(f'  {done}/{len(tickers_data)} geprüft...')
+            ticker_symbol, entry, price_change, earnings_data = future.result()
             if earnings_data is None:
                 continue
+            earnings_data['price_change_pct'] = price_change
             sp = earnings_data.get('surprise_pct')
-            if sp is not None and sp >= min_surprise_pct:
-                print(f'  HIGHLIGHT: {ticker_symbol}  EPS-Surprise {sp:+.1f}%')
-                highlights.append((ticker_symbol, entry, earnings_data))
+            if sp is not None:
+                print(f'  HIGHLIGHT: {ticker_symbol}  EPS {sp:+.1f}%  |  Kurs {price_change:+.1f}%')
+            else:
+                print(f'  HIGHLIGHT: {ticker_symbol}  Kurs {price_change:+.1f}%  '
+                      f'(EPS noch ausstehend)')
+            highlights.append((ticker_symbol, entry, earnings_data))
 
-    highlights.sort(key=lambda x: x[2].get('surprise_pct', 0) or 0, reverse=True)
+    # Sortierung: EPS-Surprise bevorzugt, sonst Kursbewegung
+    highlights.sort(
+        key=lambda x: x[2].get('surprise_pct') if x[2].get('surprise_pct') is not None
+                      else x[2].get('price_change_pct', 0),
+        reverse=True
+    )
     return highlights[:max_results]
 
 
 # ── E-Mail ────────────────────────────────────────────────────────────────────
 
 def _earnings_summary_html(earnings_data):
-    """Kurze HTML-Zeile mit den Key Facts der Earnings."""
     parts = []
     eps_act  = earnings_data.get('eps_actual')
     eps_est  = earnings_data.get('eps_estimate')
     surprise = earnings_data.get('surprise_pct')
     revenue  = earnings_data.get('revenue')
     rev_yoy  = earnings_data.get('revenue_yoy_pct')
+    price_ch = earnings_data.get('price_change_pct')
 
     if eps_act is not None:
         s = f'EPS: <strong>${eps_act:.2f}</strong>'
         if eps_est is not None:
             s += f' (est. ${eps_est:.2f})'
         if surprise is not None:
-            clr = '#4ade80' if surprise >= 0 else '#f87171'
+            clr  = '#4ade80' if surprise >= 0 else '#f87171'
             sign = '+' if surprise >= 0 else ''
             s += f'&nbsp;<span style="color:{clr}">{sign}{surprise:.1f}%</span>'
         parts.append(s)
+    elif price_ch is not None:
+        # Fallback wenn EPS noch nicht bei yfinance verfügbar
+        clr  = '#4ade80' if price_ch >= 0 else '#f87171'
+        sign = '+' if price_ch >= 0 else ''
+        parts.append(
+            f'Kurs am Earnings-Tag: <span style="color:{clr}">{sign}{price_ch:.1f}%</span>'
+            f'&nbsp;<span style="color:#475569;font-size:11px">(EPS-Daten folgen)</span>'
+        )
 
     if revenue is not None:
         rev_bn = revenue / 1e9
         s = f'Revenue: <strong>${rev_bn:.1f}bn</strong>'
         if rev_yoy is not None:
-            clr = '#4ade80' if rev_yoy >= 0 else '#f87171'
+            clr  = '#4ade80' if rev_yoy >= 0 else '#f87171'
             sign = '+' if rev_yoy >= 0 else ''
             s += f'&nbsp;<span style="color:{clr}">{sign}{rev_yoy:.1f}% YoY</span>'
         parts.append(s)
@@ -283,8 +328,8 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
     Earnings-Highlights &mdash; {today_str}
   </h2>
   <p style="color:#64748b;margin:0 0 24px;font-size:12px">
-    Folgende Aktien haben gestern Quartalszahlen gemeldet und die Erwartungen
-    deutlich &uuml;bertroffen &mdash; potenzielle Turnaround-Kandidaten:
+    Folgende Aktien haben gestern Quartalszahlen gemeldet und deutlich
+    zugelegt &mdash; potenzielle Turnaround-Kandidaten:
   </p>
 """]
 
@@ -292,7 +337,8 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
     inline_imgs = []
 
     for ticker_symbol, entry, earnings_data in highlights:
-        display_ticker = ticker_symbol.replace('.DE', '') if ticker_symbol.endswith('.DE') else ticker_symbol
+        display_ticker = (ticker_symbol.replace('.DE', '')
+                          if ticker_symbol.endswith('.DE') else ticker_symbol)
         score  = entry.get('score', 0)
         source = entry.get('_source', 'SPX')
 
@@ -306,15 +352,16 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
             dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/sp500.html'
             dashboard_label = 'S&amp;P 500-Dashboard'
 
-        sp = earnings_data.get('surprise_pct')
+        # Badge: EPS-Surprise bevorzugt, sonst Kursbewegung
+        badge_val = earnings_data.get('surprise_pct') or earnings_data.get('price_change_pct')
         surprise_badge = ''
-        if sp is not None:
-            clr  = '#4ade80' if sp >= 0 else '#f87171'
-            sign = '+' if sp >= 0 else ''
+        if badge_val is not None:
+            clr  = '#4ade80' if badge_val >= 0 else '#f87171'
+            sign = '+' if badge_val >= 0 else ''
             surprise_badge = (
                 f'<span style="font-size:10px;font-weight:bold;color:#0f172a;'
                 f'background:{clr};border-radius:4px;padding:1px 6px;'
-                f'letter-spacing:0.5px">{sign}{sp:.1f}%</span>'
+                f'letter-spacing:0.5px">{sign}{badge_val:.1f}%</span>'
             )
 
         html_parts.append(f"""
@@ -339,7 +386,6 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
     </div>
 """)
 
-        # Charts: Weekly (kein Earnings-Marker), Daily (mit Marker), 4H
         gws_w  = _get_gws_price(entry.get('ohlcv_w',  []), window=1)
         gws_d  = _get_gws_price(entry.get('ohlcv',    []), window=2)
         gws_4h = _get_gws_price(entry.get('ohlcv_4h', []), window=2)
@@ -363,13 +409,12 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
                     f'margin:6px 0;border-radius:6px">\n'
                 )
 
-        # Earnings-Summary unter den Charts
         summary_html = _earnings_summary_html(earnings_data)
         if summary_html:
             html_parts.append(f"""
     <div style="margin-top:10px;padding:8px 12px;background:#1a1a0f;
                 border-radius:6px;font-size:12px;color:#94a3b8;line-height:1.8">
-      <span style="color:#f97316;font-weight:bold">&#9650; Earnings Q-Zahlen:&nbsp;</span>
+      <span style="color:#f97316;font-weight:bold">&#9650; Earnings:&nbsp;</span>
       {summary_html}
     </div>
 """)
@@ -416,18 +461,15 @@ def main():
         print('FEHLER: Bitte SMTP_HOST, SMTP_USER, SMTP_PASS und ALERT_EMAIL_TO setzen.')
         sys.exit(1)
 
-    # "Gestern" im UTC-Kontext (Workflow läuft früh morgens UTC)
     yesterday = (datetime.utcnow() - timedelta(days=1)).date()
 
-    # Wochenenden überspringen
     if yesterday.weekday() >= 5:
         print(f'Kein Handelstag: {yesterday} ist Wochenende. Abbruch.')
         return
 
     print(f'earnings_alerts.py  –  Earnings-Check für {yesterday}')
 
-    # Ticker aus allen RS-JSON-Dateien laden (SPX hat Vorrang bei Duplikaten)
-    seen        = {}
+    seen         = {}
     tickers_data = []
     for json_path, source_label in [('rs_sp500.json', 'SPX'), ('rs_full.json', 'QQQ')]:
         if not os.path.exists(json_path):
@@ -444,12 +486,12 @@ def main():
 
     print(f'{len(tickers_data)} Ticker geladen.')
 
-    min_surprise  = float(os.environ.get('MIN_SURPRISE_PCT', '5.0'))
-    max_highlights = int(os.environ.get('MAX_HIGHLIGHTS', '15'))
+    min_price_change = float(os.environ.get('MIN_PRICE_CHANGE_PCT', '3.0'))
+    max_highlights   = int(os.environ.get('MAX_HIGHLIGHTS', '15'))
 
     highlights = fetch_earnings_highlights(
         tickers_data, yesterday,
-        min_surprise_pct=min_surprise,
+        min_price_change_pct=min_price_change,
         max_results=max_highlights,
     )
 
@@ -459,7 +501,7 @@ def main():
         send_earnings_email(highlights, smtp_host, smtp_port,
                             smtp_user, smtp_pass, to_addr, yesterday)
     else:
-        print('Keine relevanten Earnings-Highlights heute.')
+        print('Keine Earnings-Highlights heute.')
 
 
 if __name__ == '__main__':
