@@ -42,6 +42,15 @@ jobs:
           ALERT_TEST_MODE:  ${{ github.event.inputs.test_mode == 'ja' && 'true' || 'false' }}
         run: python check_alerts.py
 
+      - name: Earnings-Highlights prüfen (NEWS!)
+        env:
+          SMTP_HOST:        ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:        ${{ secrets.SMTP_PORT }}
+          SMTP_USER:        ${{ secrets.SMTP_USER }}
+          SMTP_PASS:        ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL_TO:   ${{ secrets.ALERT_EMAIL_TO }}
+        run: python earnings_alerts.py
+
       - name: Zustandsdatei committen
         run: |
           git config user.name  "github-actions"
