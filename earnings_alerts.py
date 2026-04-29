@@ -152,19 +152,18 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earning
     return base64.b64encode(buf.read()).decode('utf-8')
 
 
-# ── yfinance: Earnings-Termin bestätigen ──────────────────────────────────────
+# ── yfinance: EPS-Daten holen (optional, nie als Filter) ─────────────────────
 
-def _verify_and_fetch_earnings(ticker_symbol, target_date):
+def _try_fetch_eps_data(ticker_symbol, target_date):
     """
-    Prüft ob der Ticker am target_date (±1 Tag) einen Earnings-Termin hatte.
-    Gibt dict mit verfügbaren EPS-Daten zurück – auch wenn Reported EPS
-    noch nicht befüllt ist (yfinance braucht oft 1-2 Tage dafür).
+    Versucht EPS-Daten aus yfinance zu holen. Gibt immer ein dict zurück –
+    im Fehlerfall leer. Wird NUR zur Mail-Anreicherung genutzt, nie als Filter.
     """
     try:
         t  = yf.Ticker(ticker_symbol)
         ed = t.earnings_dates
         if ed is None or ed.empty:
-            return None
+            return {}
 
         for idx in ed.index:
             try:
@@ -172,8 +171,8 @@ def _verify_and_fetch_earnings(ticker_symbol, target_date):
             except AttributeError:
                 d = pd.Timestamp(idx).date()
 
-            # ±1 Tag: fängt Pre-Market (gleicher Tag) und After-Hours (nächster Tag) ab
-            if abs((d - target_date).days) > 1:
+            # ±2 Tage: Pre-Market, After-Hours und verzögerte yfinance-Einträge
+            if abs((d - target_date).days) > 2:
                 continue
 
             row      = ed.loc[idx]
@@ -187,7 +186,6 @@ def _verify_and_fetch_earnings(ticker_symbol, target_date):
                 'surprise_pct': float(surprise)  if pd.notna(surprise)  else None,
             }
 
-            # Umsatz aus Quartalszahlen (optional)
             try:
                 qf = t.quarterly_financials
                 if qf is not None and not qf.empty:
@@ -206,20 +204,20 @@ def _verify_and_fetch_earnings(ticker_symbol, target_date):
 
             return result
 
-        return None
+        return {}
     except Exception:
-        return None
+        return {}
 
 
 # ── Kern-Logik ────────────────────────────────────────────────────────────────
 
 def fetch_earnings_highlights(tickers_data, target_date,
-                               min_price_change_pct=3.0, max_workers=6, max_results=15):
+                               min_price_change_pct=5.0, max_workers=6, max_results=15):
     """
-    Zweistufig:
-    1. Starke Kursbewegungen am target_date aus lokalen OHLCV-Daten ermitteln
-       (kein API-Call, sofort verfügbar).
-    2. Nur für diese Kandidaten via yfinance den Earnings-Termin bestätigen.
+    1. Alle Ticker mit >= min_price_change_pct Kursbewegung am target_date
+       aus lokalen OHLCV-Daten ermitteln (kein API-Call).
+    2. Für jeden Kandidaten via yfinance EPS-Daten holen (optional).
+       yfinance-Fehler führen NIE zum Ausschluss – Kursbewegung allein reicht.
     """
     print(f'Schritt 1: Kursbewegungen >= {min_price_change_pct}% am {target_date} '
           f'aus lokalen Daten ({len(tickers_data)} Ticker)...')
@@ -229,42 +227,37 @@ def fetch_earnings_highlights(tickers_data, target_date,
         change = _get_day_change(entry.get('ohlcv', []), target_date)
         if change is not None and change >= min_price_change_pct:
             big_movers.append((ticker_symbol, entry, change))
+            print(f'  Mover: {ticker_symbol}  {change:+.1f}%')
 
-    print(f'  {len(big_movers)} Aktien mit starker Bewegung gefunden.')
+    print(f'  {len(big_movers)} Aktien gefunden.')
     if not big_movers:
         return []
 
-    print(f'Schritt 2: Earnings-Termin via yfinance bestätigen '
-          f'({len(big_movers)} Kandidaten)...')
-    highlights = []
+    print(f'Schritt 2: EPS-Daten via yfinance holen ({len(big_movers)} Kandidaten)...')
 
-    def verify(item):
+    def enrich(item):
         ticker_symbol, entry, price_change = item
-        data = _verify_and_fetch_earnings(ticker_symbol, target_date)
-        return ticker_symbol, entry, price_change, data
+        eps_data = _try_fetch_eps_data(ticker_symbol, target_date)
+        eps_data['price_change_pct'] = price_change
+        return ticker_symbol, entry, eps_data
 
+    results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(verify, item): item for item in big_movers}
+        futures = {executor.submit(enrich, item): item for item in big_movers}
         for future in as_completed(futures):
-            ticker_symbol, entry, price_change, earnings_data = future.result()
-            if earnings_data is None:
-                continue
-            earnings_data['price_change_pct'] = price_change
+            ticker_symbol, entry, earnings_data = future.result()
             sp = earnings_data.get('surprise_pct')
-            if sp is not None:
-                print(f'  HIGHLIGHT: {ticker_symbol}  EPS {sp:+.1f}%  |  Kurs {price_change:+.1f}%')
-            else:
-                print(f'  HIGHLIGHT: {ticker_symbol}  Kurs {price_change:+.1f}%  '
-                      f'(EPS noch ausstehend)')
-            highlights.append((ticker_symbol, entry, earnings_data))
+            pc = earnings_data.get('price_change_pct', 0)
+            print(f'  {ticker_symbol}  Kurs {pc:+.1f}%' +
+                  (f'  EPS {sp:+.1f}%' if sp is not None else '  (EPS ausstehend)'))
+            results.append((ticker_symbol, entry, earnings_data))
 
-    # Sortierung: EPS-Surprise bevorzugt, sonst Kursbewegung
-    highlights.sort(
+    results.sort(
         key=lambda x: x[2].get('surprise_pct') if x[2].get('surprise_pct') is not None
                       else x[2].get('price_change_pct', 0),
         reverse=True
     )
-    return highlights[:max_results]
+    return results[:max_results]
 
 
 # ── E-Mail ────────────────────────────────────────────────────────────────────

@@ -13,6 +13,10 @@ on:
         default: 'nein'
         type: choice
         options: ['nein', 'ja']
+      min_price_change_pct:
+        description: 'Earnings: Min. Kursbewegung in % (Standard: 5)'
+        required: false
+        default: '5'
 
 jobs:
   check-alerts:
@@ -44,11 +48,12 @@ jobs:
 
       - name: Earnings-Highlights prüfen (NEWS!)
         env:
-          SMTP_HOST:        ${{ secrets.SMTP_HOST }}
-          SMTP_PORT:        ${{ secrets.SMTP_PORT }}
-          SMTP_USER:        ${{ secrets.SMTP_USER }}
-          SMTP_PASS:        ${{ secrets.SMTP_PASS }}
-          ALERT_EMAIL_TO:   ${{ secrets.ALERT_EMAIL_TO }}
+          SMTP_HOST:           ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:           ${{ secrets.SMTP_PORT }}
+          SMTP_USER:           ${{ secrets.SMTP_USER }}
+          SMTP_PASS:           ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL_TO:      ${{ secrets.ALERT_EMAIL_TO }}
+          MIN_PRICE_CHANGE_PCT: ${{ github.event.inputs.min_price_change_pct || '5' }}
         run: python earnings_alerts.py
 
       - name: Zustandsdatei committen
