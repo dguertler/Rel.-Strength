@@ -36,10 +36,12 @@ function analyzeStructure(ohlcv) {
 
   // Kernlogik: tiefere Tiefs → GWS-D = höchstes Hoch dazwischen
   const gwsdCandidates = [];
+  let lastGwsdDefLow = null;
   for (let j = 1; j < swingLows.length; j++) {
     const tiefNeu = swingLows[j];
     const tiefAlt = swingLows[j - 1];
-    if (tiefNeu.price < tiefAlt.price) {
+    if (tiefNeu.price < tiefAlt.price &&
+        (lastGwsdDefLow === null || tiefNeu.price < lastGwsdDefLow.price)) {
       const hochsDazwischen = swingHighs.filter(
         sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
       );
@@ -52,6 +54,7 @@ function analyzeStructure(ohlcv) {
           tiefAlt:  tiefAlt,
           tiefNeu:  tiefNeu,
         });
+        lastGwsdDefLow = tiefNeu;
       }
     }
   }
@@ -121,16 +124,19 @@ function analyzeWeeklyStructure(ohlcvW) {
 
   // Kernlogik: tiefere Tiefs → GWS-W = höchstes Hoch dazwischen
   const gwswCandidates = [];
+  let lastGwswDefLow = null;
   for (let j = 1; j < swingLows.length; j++) {
     const tiefNeu = swingLows[j];
     const tiefAlt = swingLows[j - 1];
-    if (tiefNeu.price < tiefAlt.price) {
+    if (tiefNeu.price < tiefAlt.price &&
+        (lastGwswDefLow === null || tiefNeu.price < lastGwswDefLow.price)) {
       const hochsDazwischen = swingHighs.filter(
         sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
       );
       if (hochsDazwischen.length > 0) {
         const gwswHoch = hochsDazwischen.reduce((best, h) => h.price > best.price ? h : best);
         gwswCandidates.push({ idx: gwswHoch.idx, date: gwswHoch.date, price: gwswHoch.price });
+        lastGwswDefLow = tiefNeu;
       }
     }
   }
@@ -198,16 +204,19 @@ function analyze4HStructure(ohlcv4h) {
 
   // Kernlogik: tiefere Tiefs → GWS-4H = höchstes Hoch dazwischen
   const gws4hCandidates = [];
+  let lastGws4hDefLow = null;
   for (let j = 1; j < swingLows.length; j++) {
     const tiefNeu = swingLows[j];
     const tiefAlt = swingLows[j - 1];
-    if (tiefNeu.price < tiefAlt.price) {
+    if (tiefNeu.price < tiefAlt.price &&
+        (lastGws4hDefLow === null || tiefNeu.price < lastGws4hDefLow.price)) {
       const hochsDazwischen = swingHighs.filter(
         sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
       );
       if (hochsDazwischen.length > 0) {
         const gws4hHoch = hochsDazwischen.reduce((best, h) => h.price > best.price ? h : best);
         gws4hCandidates.push({ idx: gws4hHoch.idx, date: gws4hHoch.date, price: gws4hHoch.price });
+        lastGws4hDefLow = tiefNeu;
       }
     }
   }
