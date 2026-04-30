@@ -1,15 +1,12 @@
 import subprocess
-subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "-q"])
+subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "requests", "-q"])
 
-import json, os, sys, io, base64, smtplib
+import json, os, sys, io, base64, smtplib, requests
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import yfinance as yf
-import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -25,7 +22,7 @@ TICK_CLR = '#475569'
 GRID_CLR = '#1e293b'
 TEXT_CLR = '#e2e8f0'
 
-# ── GWS-Analyse (Port aus index.html, identisch zu check_alerts.py) ───────────
+# ── GWS-Analyse (identisch zu check_alerts.py) ────────────────────────────────
 
 def _find_swing_points(highs, lows, n, window=2):
     swing_highs, swing_lows = [], []
@@ -69,23 +66,6 @@ def _get_gws_price(ohlcv, window=2):
     return gws['price'] if gws else None
 
 
-# ── Kursbewegung aus lokalen OHLCV-Daten ─────────────────────────────────────
-
-def _get_day_change(ohlcv, target_date):
-    """
-    Gibt die prozentuale Kursveränderung (Vortagsclose → Tagesclose)
-    am target_date zurück. Keine API-Calls – nur lokale Daten.
-    """
-    target_str = str(target_date)
-    for i in range(1, len(ohlcv)):
-        if ohlcv[i]['d'][:10] == target_str:
-            prev_c = ohlcv[i - 1]['c']
-            curr_c = ohlcv[i]['c']
-            if prev_c and prev_c != 0:
-                return (curr_c / prev_c - 1) * 100
-    return None
-
-
 # ── Chart-Rendering ───────────────────────────────────────────────────────────
 
 def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earnings_date=None):
@@ -112,17 +92,15 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earning
                    label=f'GWS  {gws_price:.2f}', zorder=3)
 
     if earnings_date:
-        earnings_str = str(earnings_date)
         for i, c in enumerate(candles):
-            if c['d'][:10] == earnings_str:
+            if c['d'][:10] == str(earnings_date):
                 ax.axvline(i, color='#f97316', linewidth=1.5, linestyle=':',
                            alpha=0.9, label='Earnings', zorder=4)
                 break
 
     all_h = [c['h'] for c in candles]
     all_l = [c['l'] for c in candles]
-    price_range = max(all_h) - min(all_l)
-    pad = price_range * 0.06
+    pad   = (max(all_h) - min(all_l)) * 0.06
     ax.set_xlim(-1, n)
     ax.set_ylim(min(all_l) - pad, max(all_h) + pad)
 
@@ -136,10 +114,8 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earning
     for spine in ax.spines.values():
         spine.set_edgecolor(GRID_CLR)
     ax.grid(axis='y', color=GRID_CLR, linewidth=0.5)
-
     ax.set_title(f'{ticker}  –  {timeframe}', color=TEXT_CLR, fontsize=10,
                  pad=6, loc='left', fontfamily='monospace')
-
     if gws_price or earnings_date:
         ax.legend(loc='upper left', facecolor=BG_PANEL, edgecolor=GRID_CLR,
                   labelcolor=TEXT_CLR, fontsize=8)
@@ -152,124 +128,94 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earning
     return base64.b64encode(buf.read()).decode('utf-8')
 
 
-# ── yfinance: EPS-Daten holen (optional, nie als Filter) ─────────────────────
+# ── Finnhub Earnings-Kalender ─────────────────────────────────────────────────
 
-def _try_fetch_eps_data(ticker_symbol, target_date):
+def get_finnhub_earnings(target_date, api_key):
     """
-    Versucht EPS-Daten aus yfinance zu holen. Gibt immer ein dict zurück –
-    im Fehlerfall leer. Wird NUR zur Mail-Anreicherung genutzt, nie als Filter.
+    Holt alle Earnings-Ergebnisse von Finnhub für target_date.
+    Gibt Liste von Dicts zurück (symbol, epsActual, epsEstimate, revenue, hour, ...).
     """
     try:
-        t  = yf.Ticker(ticker_symbol)
-        ed = t.earnings_dates
-        if ed is None or ed.empty:
-            return {}
-
-        for idx in ed.index:
-            try:
-                d = idx.date()
-            except AttributeError:
-                d = pd.Timestamp(idx).date()
-
-            # ±2 Tage: Pre-Market, After-Hours und verzögerte yfinance-Einträge
-            if abs((d - target_date).days) > 2:
-                continue
-
-            row      = ed.loc[idx]
-            eps_est  = row.get('EPS Estimate')
-            eps_act  = row.get('Reported EPS')
-            surprise = row.get('Surprise(%)')
-
-            result = {
-                'eps_actual':   float(eps_act)   if pd.notna(eps_act)   else None,
-                'eps_estimate': float(eps_est)   if pd.notna(eps_est)   else None,
-                'surprise_pct': float(surprise)  if pd.notna(surprise)  else None,
-            }
-
-            try:
-                qf = t.quarterly_financials
-                if qf is not None and not qf.empty:
-                    for rev_key in ('Total Revenue', 'Revenue'):
-                        if rev_key in qf.index:
-                            rev_series = qf.loc[rev_key].dropna()
-                            if len(rev_series) >= 1:
-                                result['revenue'] = float(rev_series.iloc[0])
-                            if len(rev_series) >= 5:
-                                rev_yoy = float(rev_series.iloc[4])
-                                if rev_yoy:
-                                    result['revenue_yoy_pct'] = (result['revenue'] / rev_yoy - 1) * 100
-                            break
-            except Exception:
-                pass
-
-            return result
-
-        return {}
-    except Exception:
-        return {}
-
-
-# ── Kern-Logik ────────────────────────────────────────────────────────────────
-
-def fetch_earnings_highlights(tickers_data, target_date,
-                               min_price_change_pct=5.0, max_workers=6, max_results=15):
-    """
-    1. Alle Ticker mit >= min_price_change_pct Kursbewegung am target_date
-       aus lokalen OHLCV-Daten ermitteln (kein API-Call).
-    2. Für jeden Kandidaten via yfinance EPS-Daten holen (optional).
-       yfinance-Fehler führen NIE zum Ausschluss – Kursbewegung allein reicht.
-    """
-    print(f'Schritt 1: Kursbewegungen >= {min_price_change_pct}% am {target_date} '
-          f'aus lokalen Daten ({len(tickers_data)} Ticker)...')
-
-    big_movers = []
-    for ticker_symbol, entry in tickers_data:
-        change = _get_day_change(entry.get('ohlcv', []), target_date)
-        if change is not None and change >= min_price_change_pct:
-            big_movers.append((ticker_symbol, entry, change))
-            print(f'  Mover: {ticker_symbol}  {change:+.1f}%')
-
-    print(f'  {len(big_movers)} Aktien gefunden.')
-    if not big_movers:
+        resp = requests.get(
+            'https://finnhub.io/api/v1/calendar/earnings',
+            params={'from': str(target_date), 'to': str(target_date), 'token': api_key},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        items = resp.json().get('earningsCalendar', [])
+        print(f'Finnhub: {len(items)} Earnings-Einträge für {target_date}')
+        return items
+    except Exception as e:
+        print(f'Finnhub-Fehler: {e}')
         return []
 
-    print(f'Schritt 2: EPS-Daten via yfinance holen ({len(big_movers)} Kandidaten)...')
 
-    def enrich(item):
-        ticker_symbol, entry, price_change = item
-        eps_data = _try_fetch_eps_data(ticker_symbol, target_date)
-        eps_data['price_change_pct'] = price_change
-        return ticker_symbol, entry, eps_data
+def build_highlights(finnhub_items, ticker_map, min_surprise_pct=5.0, max_results=15):
+    """
+    Filtert Finnhub-Ergebnisse:
+    - Nur Ticker die in unserem Universum (rs_sp500/rs_full) sind
+    - EPS-Surprise >= min_surprise_pct
+    Sortiert nach Surprise% absteigend.
+    """
+    highlights = []
 
-    results = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(enrich, item): item for item in big_movers}
-        for future in as_completed(futures):
-            ticker_symbol, entry, earnings_data = future.result()
-            sp = earnings_data.get('surprise_pct')
-            pc = earnings_data.get('price_change_pct', 0)
-            print(f'  {ticker_symbol}  Kurs {pc:+.1f}%' +
-                  (f'  EPS {sp:+.1f}%' if sp is not None else '  (EPS ausstehend)'))
-            results.append((ticker_symbol, entry, earnings_data))
+    for item in finnhub_items:
+        symbol  = item.get('symbol', '')
+        if symbol not in ticker_map:
+            continue
 
-    results.sort(
-        key=lambda x: x[2].get('surprise_pct') if x[2].get('surprise_pct') is not None
-                      else x[2].get('price_change_pct', 0),
-        reverse=True
-    )
-    return results[:max_results]
+        eps_act = item.get('epsActual')
+        eps_est = item.get('epsEstimate')
+
+        if eps_act is None:
+            continue  # noch nicht gemeldet
+
+        # Surprise%: (Actual - Estimate) / |Estimate|
+        surprise_pct = None
+        if eps_est is not None and eps_est != 0:
+            surprise_pct = (eps_act - eps_est) / abs(eps_est) * 100
+
+        if surprise_pct is None or surprise_pct < min_surprise_pct:
+            continue
+
+        rev_act = item.get('revenueActual')
+        rev_est = item.get('revenueEstimate')
+        hour    = item.get('hour', '')   # 'bmo' = before market open, 'amc' = after market close
+
+        print(f'  HIGHLIGHT: {symbol}  EPS {surprise_pct:+.1f}%'
+              f'  ({hour if hour else "?"})')
+
+        highlights.append((symbol, ticker_map[symbol], {
+            'eps_actual':        eps_act,
+            'eps_estimate':      eps_est,
+            'surprise_pct':      surprise_pct,
+            'revenue':           rev_act,
+            'revenue_estimate':  rev_est,
+            'hour':              hour,
+        }))
+
+    highlights.sort(key=lambda x: x[2]['surprise_pct'], reverse=True)
+    return highlights[:max_results]
 
 
 # ── E-Mail ────────────────────────────────────────────────────────────────────
 
-def _earnings_summary_html(earnings_data):
+def _hour_label(hour):
+    if hour == 'bmo':
+        return 'vor Börseneröffnung'
+    if hour == 'amc':
+        return 'nach Börsenschluss'
+    return ''
+
+
+def _earnings_summary_html(ed):
     parts = []
-    eps_act  = earnings_data.get('eps_actual')
-    eps_est  = earnings_data.get('eps_estimate')
-    surprise = earnings_data.get('surprise_pct')
-    revenue  = earnings_data.get('revenue')
-    rev_yoy  = earnings_data.get('revenue_yoy_pct')
-    price_ch = earnings_data.get('price_change_pct')
+
+    eps_act  = ed.get('eps_actual')
+    eps_est  = ed.get('eps_estimate')
+    surprise = ed.get('surprise_pct')
+    rev_act  = ed.get('revenue')
+    rev_est  = ed.get('revenue_estimate')
 
     if eps_act is not None:
         s = f'EPS: <strong>${eps_act:.2f}</strong>'
@@ -280,22 +226,16 @@ def _earnings_summary_html(earnings_data):
             sign = '+' if surprise >= 0 else ''
             s += f'&nbsp;<span style="color:{clr}">{sign}{surprise:.1f}%</span>'
         parts.append(s)
-    elif price_ch is not None:
-        # Fallback wenn EPS noch nicht bei yfinance verfügbar
-        clr  = '#4ade80' if price_ch >= 0 else '#f87171'
-        sign = '+' if price_ch >= 0 else ''
-        parts.append(
-            f'Kurs am Earnings-Tag: <span style="color:{clr}">{sign}{price_ch:.1f}%</span>'
-            f'&nbsp;<span style="color:#475569;font-size:11px">(EPS-Daten folgen)</span>'
-        )
 
-    if revenue is not None:
-        rev_bn = revenue / 1e9
+    if rev_act is not None:
+        rev_bn = rev_act / 1e9
         s = f'Revenue: <strong>${rev_bn:.1f}bn</strong>'
-        if rev_yoy is not None:
-            clr  = '#4ade80' if rev_yoy >= 0 else '#f87171'
-            sign = '+' if rev_yoy >= 0 else ''
-            s += f'&nbsp;<span style="color:{clr}">{sign}{rev_yoy:.1f}% YoY</span>'
+        if rev_est is not None:
+            rev_est_bn = rev_est / 1e9
+            rev_beat = (rev_act / rev_est - 1) * 100
+            clr  = '#4ade80' if rev_beat >= 0 else '#f87171'
+            sign = '+' if rev_beat >= 0 else ''
+            s += f' (est. ${rev_est_bn:.1f}bn&nbsp;<span style="color:{clr}">{sign}{rev_beat:.1f}%</span>)'
         parts.append(s)
 
     sep = '&nbsp;&nbsp;<span style="color:#475569">|</span>&nbsp;&nbsp;'
@@ -321,61 +261,65 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
     Earnings-Highlights &mdash; {today_str}
   </h2>
   <p style="color:#64748b;margin:0 0 24px;font-size:12px">
-    Folgende Aktien haben gestern Quartalszahlen gemeldet und deutlich
-    zugelegt &mdash; potenzielle Turnaround-Kandidaten:
+    Folgende Aktien haben gestern ({target_date}) Quartalszahlen gemeldet
+    und die Erwartungen deutlich &uuml;bertroffen:
   </p>
 """]
 
     cid_counter = 0
     inline_imgs = []
 
-    for ticker_symbol, entry, earnings_data in highlights:
-        display_ticker = (ticker_symbol.replace('.DE', '')
-                          if ticker_symbol.endswith('.DE') else ticker_symbol)
-        score  = entry.get('score', 0)
-        source = entry.get('_source', 'SPX')
+    for ticker_symbol, entry, ed in highlights:
+        display = ticker_symbol.replace('.DE', '') if ticker_symbol.endswith('.DE') else ticker_symbol
+        score   = entry.get('score', 0)
+        source  = entry.get('_source', 'SPX')
+        hour    = ed.get('hour', '')
 
         if source == 'DAX':
-            dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/dax.html'
-            dashboard_label = 'DAX-Dashboard'
+            dash_url, dash_lbl = 'https://dguertler.github.io/Rel.-Strength/dax.html', 'DAX-Dashboard'
         elif source == 'QQQ':
-            dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/'
-            dashboard_label = 'Nasdaq-Dashboard'
+            dash_url, dash_lbl = 'https://dguertler.github.io/Rel.-Strength/', 'Nasdaq-Dashboard'
         else:
-            dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/sp500.html'
-            dashboard_label = 'S&amp;P 500-Dashboard'
+            dash_url, dash_lbl = 'https://dguertler.github.io/Rel.-Strength/sp500.html', 'S&amp;P 500-Dashboard'
 
-        # Badge: EPS-Surprise bevorzugt, sonst Kursbewegung
-        badge_val = earnings_data.get('surprise_pct') or earnings_data.get('price_change_pct')
-        surprise_badge = ''
-        if badge_val is not None:
-            clr  = '#4ade80' if badge_val >= 0 else '#f87171'
-            sign = '+' if badge_val >= 0 else ''
-            surprise_badge = (
-                f'<span style="font-size:10px;font-weight:bold;color:#0f172a;'
-                f'background:{clr};border-radius:4px;padding:1px 6px;'
-                f'letter-spacing:0.5px">{sign}{badge_val:.1f}%</span>'
+        sp   = ed.get('surprise_pct', 0)
+        clr  = '#4ade80' if sp >= 0 else '#f87171'
+        sign = '+' if sp >= 0 else ''
+        surprise_badge = (
+            f'<span style="font-size:10px;font-weight:bold;color:#0f172a;'
+            f'background:{clr};border-radius:4px;padding:1px 6px;'
+            f'letter-spacing:0.5px">{sign}{sp:.1f}%</span>'
+        )
+
+        hour_badge = ''
+        if hour:
+            hl = _hour_label(hour)
+            hour_badge = (
+                f'<span style="font-size:10px;color:#94a3b8;'
+                f'border:1px solid #334155;border-radius:4px;padding:1px 6px">'
+                f'{hl}</span>'
             )
 
         html_parts.append(f"""
   <div style="margin:0 0 28px;padding:16px;
               background:#12100a;border:1px solid #f97316;
               border-left:4px solid #f97316;border-radius:8px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
       <span style="font-size:18px">&#128202;</span>
-      <span style="font-size:16px;font-weight:bold;color:#fb923c">{display_ticker}</span>
+      <span style="font-size:16px;font-weight:bold;color:#fb923c">{display}</span>
       <span style="font-size:10px;font-weight:bold;color:#0f172a;
              background:#f97316;border-radius:4px;padding:1px 6px;
              letter-spacing:0.5px">NEWS!</span>
       {surprise_badge}
+      {hour_badge}
       <span style="font-size:11px;color:#64748b">({source})</span>
       <span style="margin-left:auto;font-size:11px;color:#94a3b8">
         RS-Score:&nbsp;<strong style="color:#f1f5f9">{score:.1f}</strong>
       </span>
     </div>
     <div style="font-size:12px;margin-bottom:8px">
-      <a href="{dashboard_url}" style="color:#3b82f6;font-size:11px;
-         text-decoration:none">&rarr; {dashboard_label}</a>
+      <a href="{dash_url}" style="color:#3b82f6;font-size:11px;
+         text-decoration:none">&rarr; {dash_lbl}</a>
     </div>
 """)
 
@@ -383,32 +327,30 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
         gws_d  = _get_gws_price(entry.get('ohlcv',    []), window=2)
         gws_4h = _get_gws_price(entry.get('ohlcv_4h', []), window=2)
 
-        chart_specs = [
-            (entry.get('ohlcv_w',  []), 'Weekly (letzten 30 Kerzen)',  gws_w,  30, None),
-            (entry.get('ohlcv',    []), 'Daily (letzten 40 Kerzen)',   gws_d,  40, target_date),
-            (entry.get('ohlcv_4h', []), '4H (letzten 60 Kerzen)',      gws_4h, 60, None),
-        ]
-        for ohlcv_data, tf_label, gws_price, n_c, earn_date in chart_specs:
-            b64 = render_chart(ohlcv_data, display_ticker, tf_label,
+        for ohlcv_data, tf_label, gws_price, n_c in [
+            (entry.get('ohlcv_w',  []), 'Weekly (letzten 30 Kerzen)',  gws_w,  30),
+            (entry.get('ohlcv',    []), 'Daily (letzten 40 Kerzen)',   gws_d,  40),
+            (entry.get('ohlcv_4h', []), '4H (letzten 60 Kerzen)',      gws_4h, 60),
+        ]:
+            b64 = render_chart(ohlcv_data, display, tf_label,
                                gws_price=gws_price, n_candles=n_c,
-                               earnings_date=earn_date)
+                               earnings_date=target_date)
             if b64:
                 cid = f'chart_{cid_counter}'
                 cid_counter += 1
                 inline_imgs.append((cid, b64))
                 html_parts.append(
-                    f'    <img src="cid:{cid}" '
-                    f'style="width:100%;max-width:720px;display:block;'
-                    f'margin:6px 0;border-radius:6px">\n'
+                    f'    <img src="cid:{cid}" style="width:100%;max-width:720px;'
+                    f'display:block;margin:6px 0;border-radius:6px">\n'
                 )
 
-        summary_html = _earnings_summary_html(earnings_data)
-        if summary_html:
+        summary = _earnings_summary_html(ed)
+        if summary:
             html_parts.append(f"""
     <div style="margin-top:10px;padding:8px 12px;background:#1a1a0f;
                 border-radius:6px;font-size:12px;color:#94a3b8;line-height:1.8">
       <span style="color:#f97316;font-weight:bold">&#9650; Earnings:&nbsp;</span>
-      {summary_html}
+      {summary}
     </div>
 """)
 
@@ -416,7 +358,7 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
 
     html_parts.append("""
   <p style="font-size:10px;color:#334155;margin-top:24px">
-    Generiert von RS-Dashboard &middot; earnings_alerts.py
+    Generiert von RS-Dashboard &middot; earnings_alerts.py &middot; Daten: Finnhub
   </p>
 </body></html>""")
 
@@ -444,14 +386,16 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
 # ── Hauptprogramm ─────────────────────────────────────────────────────────────
 
 def main():
-    smtp_host = os.environ.get('SMTP_HOST', '')
-    smtp_port = os.environ.get('SMTP_PORT', '587')
-    smtp_user = os.environ.get('SMTP_USER', '')
-    smtp_pass = os.environ.get('SMTP_PASS', '')
-    to_addr   = os.environ.get('ALERT_EMAIL_TO', '')
+    smtp_host   = os.environ.get('SMTP_HOST', '')
+    smtp_port   = os.environ.get('SMTP_PORT', '587')
+    smtp_user   = os.environ.get('SMTP_USER', '')
+    smtp_pass   = os.environ.get('SMTP_PASS', '')
+    to_addr     = os.environ.get('ALERT_EMAIL_TO', '')
+    finnhub_key = os.environ.get('FINNHUB_API_KEY', '')
 
-    if not all([smtp_host, smtp_user, smtp_pass, to_addr]):
-        print('FEHLER: Bitte SMTP_HOST, SMTP_USER, SMTP_PASS und ALERT_EMAIL_TO setzen.')
+    if not all([smtp_host, smtp_user, smtp_pass, to_addr, finnhub_key]):
+        print('FEHLER: SMTP_HOST, SMTP_USER, SMTP_PASS, ALERT_EMAIL_TO '
+              'und FINNHUB_API_KEY müssen gesetzt sein.')
         sys.exit(1)
 
     yesterday = (datetime.utcnow() - timedelta(days=1)).date()
@@ -462,8 +406,8 @@ def main():
 
     print(f'earnings_alerts.py  –  Earnings-Check für {yesterday}')
 
-    seen         = {}
-    tickers_data = []
+    # Ticker-Universum laden (SPX hat Vorrang bei Duplikaten)
+    ticker_map = {}
     for json_path, source_label in [('rs_sp500.json', 'SPX'), ('rs_full.json', 'QQQ')]:
         if not os.path.exists(json_path):
             print(f'Datei nicht gefunden: {json_path}')
@@ -472,19 +416,21 @@ def main():
             data = json.load(f)
         for entry in data.get('data', []):
             t = entry['ticker']
-            if t not in seen:
+            if t not in ticker_map:
                 entry['_source'] = source_label
-                seen[t] = entry
-                tickers_data.append((t, entry))
+                ticker_map[t] = entry
 
-    print(f'{len(tickers_data)} Ticker geladen.')
+    print(f'{len(ticker_map)} Ticker geladen.')
 
-    min_price_change = float(os.environ.get('MIN_PRICE_CHANGE_PCT', '3.0'))
-    max_highlights   = int(os.environ.get('MAX_HIGHLIGHTS', '15'))
+    # Finnhub: Earnings für gestern
+    finnhub_items = get_finnhub_earnings(yesterday, finnhub_key)
 
-    highlights = fetch_earnings_highlights(
-        tickers_data, yesterday,
-        min_price_change_pct=min_price_change,
+    min_surprise  = float(os.environ.get('MIN_SURPRISE_PCT', '5.0'))
+    max_highlights = int(os.environ.get('MAX_HIGHLIGHTS', '15'))
+
+    highlights = build_highlights(
+        finnhub_items, ticker_map,
+        min_surprise_pct=min_surprise,
         max_results=max_highlights,
     )
 
@@ -494,7 +440,7 @@ def main():
         send_earnings_email(highlights, smtp_host, smtp_port,
                             smtp_user, smtp_pass, to_addr, yesterday)
     else:
-        print('Keine Earnings-Highlights heute.')
+        print('Keine relevanten Earnings-Highlights heute.')
 
 
 if __name__ == '__main__':
