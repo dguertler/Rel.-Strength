@@ -31,16 +31,17 @@ jobs:
           python-version: '3.11'
 
       - name: Abhängigkeiten installieren
-        run: pip install yfinance pandas matplotlib requests
+        run: pip install yfinance pandas matplotlib requests anthropic
 
       - name: Earnings-Highlights prüfen und mailen
         env:
-          SMTP_HOST:        ${{ secrets.SMTP_HOST }}
-          SMTP_PORT:        ${{ secrets.SMTP_PORT }}
-          SMTP_USER:        ${{ secrets.SMTP_USER }}
-          SMTP_PASS:        ${{ secrets.SMTP_PASS }}
-          ALERT_EMAIL_TO:   ${{ secrets.ALERT_EMAIL_TO }}
-          FINNHUB_API_KEY:  ${{ secrets.FINNHUB_API_KEY }}
-          MIN_SURPRISE_PCT: ${{ github.event.inputs.min_surprise_pct || '5' }}
-          MAX_HIGHLIGHTS:   ${{ github.event.inputs.max_highlights || '15' }}
+          SMTP_HOST:         ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:         ${{ secrets.SMTP_PORT }}
+          SMTP_USER:         ${{ secrets.SMTP_USER }}
+          SMTP_PASS:         ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL_TO:    ${{ secrets.ALERT_EMAIL_TO }}
+          FINNHUB_API_KEY:   ${{ secrets.FINNHUB_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MIN_SURPRISE_PCT:  ${{ github.event.inputs.min_surprise_pct || '5' }}
+          MAX_HIGHLIGHTS:    ${{ github.event.inputs.max_highlights || '15' }}
         run: python earnings_alerts.py

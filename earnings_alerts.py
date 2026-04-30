@@ -1,5 +1,5 @@
 import subprocess
-subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "requests", "-q"])
+subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "requests", "anthropic", "-q"])
 
 import json, os, sys, io, base64, smtplib, requests
 from datetime import datetime, timedelta
@@ -128,6 +128,83 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40, earning
     return base64.b64encode(buf.read()).decode('utf-8')
 
 
+# ── Claude-Analyse ────────────────────────────────────────────────────────────
+
+def get_company_context(ticker_symbol):
+    try:
+        import yfinance as yf
+        info = yf.Ticker(ticker_symbol).info
+        return {
+            'name':     info.get('longName', ticker_symbol),
+            'sector':   info.get('sector', ''),
+            'industry': info.get('industry', ''),
+            'summary':  (info.get('longBusinessSummary', '') or '')[:400],
+        }
+    except Exception:
+        return {'name': ticker_symbol, 'sector': '', 'industry': '', 'summary': ''}
+
+
+def generate_analysis(ticker, company_ctx, earnings_data, anthropic_key):
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=anthropic_key)
+
+        name     = company_ctx.get('name', ticker)
+        sector   = company_ctx.get('sector', '')
+        industry = company_ctx.get('industry', '')
+        summary  = company_ctx.get('summary', '')
+
+        eps_act = earnings_data.get('eps_actual')
+        eps_est = earnings_data.get('eps_estimate')
+        sp      = earnings_data.get('surprise_pct', 0)
+        rev_act = earnings_data.get('revenue')
+        rev_est = earnings_data.get('revenue_estimate')
+        hour    = earnings_data.get('hour', '')
+
+        eps_est_str = f'${eps_est:.2f}' if eps_est is not None else 'N/A'
+        rev_line = ''
+        if rev_act is not None:
+            rev_bn = rev_act / 1e9
+            rev_line = f'Revenue: ${rev_bn:.2f}bn'
+            if rev_est is not None:
+                rev_beat = (rev_act / rev_est - 1) * 100
+                rev_line += f' (Schätzung: ${rev_est/1e9:.2f}bn, {rev_beat:+.1f}%)'
+
+        hour_str = ('vor Börseneröffnung (BMO)' if hour == 'bmo'
+                    else 'nach Börsenschluss (AMC)' if hour == 'amc'
+                    else 'unbekannt')
+
+        user_content = '\n'.join(filter(None, [
+            f'Aktie: {ticker} ({name})',
+            f'Sektor: {sector} | Branche: {industry}' if sector else '',
+            f'EPS: ${eps_act:.2f} (Schätzung: {eps_est_str}, Surprise: {sp:+.1f}%)',
+            rev_line,
+            f'Zeitpunkt: {hour_str}',
+            f'Unternehmen: {summary}' if summary else '',
+        ]))
+
+        resp = client.messages.create(
+            model='claude-haiku-4-5',
+            max_tokens=300,
+            system=[{
+                'type': 'text',
+                'text': (
+                    'Du bist ein präziser Finanzanalyst. Analysiere Quartalsergebnisse in genau 3 Sätzen auf Deutsch. '
+                    'Beantworte: 1) Turnaround-Kandidat oder Wachstumsaktie? 2) Was ist besonders bemerkenswert? '
+                    '3) Wichtigstes Risiko oder Chance. Kein Intro, keine Überschrift – direkt mit der Analyse beginnen.'
+                ),
+                'cache_control': {'type': 'ephemeral'},
+            }],
+            messages=[{'role': 'user', 'content': user_content}],
+        )
+        text = resp.content[0].text.strip()
+        print(f'  Analyse {ticker}: OK (Tokens: {resp.usage.input_tokens}in / {resp.usage.output_tokens}out)')
+        return text
+    except Exception as e:
+        print(f'  Analyse-Fehler {ticker}: {e}')
+        return None
+
+
 # ── Finnhub Earnings-Kalender ─────────────────────────────────────────────────
 
 def get_finnhub_earnings(target_date, api_key):
@@ -150,7 +227,8 @@ def get_finnhub_earnings(target_date, api_key):
         return []
 
 
-def build_highlights(finnhub_items, ticker_map, min_surprise_pct=5.0, max_results=15):
+def build_highlights(finnhub_items, ticker_map, min_surprise_pct=5.0, max_results=15,
+                     anthropic_key=''):
     """
     Filtert Finnhub-Ergebnisse:
     - Nur Ticker die in unserem Universum (rs_sp500/rs_full) sind
@@ -195,7 +273,17 @@ def build_highlights(finnhub_items, ticker_map, min_surprise_pct=5.0, max_result
         }))
 
     highlights.sort(key=lambda x: x[2]['surprise_pct'], reverse=True)
-    return highlights[:max_results]
+    highlights = highlights[:max_results]
+
+    if anthropic_key:
+        print(f'\nGeneriere Claude-Analyse für {len(highlights)} Aktien...')
+        for sym, entry, ed in highlights:
+            ctx = get_company_context(sym)
+            analysis = generate_analysis(sym, ctx, ed, anthropic_key)
+            ed['analysis'] = analysis
+            ed['company_name'] = ctx.get('name', sym)
+
+    return highlights
 
 
 # ── E-Mail ────────────────────────────────────────────────────────────────────
@@ -354,6 +442,18 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
     </div>
 """)
 
+        analysis = ed.get('analysis')
+        if analysis:
+            html_parts.append(f"""
+    <div style="margin-top:8px;padding:10px 14px;background:#0d1a0d;
+                border-left:3px solid #4ade80;border-radius:6px;
+                font-size:12px;color:#cbd5e1;line-height:1.7">
+      <span style="color:#4ade80;font-size:10px;font-weight:bold;
+                   letter-spacing:0.5px">&#129302; KI-ANALYSE&nbsp;&nbsp;</span>
+      {analysis}
+    </div>
+""")
+
         html_parts.append('  </div>\n')
 
     html_parts.append("""
@@ -386,12 +486,18 @@ def send_earnings_email(highlights, smtp_host, smtp_port, smtp_user, smtp_pass,
 # ── Hauptprogramm ─────────────────────────────────────────────────────────────
 
 def main():
-    smtp_host   = os.environ.get('SMTP_HOST', '')
-    smtp_port   = os.environ.get('SMTP_PORT', '587')
-    smtp_user   = os.environ.get('SMTP_USER', '')
-    smtp_pass   = os.environ.get('SMTP_PASS', '')
-    to_addr     = os.environ.get('ALERT_EMAIL_TO', '')
-    finnhub_key = os.environ.get('FINNHUB_API_KEY', '')
+    smtp_host     = os.environ.get('SMTP_HOST', '')
+    smtp_port     = os.environ.get('SMTP_PORT', '587')
+    smtp_user     = os.environ.get('SMTP_USER', '')
+    smtp_pass     = os.environ.get('SMTP_PASS', '')
+    to_addr       = os.environ.get('ALERT_EMAIL_TO', '')
+    finnhub_key   = os.environ.get('FINNHUB_API_KEY', '')
+    anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+
+    if anthropic_key:
+        print('ANTHROPIC_API_KEY gesetzt – KI-Analyse aktiviert.')
+    else:
+        print('ANTHROPIC_API_KEY nicht gesetzt – keine KI-Analyse.')
 
     if not all([smtp_host, smtp_user, smtp_pass, to_addr, finnhub_key]):
         print('FEHLER: SMTP_HOST, SMTP_USER, SMTP_PASS, ALERT_EMAIL_TO '
@@ -432,6 +538,7 @@ def main():
         finnhub_items, ticker_map,
         min_surprise_pct=min_surprise,
         max_results=max_highlights,
+        anthropic_key=anthropic_key,
     )
 
     print(f'\n{len(highlights)} Earnings-Highlights gefunden.')
