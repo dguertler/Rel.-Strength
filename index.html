@@ -59,7 +59,7 @@ const { useState, useMemo, useRef, useCallback, useEffect } = React;
 //   4. Aktuelles GWS-D = letztes so ermitteltes Hoch
 //   5. Bullish = Close über GWS-D Preis
 function analyzeStructure(ohlcv) {
-  if (!ohlcv || ohlcv.length < 10) return null;
+  if (!ohlcv || ohlcv.length < 30) return null;
   const n      = ohlcv.length;
   const highs  = ohlcv.map(d => d.h);
   const lows   = ohlcv.map(d => d.l);
@@ -152,7 +152,7 @@ function analyzeStructure(ohlcv) {
 
 // ── GWS-W Analyse (Weekly, gleiche korrekte Logik) ───────────────────────────
 function analyzeWeeklyStructure(ohlcvW) {
-  if (!ohlcvW || ohlcvW.length < 8) return null;
+  if (!ohlcvW || ohlcvW.length < 15) return null;
   const n      = ohlcvW.length;
   const highs  = ohlcvW.map(d => d.h);
   const lows   = ohlcvW.map(d => d.l);
