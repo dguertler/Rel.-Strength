@@ -18,6 +18,13 @@
 - Review manuell neu triggern mit `@coderabbitai review`
 - Falls weiterhin nicht verfügbar: bestehende CI-Checks + manuelle Code-Review als Ersatz nutzen und explizit im PR dokumentieren
 
+**Ausnahmen — kein PR erforderlich:**
+- Automatische GitHub Actions Commits (Datendateien: `rs_full.json`, `rs_dax.json`, `alerts_state.json`, `alerts_state.json`)
+- Reine Konfigurationsänderungen an Workflow-Zeitplänen (`.github/workflows/*.yml` — nur Cron-Zeiten)
+- Hotfixes mit < 5 Zeilen Änderung an nicht-kritischen Dateien — direkt auf `main`, aber Begründung im Commit-Message dokumentieren
+
+Alles andere (Code, HTML, Python-Skripte, CLAUDE.md) → immer PR + CodeRabbit.
+
 ## Repository-Übersicht
 
 - `rs_colab.py` – NASDAQ/QQQ-Daten (yfinance → rs_full.json)
