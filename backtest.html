@@ -1068,11 +1068,38 @@ function BacktestApp() {
 
       if (!inTrade) {
         if (prev.pts < 3 && curr.pts === 3) {
-          const next        = weekRows[i + 1];
-          const entryPrice  = next ? next.week.o : curr.week.c;
-          const stopPrice   = curr.structD?.breakoutPrice;
+          // Welches TF hat gerade seinen GWS gebrochen? (= das auslösende)
+          const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
+          const newD  = prev.pD === 0 && curr.pD === 1;
+          const newW  = prev.pW === 0 && curr.pW === 1;
 
-          if (!stopPrice || entryPrice <= stopPrice) continue;
+          let entryPrice, stopPrice, trigger;
+
+          if (new4H) {
+            // W+D bereits grün, 4H bricht seinen GWS → Entry am 4H-GWS
+            entryPrice = curr.struct4H?.gws4hHigh?.price;
+            stopPrice  = curr.structD?.breakoutPrice;   // Daily-GWS als Support
+            trigger    = '4H';
+          } else if (newD) {
+            // W bereits grün, Daily bricht seinen GWS → Entry am Daily-GWS
+            entryPrice = curr.structD?.breakoutPrice;
+            stopPrice  = curr.structW?.breakoutPrice;   // Weekly-GWS als Support
+            trigger    = 'D';
+          } else if (newW) {
+            // D (+4H) bereits grün, Weekly bricht seinen GWS → Entry am Weekly-GWS
+            entryPrice = curr.structW?.breakoutPrice;
+            stopPrice  = curr.structD?.breakoutPrice;   // Daily-GWS als Support
+            trigger    = 'W';
+          } else {
+            // Mehrere TFs gleichzeitig → niedrigstes verfügbares GWS
+            entryPrice = curr.struct4H?.gws4hHigh?.price
+                      ?? curr.structD?.breakoutPrice
+                      ?? curr.structW?.breakoutPrice;
+            stopPrice  = curr.structD?.breakoutPrice ?? curr.structW?.breakoutPrice;
+            trigger    = '?';
+          }
+
+          if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
 
           const riskPerShare = entryPrice - stopPrice;
           let shares = Math.floor(MAX_RISK / riskPerShare);
@@ -1081,15 +1108,17 @@ function BacktestApp() {
 
           inTrade = true;
           entry = {
-            signalDate: curr.week.d,
-            entryDate:  next ? next.week.d : curr.week.d,
+            signalDate:  curr.week.d,
+            entryDate:   curr.week.d,
+            trigger,
             entryPrice, stopPrice, shares,
-            invested:   shares * entryPrice,
-            riskAmount: shares * riskPerShare,
+            invested:    shares * entryPrice,
+            riskAmount:  shares * riskPerShare,
             entryWeekIdx: i,
           };
         }
       } else {
+        // Exit: Daily wird rot
         if (curr.pD === 0) {
           const exitPrice = curr.week.c;
           const pnl       = (exitPrice - entry.entryPrice) * entry.shares;
@@ -1408,13 +1437,12 @@ function BacktestApp() {
           <div style={{overflowX:'auto'}}>
             <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden',minWidth:660}}>
               <div style={{display:'grid',
-                gridTemplateColumns:'96px 96px 68px 68px 44px 66px 72px 68px 60px',
+                gridTemplateColumns:'90px 90px 30px 65px 65px 65px 60px 70px 58px',
                 gap:0,background:'#0f172a',borderBottom:'1px solid #1e293b',padding:'6px 12px',
                 fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.04em'}}>
-                <span>Signal KW</span><span>Einstieg</span>
-                <span style={{textAlign:'right'}}>Kauf €</span>
-                <span style={{textAlign:'right'}}>Verkauf €</span>
-                <span style={{textAlign:'right'}}>Stück</span>
+                <span>Entry (GWS)</span><span>Exit</span><span>TF</span>
+                <span style={{textAlign:'right'}}>Entry €</span>
+                <span style={{textAlign:'right'}}>Exit €</span>
                 <span style={{textAlign:'right'}}>Stop €</span>
                 <span style={{textAlign:'right'}}>Risk €</span>
                 <span style={{textAlign:'right'}}>P&amp;L €</span>
@@ -1422,16 +1450,19 @@ function BacktestApp() {
               </div>
               {[...trades].reverse().map((t, i) => (
                 <div key={i} style={{display:'grid',
-                  gridTemplateColumns:'96px 96px 68px 68px 44px 66px 72px 68px 60px',
+                  gridTemplateColumns:'90px 90px 30px 65px 65px 65px 60px 70px 58px',
                   gap:0,padding:'5px 12px',borderBottom:'1px solid #0f172a',alignItems:'center',
                   background: t.isOpen ? '#0a1520' : t.isWin ? '#061206' : '#120606'}}>
-                  <span style={{fontFamily:'monospace',fontSize:10,color:'#64748b'}}>{t.signalDate}</span>
-                  <span style={{fontFamily:'monospace',fontSize:10,color: t.isOpen ? '#fbbf24' : '#94a3b8'}}>
+                  <span style={{fontFamily:'monospace',fontSize:10,color:'#94a3b8'}}>{t.entryDate}</span>
+                  <span style={{fontFamily:'monospace',fontSize:10,color: t.isOpen ? '#fbbf24' : '#64748b'}}>
                     {t.exitDate}{t.isOpen ? ' ◆' : ''}
+                  </span>
+                  <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,
+                    color: t.trigger==='4H' ? '#a78bfa' : t.trigger==='D' ? '#38bdf8' : '#fbbf24'}}>
+                    {t.trigger}
                   </span>
                   <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#cbd5e1'}}>{t.entryPrice.toFixed(2)}</span>
                   <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#cbd5e1'}}>{t.exitPrice.toFixed(2)}</span>
-                  <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#64748b'}}>{t.shares}</span>
                   <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#64748b'}}>{t.stopPrice.toFixed(2)}</span>
                   <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#94a3b8'}}>
                     {t.riskAmount.toFixed(0)}
