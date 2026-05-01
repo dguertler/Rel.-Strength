@@ -151,7 +151,7 @@ function analyzeStructure(ohlcv) {
 }
 
 // ── GWS-W Analyse (Weekly, gleiche korrekte Logik) ───────────────────────────
-function analyzeWeeklyStructure(ohlcvW) {
+function analyzeWeeklyStructure(ohlcvW, ohlcvD = null) {
   if (!ohlcvW || ohlcvW.length < 15) return null;
   const n      = ohlcvW.length;
   const highs  = ohlcvW.map(d => d.h);
@@ -217,7 +217,14 @@ function analyzeWeeklyStructure(ohlcvW) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  const broken = gwswHigh !== null && breakoutIdx !== null;
+  // broken = ein Daily-Close (nach dem GWS-Datum) überschreitet den GWS-Preis
+  // Fallback auf Weekly-Close wenn keine Daily-Daten übergeben
+  const hasDailyCandles = Array.isArray(ohlcvD) && ohlcvD.length > 0;
+  const broken = gwswHigh !== null && (
+    hasDailyCandles
+      ? ohlcvD.some(d => d.d > gwswHigh.date && d.c > gwswHigh.price)
+      : breakoutIdx !== null
+  );
 
   const recentBreakout = breakoutIdx !== null && (n - 1 - breakoutIdx <= 1);
 
@@ -1099,7 +1106,7 @@ function App() {
     return entry?.ohlcv_4h?.length > 0 ? entry.ohlcv_4h : null;
   }, [data, selected]);
 
-  const structureW  = useMemo(() => analyzeWeeklyStructure(ohlcvW), [ohlcvW]);
+  const structureW  = useMemo(() => analyzeWeeklyStructure(ohlcvW, ohlcv), [ohlcvW, ohlcv]);
   const structure   = useMemo(() => analyzeStructure(ohlcv), [ohlcv]);
   const structure4h = useMemo(() => analyze4HStructure(ohlcv4h), [ohlcv4h]);
 
@@ -1121,7 +1128,7 @@ function App() {
     data.data.forEach(entry => {
       const d = map[entry.ticker] = {};
       if (entry.ohlcv?.length > 0)    d.daily  = analyzeStructure(entry.ohlcv);
-      if (entry.ohlcv_w?.length > 0)  d.weekly = analyzeWeeklyStructure(entry.ohlcv_w);
+      if (entry.ohlcv_w?.length > 0)  d.weekly = analyzeWeeklyStructure(entry.ohlcv_w, entry.ohlcv?.length > 0 ? entry.ohlcv : null);
       if (entry.ohlcv_4h?.length > 0) d.h4     = analyze4HStructure(entry.ohlcv_4h);
     });
     return map;

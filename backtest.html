@@ -150,7 +150,7 @@ function analyzeStructure(ohlcv) {
 }
 
 // ── GWS-W Analyse (Weekly, gleiche korrekte Logik) ───────────────────────────
-function analyzeWeeklyStructure(ohlcvW) {
+function analyzeWeeklyStructure(ohlcvW, ohlcvD = null) {
   if (!ohlcvW || ohlcvW.length < 15) return null;
   const n      = ohlcvW.length;
   const highs  = ohlcvW.map(d => d.h);
@@ -216,7 +216,14 @@ function analyzeWeeklyStructure(ohlcvW) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  const broken = gwswHigh !== null && breakoutIdx !== null;
+  // broken = ein Daily-Close (nach dem GWS-Datum) überschreitet den GWS-Preis
+  // Fallback auf Weekly-Close wenn keine Daily-Daten übergeben
+  const hasDailyCandles = Array.isArray(ohlcvD) && ohlcvD.length > 0;
+  const broken = gwswHigh !== null && (
+    hasDailyCandles
+      ? ohlcvD.some(d => d.d > gwswHigh.date && d.c > gwswHigh.price)
+      : breakoutIdx !== null
+  );
 
   const recentBreakout = breakoutIdx !== null && (n - 1 - breakoutIdx <= 1);
 
@@ -466,7 +473,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
 
         {/* Trade-Marker: Entry ↑ grün / Exit ↓ rot */}
         {tradeMarkers.map((m, mi) => {
-          const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === m.date.slice(0,10));
+          const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === (m.weeklyDate ?? m.date).slice(0,10));
           if (idx < 0) return null;
           const x = toX(idx);
           if (m.type === 'entry') {
@@ -1092,11 +1099,12 @@ function BacktestApp() {
       const weekEnd = getWeekEnd(week.d);
 
       // Historisch korrekter Schnitt: nur Daten die zu diesem Zeitpunkt sichtbar waren
-      const wSlice  = data.ohlcv_w.slice(Math.max(0, i - 59), i + 1);          // letzte 60 Wochen
-      const dSlice  = data.ohlcv_d .filter(d => d.d          <= weekEnd).slice(-60); // letzte 60 Tage
-      const h4Slice = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90); // letzte 90 4H
+      const wSlice   = data.ohlcv_w.slice(Math.max(0, i - 59), i + 1);           // letzte 60 Wochen
+      const dHistory = data.ohlcv_d.filter(d => d.d <= weekEnd);                  // vollständige Tageshistorie bis weekEnd
+      const dSlice   = dHistory.slice(-60);                                        // letzte 60 Tage für Charts/Daily-Analyse
+      const h4Slice  = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90); // letzte 90 4H
 
-      const structW  = analyzeWeeklyStructure(wSlice);
+      const structW  = analyzeWeeklyStructure(wSlice, dHistory);
       const structD  = analyzeStructure(dSlice);
       const has4h    = h4Slice.length >= 8;
       const struct4H = has4h ? analyze4HStructure(h4Slice) : null;
@@ -1137,23 +1145,33 @@ function BacktestApp() {
           const newD  = prev.pD === 0 && curr.pD === 1;
           const newW  = prev.pW === 0 && curr.pW === 1;
 
-          let entryPrice, stopPrice, trigger;
+          let entryPrice, stopPrice, trigger, entryDate;
 
           if (new4H) {
             // W+D bereits grün, 4H bricht seinen GWS → Entry am 4H-GWS
             entryPrice = curr.struct4H?.gws4hHigh?.price;
-            stopPrice  = curr.structD?.breakoutPrice;   // Daily-GWS als Support
+            stopPrice  = curr.structD?.breakoutPrice;
             trigger    = '4H';
+            const gws4h = curr.struct4H?.gws4hHigh;
+            entryDate  = gws4h
+              ? (curr.h4Slice.find(d => d.d > gws4h.date && d.c > gws4h.price)?.d.slice(0,10) ?? curr.week.d)
+              : curr.week.d;
           } else if (newD) {
             // W bereits grün, Daily bricht seinen GWS → Entry am Daily-GWS
             entryPrice = curr.structD?.breakoutPrice;
-            stopPrice  = curr.structW?.breakoutPrice;   // Weekly-GWS als Support
+            stopPrice  = curr.structW?.breakoutPrice;
             trigger    = 'D';
+            const bIdx = curr.structD?.breakoutIdx;
+            entryDate  = bIdx != null ? (curr.dSlice[bIdx]?.d ?? curr.week.d) : curr.week.d;
           } else if (newW) {
             // D (+4H) bereits grün, Weekly bricht seinen GWS → Entry am Weekly-GWS
             entryPrice = curr.structW?.breakoutPrice;
-            stopPrice  = curr.structD?.breakoutPrice;   // Daily-GWS als Support
+            stopPrice  = curr.structD?.breakoutPrice;
             trigger    = 'W';
+            const gwsW = curr.structW?.gwswHigh;
+            entryDate  = gwsW
+              ? (curr.dSlice.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d ?? curr.week.d)
+              : curr.week.d;
           } else {
             // Mehrere TFs gleichzeitig → niedrigstes verfügbares GWS
             entryPrice = curr.struct4H?.gws4hHigh?.price
@@ -1161,6 +1179,7 @@ function BacktestApp() {
                       ?? curr.structW?.breakoutPrice;
             stopPrice  = curr.structD?.breakoutPrice ?? curr.structW?.breakoutPrice;
             trigger    = '?';
+            entryDate  = curr.week.d;
           }
 
           if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
@@ -1173,7 +1192,8 @@ function BacktestApp() {
           inTrade = true;
           entry = {
             signalDate:  curr.week.d,
-            entryDate:   curr.week.d,
+            weeklyDate:  curr.week.d,
+            entryDate,
             trigger,
             entryPrice, stopPrice, shares,
             invested:    shares * entryPrice,
@@ -1256,7 +1276,7 @@ function BacktestApp() {
 
   const tradeMarkers = useMemo(() =>
     trades.flatMap(t => [
-      { date: t.entryDate, type: 'entry' },
+      { date: t.entryDate, weeklyDate: t.weeklyDate, type: 'entry' },
       ...(!t.isOpen ? [{ date: t.exitDate, type: 'exit' }] : []),
     ]),
   [trades]);
