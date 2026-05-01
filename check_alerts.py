@@ -484,8 +484,8 @@ def process_json(json_path, source_label, prev_states, today_str):
         prev = prev_states.get(ticker, {})
         prev_points = prev.get('points', 0)
 
-        # Auslöser: genau 2 → 3
-        if prev_points == 2 and info['points'] == 3:
+        # Auslöser: genau 2 → 3, nur für Top-20-Aktien
+        if prev_points == 2 and info['points'] == 3 and ticker in top20:
             print(f'  ALERT: {ticker} ({source_label})  {prev_points} → {info["points"]} Punkte')
 
             # Welcher Punkt ist neu hinzugekommen?
