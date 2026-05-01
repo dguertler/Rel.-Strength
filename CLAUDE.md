@@ -7,9 +7,16 @@
 1. Änderungen auf einem Feature-Branch entwickeln und pushen
 2. Pull Request gegen `main` erstellen
 3. Auf CodeRabbit-Review warten und Feedback umsetzen
-4. Erst nach bestandenem CodeRabbit-Review mergen
+4. Erst mergen wenn **alle** dieser Bedingungen erfüllt sind:
+   - CodeRabbit-Status = Approved (kein "Request Changes")
+   - Alle erforderlichen CI-Checks grün
+   - Ggf. erforderliche Human-Approvals vorhanden
 
 **CodeRabbit ist immer der letzte Schritt vor "fertig".**
+
+**CodeRabbit-Fallback:** Falls CodeRabbit nach 2 Stunden keinen Review geliefert hat:
+- Review manuell neu triggern mit `@coderabbitai review`
+- Falls weiterhin nicht verfügbar: bestehende CI-Checks + manuelle Code-Review als Ersatz nutzen und explizit im PR dokumentieren
 
 ## Repository-Übersicht
 
