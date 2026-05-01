@@ -30,7 +30,7 @@ jobs:
           python-version: '3.11'
 
       - name: Abhängigkeiten installieren
-        run: pip install yfinance pandas matplotlib
+        run: pip install "yfinance==0.2.54" "pandas==2.2.3" "matplotlib==3.9.4"
 
       - name: Alert-Skript ausführen
         env:
@@ -48,5 +48,5 @@ jobs:
           git config user.email "actions@github.com"
           git add alerts_state.json
           [ -f signals.json ] && git add signals.json || true
-          git diff --staged --quiet || git commit -m "Alert-Zustand aktualisiert"
+          git diff --staged --quiet || git commit -m "Alert-Zustand aktualisiert ($(date -u +'%Y-%m-%d %H:%M UTC'))"
           git push origin main

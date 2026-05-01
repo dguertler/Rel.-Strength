@@ -1,6 +1,3 @@
-import subprocess
-subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "-q"])
-
 import json
 import os
 import smtplib
@@ -192,6 +189,29 @@ GRID_CLR  = '#1e293b'
 TEXT_CLR  = '#e2e8f0'
 
 
+def _render_entry_charts(entry, ticker, info):
+    """Rendert Weekly / Daily / 4H Charts für einen Ticker-Eintrag."""
+    w_b64 = render_chart(
+        entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
+        gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
+        n_candles=30,
+    )
+    d_b64 = render_chart(
+        entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
+        gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None,
+    )
+    h4_b64 = render_chart(
+        entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
+        gws_price=info['struct_4h']['gws_price'] if info['struct_4h'] else None,
+        n_candles=60,
+    )
+    charts = []
+    if w_b64:  charts.append((w_b64,  'Weekly'))
+    if d_b64:  charts.append((d_b64,  'Daily'))
+    if h4_b64: charts.append((h4_b64, '4H'))
+    return charts
+
+
 def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40):
     """Zeichnet einen Kerzenchart und gibt ihn als base64-PNG zurück."""
     if not ohlcv:
@@ -357,7 +377,7 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
     </div>
 """)
 
-        for chart_b64, timeframe_label in alert.get('charts', []):
+        for chart_b64, _ in alert.get('charts', []):
             if chart_b64:
                 cid = f'chart_{cid_counter}'
                 cid_counter += 1
@@ -464,8 +484,8 @@ def process_json(json_path, source_label, prev_states, today_str):
         prev = prev_states.get(ticker, {})
         prev_points = prev.get('points', 0)
 
-        # Auslöser: genau 2 → 3
-        if prev_points == 2 and info['points'] == 3:
+        # Auslöser: genau 2 → 3, nur für Top-20-Aktien
+        if prev_points == 2 and info['points'] == 3 and ticker in top20:
             print(f'  ALERT: {ticker} ({source_label})  {prev_points} → {info["points"]} Punkte')
 
             # Welcher Punkt ist neu hinzugekommen?
@@ -473,25 +493,7 @@ def process_json(json_path, source_label, prev_states, today_str):
             new_d  = info['daily']  and not prev.get('daily',  False)
             new_h4 = info['h4']     and not prev.get('h4',     False)
 
-            # Charts: Weekly → Daily → 4H
-            w_b64  = render_chart(
-                entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
-                gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
-                n_candles=30
-            )
-            d_b64  = render_chart(
-                entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
-                gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None
-            )
-            h4_b64 = render_chart(
-                entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
-                gws_price=info['struct_4h']['gws_price'] if info['struct_4h'] else None,
-                n_candles=60
-            )
-            charts = []
-            if w_b64:  charts.append((w_b64,  'Weekly'))
-            if d_b64:  charts.append((d_b64,  'Daily'))
-            if h4_b64: charts.append((h4_b64, '4H'))
+            charts = _render_entry_charts(entry, ticker, info)
 
             alerts.append({
                 'ticker':          ticker,
@@ -545,25 +547,7 @@ def run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
     score  = entry.get('score', 0)
     print(f'Test-Aktie: {ticker}  ({best_points} Punkte, Score {score:.1f})')
 
-    # Charts: Weekly → Daily → 4H
-    w_b64  = render_chart(
-        entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
-        gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
-        n_candles=30,
-    )
-    d_b64  = render_chart(
-        entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
-        gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None,
-    )
-    h4_b64 = render_chart(
-        entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
-        gws_price=info['struct_4h']['gws_price'] if info['struct_4h'] else None,
-        n_candles=60,
-    )
-    charts = []
-    if w_b64:  charts.append((w_b64,  'Weekly'))
-    if d_b64:  charts.append((d_b64,  'Daily'))
-    if h4_b64: charts.append((h4_b64, '4H'))
+    charts = _render_entry_charts(entry, ticker, info)
 
     test_alert = [{
         'ticker':     f'[TEST] {ticker}',

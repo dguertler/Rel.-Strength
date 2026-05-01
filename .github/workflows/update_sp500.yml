@@ -25,7 +25,7 @@ jobs:
           python-version: '3.11'
 
       - name: Abhängigkeiten installieren
-        run: pip install yfinance pandas
+        run: pip install "yfinance==0.2.54" "pandas==2.2.3"
 
       - name: Teil 1 laden (Financials, Healthcare, Consumer, Energy, Industrials)
         run: python sp500_colab_1.py
@@ -41,6 +41,6 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add rs_sp500.json
-          git diff --staged --quiet || git commit -m "S&P 500 Daten aktualisiert"
+          git diff --staged --quiet || git commit -m "S&P 500 Daten aktualisiert ($(date -u +'%Y-%m-%d %H:%M UTC'))"
           git pull --rebase origin main
           git push origin main
