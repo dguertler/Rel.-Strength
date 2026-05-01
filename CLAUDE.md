@@ -2,9 +2,14 @@
 
 ## Branch-Strategie
 
-**Alle Änderungen direkt auf `main` committen und pushen.**
+**Entwicklungs-Workflow mit CodeRabbit-Review:**
 
-Kein Feature-Branching. Der `main`-Branch ist der einzige aktive Branch.
+1. Änderungen auf einem Feature-Branch entwickeln und pushen
+2. Pull Request gegen `main` erstellen
+3. Auf CodeRabbit-Review warten und Feedback umsetzen
+4. Erst nach bestandenem CodeRabbit-Review mergen
+
+**CodeRabbit ist immer der letzte Schritt vor "fertig".**
 
 ## Repository-Übersicht
 
