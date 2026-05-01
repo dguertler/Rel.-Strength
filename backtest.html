@@ -1143,23 +1143,33 @@ function BacktestApp() {
           const newD  = prev.pD === 0 && curr.pD === 1;
           const newW  = prev.pW === 0 && curr.pW === 1;
 
-          let entryPrice, stopPrice, trigger;
+          let entryPrice, stopPrice, trigger, entryDate;
 
           if (new4H) {
             // W+D bereits grün, 4H bricht seinen GWS → Entry am 4H-GWS
             entryPrice = curr.struct4H?.gws4hHigh?.price;
-            stopPrice  = curr.structD?.breakoutPrice;   // Daily-GWS als Support
+            stopPrice  = curr.structD?.breakoutPrice;
             trigger    = '4H';
+            const gws4h = curr.struct4H?.gws4hHigh;
+            entryDate  = gws4h
+              ? (curr.h4Slice.find(d => d.d.slice(0,10) > gws4h.date && d.c > gws4h.price)?.d.slice(0,10) ?? curr.week.d)
+              : curr.week.d;
           } else if (newD) {
             // W bereits grün, Daily bricht seinen GWS → Entry am Daily-GWS
             entryPrice = curr.structD?.breakoutPrice;
-            stopPrice  = curr.structW?.breakoutPrice;   // Weekly-GWS als Support
+            stopPrice  = curr.structW?.breakoutPrice;
             trigger    = 'D';
+            const bIdx = curr.structD?.breakoutIdx;
+            entryDate  = bIdx != null ? (curr.dSlice[bIdx]?.d ?? curr.week.d) : curr.week.d;
           } else if (newW) {
             // D (+4H) bereits grün, Weekly bricht seinen GWS → Entry am Weekly-GWS
             entryPrice = curr.structW?.breakoutPrice;
-            stopPrice  = curr.structD?.breakoutPrice;   // Daily-GWS als Support
+            stopPrice  = curr.structD?.breakoutPrice;
             trigger    = 'W';
+            const gwsW = curr.structW?.gwswHigh;
+            entryDate  = gwsW
+              ? (curr.dSlice.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d ?? curr.week.d)
+              : curr.week.d;
           } else {
             // Mehrere TFs gleichzeitig → niedrigstes verfügbares GWS
             entryPrice = curr.struct4H?.gws4hHigh?.price
@@ -1167,6 +1177,7 @@ function BacktestApp() {
                       ?? curr.structW?.breakoutPrice;
             stopPrice  = curr.structD?.breakoutPrice ?? curr.structW?.breakoutPrice;
             trigger    = '?';
+            entryDate  = curr.week.d;
           }
 
           if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
@@ -1179,7 +1190,7 @@ function BacktestApp() {
           inTrade = true;
           entry = {
             signalDate:  curr.week.d,
-            entryDate:   curr.week.d,
+            entryDate,
             trigger,
             entryPrice, stopPrice, shares,
             invested:    shares * entryPrice,
