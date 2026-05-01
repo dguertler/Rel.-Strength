@@ -113,6 +113,14 @@
       "daily_bar_date": "2026-04-02",
       "h4_bar_date": "2026-04-17 17:30",
       "source": "QQQ"
+    },
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-01-12",
+      "daily_bar_date": "2026-04-02",
+      "h4_bar_date": "2026-04-30 13:30",
+      "source": "QQQ"
     }
   ],
   "CSCO": [
@@ -122,6 +130,14 @@
       "weekly_bar_date": "2025-10-27",
       "daily_bar_date": "2026-04-08",
       "h4_bar_date": "2026-04-14 17:30",
+      "source": "QQQ"
+    },
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2025-10-27",
+      "daily_bar_date": "2026-04-08",
+      "h4_bar_date": "2026-04-29 21:30",
       "source": "QQQ"
     }
   ],
@@ -152,6 +168,14 @@
       "weekly_bar_date": "2026-04-13",
       "daily_bar_date": "2026-04-01",
       "h4_bar_date": "2026-04-17 13:30",
+      "source": "QQQ"
+    },
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-13",
+      "daily_bar_date": "2026-04-01",
+      "h4_bar_date": "2026-04-30 17:30",
       "source": "QQQ"
     }
   ],
@@ -192,6 +216,14 @@
       "weekly_bar_date": "2026-04-06",
       "daily_bar_date": "2026-04-08",
       "h4_bar_date": "2026-04-16 13:30",
+      "source": "QQQ"
+    },
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-06",
+      "daily_bar_date": "2026-04-08",
+      "h4_bar_date": "2026-04-29 21:30",
       "source": "QQQ"
     }
   ],
@@ -259,6 +291,14 @@
       "daily_bar_date": "2026-04-08",
       "h4_bar_date": "2026-04-01 13:30",
       "source": "QQQ"
+    },
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-13",
+      "daily_bar_date": "2026-04-08",
+      "h4_bar_date": null,
+      "source": "QQQ"
     }
   ],
   "P911.DE": [
@@ -268,6 +308,14 @@
       "weekly_bar_date": "2026-04-13",
       "daily_bar_date": "2026-03-30",
       "h4_bar_date": "2026-03-31 04:00",
+      "source": "DAX"
+    },
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-13",
+      "daily_bar_date": "2026-03-30",
+      "h4_bar_date": "2026-04-30 08:00",
       "source": "DAX"
     }
   ],
@@ -450,6 +498,14 @@
       "weekly_bar_date": "2026-04-20",
       "daily_bar_date": "2026-04-16",
       "h4_bar_date": "2026-04-09 08:00",
+      "source": "DAX"
+    },
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-20",
+      "daily_bar_date": null,
+      "h4_bar_date": "2026-04-30 04:00",
       "source": "DAX"
     }
   ],
@@ -759,6 +815,14 @@
       "daily_bar_date": "2026-04-08",
       "h4_bar_date": "2026-04-28 05:30",
       "source": "SPX"
+    },
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-06",
+      "daily_bar_date": "2026-04-08",
+      "h4_bar_date": "2026-04-30 05:30",
+      "source": "SPX"
     }
   ],
   "AMP": [
@@ -928,6 +992,226 @@
       "weekly_bar_date": "2026-04-13",
       "daily_bar_date": "2026-04-14",
       "h4_bar_date": "2026-04-29 05:30",
+      "source": "SPX"
+    }
+  ],
+  "MTZ": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2025-12-22",
+      "daily_bar_date": null,
+      "h4_bar_date": "2026-04-30 13:30",
+      "source": "SPX"
+    }
+  ],
+  "STLD": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-20",
+      "daily_bar_date": "2026-04-08",
+      "h4_bar_date": "2026-04-30 13:30",
+      "source": "SPX"
+    }
+  ],
+  "SLB": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-03-23",
+      "daily_bar_date": "2026-03-23",
+      "h4_bar_date": "2026-04-30 17:30",
+      "source": "SPX"
+    }
+  ],
+  "FDX": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2025-09-29",
+      "daily_bar_date": "2026-04-17",
+      "h4_bar_date": "2026-04-30 17:30",
+      "source": "SPX"
+    }
+  ],
+  "IRM": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-01-05",
+      "daily_bar_date": "2026-04-10",
+      "h4_bar_date": "2026-04-30 09:30",
+      "source": "SPX"
+    }
+  ],
+  "CARR": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-06",
+      "daily_bar_date": "2026-04-09",
+      "h4_bar_date": "2026-04-30 09:30",
+      "source": "SPX"
+    }
+  ],
+  "ETR": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "daily",
+      "weekly_bar_date": "2026-02-02",
+      "daily_bar_date": "2026-04-30",
+      "h4_bar_date": "2026-04-29 13:30",
+      "source": "SPX"
+    }
+  ],
+  "WMT": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2025-11-24",
+      "daily_bar_date": "2026-04-08",
+      "h4_bar_date": "2026-04-30 13:30",
+      "source": "SPX"
+    }
+  ],
+  "RRC": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-01-26",
+      "daily_bar_date": "2026-04-22",
+      "h4_bar_date": "2026-04-29 17:30",
+      "source": "SPX"
+    }
+  ],
+  "NEE": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-01-26",
+      "daily_bar_date": "2026-04-23",
+      "h4_bar_date": "2026-04-30 17:30",
+      "source": "SPX"
+    }
+  ],
+  "TT": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-02-02",
+      "daily_bar_date": "2026-04-08",
+      "h4_bar_date": "2026-04-30 13:30",
+      "source": "SPX"
+    }
+  ],
+  "GLPI": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "daily",
+      "weekly_bar_date": "2026-01-12",
+      "daily_bar_date": "2026-04-30",
+      "h4_bar_date": "2026-04-17 09:30",
+      "source": "SPX"
+    }
+  ],
+  "ROK": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-13",
+      "daily_bar_date": "2026-04-01",
+      "h4_bar_date": "2026-04-30 13:30",
+      "source": "SPX"
+    }
+  ],
+  "IVZ": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-13",
+      "daily_bar_date": "2026-04-17",
+      "h4_bar_date": "2026-04-30 17:30",
+      "source": "SPX"
+    }
+  ],
+  "NTAP": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-20",
+      "daily_bar_date": "2026-04-17",
+      "h4_bar_date": "2026-04-30 13:30",
+      "source": "SPX"
+    }
+  ],
+  "DE": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-06",
+      "daily_bar_date": "2026-04-08",
+      "h4_bar_date": "2026-04-30 13:30",
+      "source": "SPX"
+    }
+  ],
+  "EIX": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2025-10-13",
+      "daily_bar_date": null,
+      "h4_bar_date": "2026-04-30 17:30",
+      "source": "SPX"
+    }
+  ],
+  "CNP": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "daily",
+      "weekly_bar_date": "2026-02-09",
+      "daily_bar_date": "2026-04-30",
+      "h4_bar_date": "2026-04-23 17:30",
+      "source": "SPX"
+    }
+  ],
+  "WEC": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "daily",
+      "weekly_bar_date": "2026-02-09",
+      "daily_bar_date": "2026-04-30",
+      "h4_bar_date": "2026-04-23 17:30",
+      "source": "SPX"
+    }
+  ],
+  "EW": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-02-23",
+      "daily_bar_date": "2026-04-24",
+      "h4_bar_date": "2026-04-30 17:30",
+      "source": "SPX"
+    }
+  ],
+  "ES": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "daily",
+      "weekly_bar_date": "2025-09-22",
+      "daily_bar_date": "2026-04-30",
+      "h4_bar_date": "2026-04-23 13:30",
+      "source": "SPX"
+    }
+  ],
+  "NCLH": [
+    {
+      "signal_date": "2026-05-01",
+      "trigger_tf": "4h",
+      "weekly_bar_date": "2026-04-13",
+      "daily_bar_date": "2026-04-14",
+      "h4_bar_date": "2026-04-30 09:30",
       "source": "SPX"
     }
   ]
