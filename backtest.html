@@ -1115,7 +1115,7 @@ function BacktestApp() {
       const pts = pW + pD + (has4h ? p4H : 0);
       const { kw, year } = isoWeek(week.d);
 
-      return { week, i, weekEnd, kw, year, wSlice, dSlice, h4Slice, structW, structD, struct4H, pW, pD, p4H, has4h, pts };
+      return { week, i, weekEnd, kw, year, wSlice, dSlice, dHistory, h4Slice, structW, structD, struct4H, pW, pD, p4H, has4h, pts };
     });
   }, [data]);
 
@@ -1170,7 +1170,7 @@ function BacktestApp() {
             trigger    = 'W';
             const gwsW = curr.structW?.gwswHigh;
             entryDate  = gwsW
-              ? (curr.dSlice.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d ?? curr.week.d)
+              ? (curr.dHistory.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d ?? curr.week.d)
               : curr.week.d;
           } else {
             // Mehrere TFs gleichzeitig → niedrigstes verfügbares GWS
