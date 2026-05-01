@@ -308,7 +308,7 @@ function analyze4HStructure(ohlcv4h) {
     swingLows:  swingLows.slice(-8),
   };
 }
-function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, signals = [] }) {
+function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, signals = [], tradeMarkers = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -464,6 +464,26 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
           </g>;
         })}
 
+        {/* Trade-Marker: Entry ↑ grün / Exit ↓ rot */}
+        {tradeMarkers.map((m, mi) => {
+          const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === m.date.slice(0,10));
+          if (idx < 0) return null;
+          const x = toX(idx);
+          if (m.type === 'entry') {
+            const yTip = Math.min(toY(ohlcvW[idx].l) + 3, PT + cH - 16);
+            return <g key={`tm${mi}`}>
+              <polygon points={`${x-5},${yTip+10} ${x+5},${yTip+10} ${x},${yTip}`} fill="#4ade80" opacity="0.95"/>
+              <line x1={x} x2={x} y1={yTip+10} y2={Math.min(yTip+20, PT+cH)} stroke="#4ade80" strokeWidth="1.5"/>
+            </g>;
+          } else {
+            const yTip = Math.max(toY(ohlcvW[idx].h) - 3, PT + 14);
+            return <g key={`tm${mi}`}>
+              <polygon points={`${x-5},${yTip-10} ${x+5},${yTip-10} ${x},${yTip}`} fill="#f87171" opacity="0.95"/>
+              <line x1={x} x2={x} y1={yTip-10} y2={Math.max(yTip-20, PT)} stroke="#f87171" strokeWidth="1.5"/>
+            </g>;
+          }
+        })}
+
         {/* Signal-Pfeile (Weekly-Chart: alle Timeframes) */}
         {signals.filter(s => s.weekly_bar_date).map((sig, si) => {
           const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === sig.weekly_bar_date.slice(0,10));
@@ -522,7 +542,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
 }
 
 // ── Daily Candlestick Chart ────────────────────────────────────────────────
-function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signals = [] }) {
+function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signals = [], tradeMarkers = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 270;
@@ -681,6 +701,28 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
           </g>;
         })}
 
+        {/* Trade-Marker: Entry ↑ grün / Exit ↓ rot */}
+        {tradeMarkers.map((m, mi) => {
+          const target = m.date.slice(0,10);
+          let best = Infinity, idx = -1;
+          ohlcv.forEach((d, i) => { const diff = Math.abs(new Date(d.d.slice(0,10)) - new Date(target)); if (diff < best) { best = diff; idx = i; } });
+          if (idx < 0 || best > 5 * 86400000) return null;
+          const x = toX(idx);
+          if (m.type === 'entry') {
+            const yTip = Math.min(toY(ohlcv[idx].l) + 3, PT + cH - 16);
+            return <g key={`tm${mi}`}>
+              <polygon points={`${x-5},${yTip+10} ${x+5},${yTip+10} ${x},${yTip}`} fill="#4ade80" opacity="0.95"/>
+              <line x1={x} x2={x} y1={yTip+10} y2={Math.min(yTip+20, PT+cH)} stroke="#4ade80" strokeWidth="1.5"/>
+            </g>;
+          } else {
+            const yTip = Math.max(toY(ohlcv[idx].h) - 3, PT + 14);
+            return <g key={`tm${mi}`}>
+              <polygon points={`${x-5},${yTip-10} ${x+5},${yTip-10} ${x},${yTip}`} fill="#f87171" opacity="0.95"/>
+              <line x1={x} x2={x} y1={yTip-10} y2={Math.max(yTip-20, PT)} stroke="#f87171" strokeWidth="1.5"/>
+            </g>;
+          }
+        })}
+
         {/* Signal-Pfeile (Daily-Chart: alle Signale mit daily_bar_date) */}
         {signals.filter(s => s.daily_bar_date).map((sig, si) => {
           const idx = ohlcv.findIndex(d => d.d.slice(0,10) === sig.daily_bar_date.slice(0,10));
@@ -739,7 +781,7 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
 }
 
 // ── 4H Candlestick Chart (60 Kerzen) ─────────────────────────────────────────
-function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
+function Chart4H({ ohlcv4h, structure4h, chartId, signals = [], tradeMarkers = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -883,6 +925,28 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
               fill={col} opacity={isBoc?1:isHov?0.95:0.75}
               stroke={isBoc?col4h:"none"} strokeWidth={isBoc?1:0}/>
           </g>;
+        })}
+
+        {/* Trade-Marker: Entry ↑ grün / Exit ↓ rot */}
+        {tradeMarkers.map((m, mi) => {
+          const target = m.date.slice(0,10);
+          let best = Infinity, idx = -1;
+          display4h.forEach((d, i) => { const diff = Math.abs(new Date(d.d.slice(0,10)) - new Date(target)); if (diff < best) { best = diff; idx = i; } });
+          if (idx < 0 || best > 5 * 86400000) return null;
+          const x = toX(idx);
+          if (m.type === 'entry') {
+            const yTip = Math.min(toY(display4h[idx].l) + 3, PT + cH - 16);
+            return <g key={`tm${mi}`}>
+              <polygon points={`${x-5},${yTip+10} ${x+5},${yTip+10} ${x},${yTip}`} fill="#4ade80" opacity="0.95"/>
+              <line x1={x} x2={x} y1={yTip+10} y2={Math.min(yTip+20, PT+cH)} stroke="#4ade80" strokeWidth="1.5"/>
+            </g>;
+          } else {
+            const yTip = Math.max(toY(display4h[idx].h) - 3, PT + 14);
+            return <g key={`tm${mi}`}>
+              <polygon points={`${x-5},${yTip-10} ${x+5},${yTip-10} ${x},${yTip}`} fill="#f87171" opacity="0.95"/>
+              <line x1={x} x2={x} y1={yTip-10} y2={Math.max(yTip-20, PT)} stroke="#f87171" strokeWidth="1.5"/>
+            </g>;
+          }
         })}
 
         {/* Signal-Pfeile (4H-Chart: alle Signale mit h4_bar_date) */}
@@ -1048,6 +1112,13 @@ function BacktestApp() {
   }, [data]);
 
   const sel = selectedIdx !== null ? weekRows[selectedIdx] : null;
+
+  const tradeMarkers = useMemo(() =>
+    trades.flatMap(t => [
+      { date: t.entryDate, type: 'entry' },
+      ...(!t.isOpen ? [{ date: t.exitDate, type: 'exit' }] : []),
+    ]),
+  [trades]);
 
   // ── Trade-Simulation ──────────────────────────────────────────────────────
   // Entry:  erste Woche mit 3 Punkten nach einer Woche mit <3 Punkten
@@ -1367,7 +1438,8 @@ function BacktestApp() {
                   <ChartWeekly
                     ohlcvW={sel.wSlice}
                     structureW={sel.structW}
-                    chartId={`bt_w_${sel.i}`}/>
+                    chartId={`bt_w_${sel.i}`}
+                    tradeMarkers={tradeMarkers}/>
                 ) : (
                   <div style={{background:'#07090f',borderRadius:8,border:'1px solid #1e293b',
                     padding:'20px',color:'#334155',fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
@@ -1380,7 +1452,8 @@ function BacktestApp() {
                   <CandleChart
                     ohlcv={sel.dSlice}
                     structure={sel.structD}
-                    chartId={`bt_d_${sel.i}`}/>
+                    chartId={`bt_d_${sel.i}`}
+                    tradeMarkers={tradeMarkers}/>
                 ) : (
                   <div style={{background:'#07090f',borderRadius:8,border:'1px solid #1e293b',
                     padding:'20px',color:'#334155',fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
@@ -1394,7 +1467,8 @@ function BacktestApp() {
                     <Chart4H
                       ohlcv4h={sel.h4Slice}
                       structure4h={sel.struct4H}
-                      chartId={`bt_4h_${sel.i}`}/>
+                      chartId={`bt_4h_${sel.i}`}
+                      tradeMarkers={tradeMarkers}/>
                   </div>
                 ) : (
                   <div className="chart-full-width" style={{background:'#07090f',borderRadius:8,
