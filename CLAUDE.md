@@ -2,9 +2,28 @@
 
 ## Branch-Strategie
 
-**Alle Änderungen direkt auf `main` committen und pushen.**
+**Entwicklungs-Workflow mit CodeRabbit-Review:**
 
-Kein Feature-Branching. Der `main`-Branch ist der einzige aktive Branch.
+1. Änderungen auf einem Feature-Branch entwickeln und pushen
+2. Pull Request gegen `main` erstellen
+3. Auf CodeRabbit-Review warten und Feedback umsetzen
+4. Erst mergen wenn **alle** dieser Bedingungen erfüllt sind:
+   - CodeRabbit-Status = Approved (kein "Request Changes")
+   - Alle erforderlichen CI-Checks grün
+   - Ggf. erforderliche Human-Approvals vorhanden
+
+**CodeRabbit ist immer der letzte Schritt vor "fertig".**
+
+**CodeRabbit-Fallback:** Falls CodeRabbit nach 2 Stunden keinen Review geliefert hat:
+- Review manuell neu triggern mit `@coderabbitai review`
+- Falls weiterhin nicht verfügbar: bestehende CI-Checks + manuelle Code-Review als Ersatz nutzen und explizit im PR dokumentieren
+
+**Ausnahmen — kein PR erforderlich:**
+- Automatische GitHub Actions Commits (Datendateien: `rs_full.json`, `rs_dax.json`, `alerts_state.json`)
+- Reine Konfigurationsänderungen an Workflow-Zeitplänen (`.github/workflows/*.yml` — nur Cron-Zeiten)
+- Hotfixes mit < 5 Zeilen Änderung an nicht-kritischen Dateien — direkt auf `main`, aber Begründung im Commit-Message dokumentieren
+
+Alles andere (Code, HTML, Python-Skripte, CLAUDE.md) → immer PR + CodeRabbit.
 
 ## Repository-Übersicht
 
