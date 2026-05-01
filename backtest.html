@@ -473,7 +473,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
 
         {/* Trade-Marker: Entry ↑ grün / Exit ↓ rot */}
         {tradeMarkers.map((m, mi) => {
-          const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === m.date.slice(0,10));
+          const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === (m.weeklyDate ?? m.date).slice(0,10));
           if (idx < 0) return null;
           const x = toX(idx);
           if (m.type === 'entry') {
@@ -1099,11 +1099,12 @@ function BacktestApp() {
       const weekEnd = getWeekEnd(week.d);
 
       // Historisch korrekter Schnitt: nur Daten die zu diesem Zeitpunkt sichtbar waren
-      const wSlice  = data.ohlcv_w.slice(Math.max(0, i - 59), i + 1);          // letzte 60 Wochen
-      const dSlice  = data.ohlcv_d .filter(d => d.d          <= weekEnd).slice(-60); // letzte 60 Tage
-      const h4Slice = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90); // letzte 90 4H
+      const wSlice   = data.ohlcv_w.slice(Math.max(0, i - 59), i + 1);           // letzte 60 Wochen
+      const dHistory = data.ohlcv_d.filter(d => d.d <= weekEnd);                  // vollständige Tageshistorie bis weekEnd
+      const dSlice   = dHistory.slice(-60);                                        // letzte 60 Tage für Charts/Daily-Analyse
+      const h4Slice  = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90); // letzte 90 4H
 
-      const structW  = analyzeWeeklyStructure(wSlice, dSlice);
+      const structW  = analyzeWeeklyStructure(wSlice, dHistory);
       const structD  = analyzeStructure(dSlice);
       const has4h    = h4Slice.length >= 8;
       const struct4H = has4h ? analyze4HStructure(h4Slice) : null;
@@ -1153,7 +1154,7 @@ function BacktestApp() {
             trigger    = '4H';
             const gws4h = curr.struct4H?.gws4hHigh;
             entryDate  = gws4h
-              ? (curr.h4Slice.find(d => d.d.slice(0,10) > gws4h.date && d.c > gws4h.price)?.d.slice(0,10) ?? curr.week.d)
+              ? (curr.h4Slice.find(d => d.d > gws4h.date && d.c > gws4h.price)?.d.slice(0,10) ?? curr.week.d)
               : curr.week.d;
           } else if (newD) {
             // W bereits grün, Daily bricht seinen GWS → Entry am Daily-GWS
@@ -1191,6 +1192,7 @@ function BacktestApp() {
           inTrade = true;
           entry = {
             signalDate:  curr.week.d,
+            weeklyDate:  curr.week.d,
             entryDate,
             trigger,
             entryPrice, stopPrice, shares,
@@ -1274,7 +1276,7 @@ function BacktestApp() {
 
   const tradeMarkers = useMemo(() =>
     trades.flatMap(t => [
-      { date: t.entryDate, type: 'entry' },
+      { date: t.entryDate, weeklyDate: t.weeklyDate, type: 'entry' },
       ...(!t.isOpen ? [{ date: t.exitDate, type: 'exit' }] : []),
     ]),
   [trades]);
