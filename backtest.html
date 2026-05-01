@@ -218,8 +218,9 @@ function analyzeWeeklyStructure(ohlcvW, ohlcvD = null) {
 
   // broken = ein Daily-Close (nach dem GWS-Datum) überschreitet den GWS-Preis
   // Fallback auf Weekly-Close wenn keine Daily-Daten übergeben
+  const hasDailyCandles = Array.isArray(ohlcvD) && ohlcvD.length > 0;
   const broken = gwswHigh !== null && (
-    ohlcvD && ohlcvD.length > 0
+    hasDailyCandles
       ? ohlcvD.some(d => d.d > gwswHigh.date && d.c > gwswHigh.price)
       : breakoutIdx !== null
   );

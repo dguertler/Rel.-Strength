@@ -219,8 +219,9 @@ function analyzeWeeklyStructure(ohlcvW, ohlcvD = null) {
 
   // broken = ein Daily-Close (nach dem GWS-Datum) überschreitet den GWS-Preis
   // Fallback auf Weekly-Close wenn keine Daily-Daten übergeben
+  const hasDailyCandles = Array.isArray(ohlcvD) && ohlcvD.length > 0;
   const broken = gwswHigh !== null && (
-    ohlcvD && ohlcvD.length > 0
+    hasDailyCandles
       ? ohlcvD.some(d => d.d > gwswHigh.date && d.c > gwswHigh.price)
       : breakoutIdx !== null
   );
@@ -1127,7 +1128,7 @@ function App() {
     data.data.forEach(entry => {
       const d = map[entry.ticker] = {};
       if (entry.ohlcv?.length > 0)    d.daily  = analyzeStructure(entry.ohlcv);
-      if (entry.ohlcv_w?.length > 0)  d.weekly = analyzeWeeklyStructure(entry.ohlcv_w, entry.ohlcv);
+      if (entry.ohlcv_w?.length > 0)  d.weekly = analyzeWeeklyStructure(entry.ohlcv_w, entry.ohlcv?.length > 0 ? entry.ohlcv : null);
       if (entry.ohlcv_4h?.length > 0) d.h4     = analyze4HStructure(entry.ohlcv_4h);
     });
     return map;
