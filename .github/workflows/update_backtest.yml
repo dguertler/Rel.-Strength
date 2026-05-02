@@ -1,15 +1,17 @@
-name: Backtest-Daten laden (manuell)
+name: Backtest-Daten aktualisieren
 
 on:
+  schedule:
+    - cron: '30 22 * * 1-5'   # Mo-Fr 00:30 Uhr DE (22:30 UTC) – nach RS/SPX-Workflows
   workflow_dispatch:
     inputs:
       ticker:
-        description: 'Ticker (Standard: SNDK)'
+        description: 'Einzelnen Ticker manuell bootstrappen (leer = alle Top-20)'
         required: false
-        default: 'SNDK'
+        default: ''
 
 jobs:
-  load:
+  update:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,17 +25,34 @@ jobs:
           python-version: '3.11'
 
       - name: Abhängigkeiten installieren
-        run: pip install yfinance pandas
+        run: pip install "yfinance==0.2.54" "pandas==2.2.3"
 
-      - name: Backtest-Daten laden
+      - name: Einzelnen Ticker bootstrappen (nur bei manueller Eingabe)
+        if: ${{ github.event.inputs.ticker != '' }}
         run: python load_backtest.py
         env:
           BACKTEST_TICKER: ${{ github.event.inputs.ticker }}
+
+      - name: Top-20 Backtest-Daten aktualisieren (bis zu 3 Versuche)
+        if: ${{ github.event.inputs.ticker == '' }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "Versuch $attempt/3..."
+            python update_backtest.py && break
+            if [ $attempt -lt 3 ]; then
+              echo "Fehlgeschlagen – warte 120s vor Wiederholung..."
+              sleep 120
+            else
+              echo "Alle 3 Versuche fehlgeschlagen."
+              exit 1
+            fi
+          done
 
       - name: JSON committen und pushen
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add backtest_*.json
-          git diff --staged --quiet || git commit -m "Backtest-Daten aktualisiert (${{ github.event.inputs.ticker }})"
+          git diff --staged --quiet || git commit -m "Backtest-Daten aktualisiert ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+          git pull --rebase origin main
           git push origin main
