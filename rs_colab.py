@@ -243,3 +243,25 @@ print("Top 5:")
 for i, r in enumerate(data[:5]):
     print(f"  {i+1}. {r['ticker']}: Score={r['score']}, Weekly={len(r['ohlcv_w'])} Kerzen, Daily={len(r['ohlcv'])} Kerzen, 4H={len(r['ohlcv_4h'])} Kerzen")
 print("\nDatei gespeichert: rs_full.json")
+
+# ── Top-20-Historie fortschreiben ────────────────────────────────────────────
+_hist_file = "rs_top20_history.json"
+_date_key  = output["timestamp"][:10]
+try:
+    with open(_hist_file) as _f:
+        _hist = json.load(_f)
+except FileNotFoundError:
+    _hist = {}
+_entries = _hist.setdefault("QQQ", [])
+_known   = {e["date"] for e in _entries}
+if _date_key not in _known:
+    _entries.append({"date": _date_key, "top20": top20})
+else:
+    for _e in _entries:
+        if _e["date"] == _date_key:
+            _e["top20"] = top20
+            break
+_entries.sort(key=lambda x: x["date"])
+with open(_hist_file, "w") as _f:
+    json.dump(_hist, _f, indent=2)
+print(f"Top-20-Historie aktualisiert: QQQ {_date_key} → {_hist_file}")

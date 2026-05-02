@@ -52,3 +52,26 @@ with open("rs_sp500.json", "w") as f:
 print(f"✅ Merge abgeschlossen: {len(all_data)} Ticker total")
 print(f"   Top 5: {', '.join(top20[:5])}")
 print(f"   Timestamp: {output['timestamp']}")
+
+# ── Top-20-Historie fortschreiben ────────────────────────────────────────────
+_hist_file = "rs_top20_history.json"
+_date_key  = output["timestamp"][:10]
+if _date_key and _date_key != "–":
+    try:
+        with open(_hist_file) as _f:
+            _hist = json.load(_f)
+    except FileNotFoundError:
+        _hist = {}
+    _entries = _hist.setdefault("SPX", [])
+    _known   = {e["date"] for e in _entries}
+    if _date_key not in _known:
+        _entries.append({"date": _date_key, "top20": top20})
+    else:
+        for _e in _entries:
+            if _e["date"] == _date_key:
+                _e["top20"] = top20
+                break
+    _entries.sort(key=lambda x: x["date"])
+    with open(_hist_file, "w") as _f:
+        json.dump(_hist, _f, indent=2)
+    print(f"Top-20-Historie aktualisiert: SPX {_date_key} → {_hist_file}")
