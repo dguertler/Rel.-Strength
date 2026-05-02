@@ -46,6 +46,10 @@ output = {
     "benchmark_ohlcv":   benchmark_ohlcv,
 }
 
+MIN_TICKERS = 100
+if len(all_data) < MIN_TICKERS:
+    print(f"\n⚠️  Nur {len(all_data)} Aktien nach Merge (Minimum {MIN_TICKERS}). rs_sp500.json wird NICHT überschrieben.")
+    import sys; sys.exit(1)
 with open("rs_sp500.json", "w") as f:
     json.dump(sanitize_nan(output), f)
 

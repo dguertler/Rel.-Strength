@@ -169,6 +169,10 @@ output = {
     "benchmark_ohlcv_w": extract_ohlcv(benchmark, raw_weekly, 60),
     "benchmark_ohlcv":   extract_ohlcv(benchmark, raw_daily, 60),
 }
+MIN_TICKERS = 50
+if len(data) < MIN_TICKERS:
+    print(f"\n⚠️  Nur {len(data)} Aktien geladen (Minimum {MIN_TICKERS}). {OUTPUT_FILE} wird NICHT überschrieben.")
+    import sys; sys.exit(1)
 with open(OUTPUT_FILE, "w") as f:
     json.dump(sanitize_nan(output), f)
 print(f"✅ Teil 2 fertig – {len(data)} Ticker → {OUTPUT_FILE}")
