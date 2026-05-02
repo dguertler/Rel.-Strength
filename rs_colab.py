@@ -220,6 +220,11 @@ output = {
     "benchmark_ohlcv":  benchmark_ohlcv_d,
 }
 
+MIN_TICKERS = 50  # Mindestanzahl Aktien – bei weniger liegt ein yfinance-Fehler vor
+if len(data) < MIN_TICKERS:
+    print(f"\n⚠️  Nur {len(data)} Aktien geladen (Minimum {MIN_TICKERS}). rs_full.json wird NICHT überschrieben.")
+    raise SystemExit(1)
+
 sanitized = sanitize_nan(output)
 with open("rs_full.json", "w") as f:
     json.dump(sanitized, f)

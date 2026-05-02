@@ -252,6 +252,11 @@ output = {
     "benchmark_ohlcv":   benchmark_ohlcv_d,
 }
 
+MIN_TICKERS = 20  # Mindestanzahl DAX-Aktien – bei weniger liegt ein yfinance-Fehler vor
+if len(data) < MIN_TICKERS:
+    print(f"\n⚠️  Nur {len(data)} Aktien geladen (Minimum {MIN_TICKERS}). rs_dax.json wird NICHT überschrieben.")
+    raise SystemExit(1)
+
 sanitized = sanitize_nan(output)
 with open("rs_dax.json", "w") as f:
     json.dump(sanitized, f)
