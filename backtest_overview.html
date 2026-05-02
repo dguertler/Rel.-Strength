@@ -286,11 +286,12 @@ function OverviewApp() {
     ];
     const seen = new Set();
     const errs = [];
+    const stockMap = {};  // ticker → {index, ohlcv_w, ohlcv_d, ohlcv_4h}
 
+    // 1. RS-JSON laden
     Promise.allSettled(sources.map(s =>
       fetch(s.file).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d => ({ ...d, _index: s.index }))
     )).then(results => {
-      const all = [];
       results.forEach((res, ri) => {
         if (res.status === 'rejected') { errs.push(`${sources[ri].file}: ${res.reason}`); return; }
         const d = res.value;
@@ -298,19 +299,50 @@ function OverviewApp() {
           const tk = entry.ticker;
           if (seen.has(tk)) return;
           seen.add(tk);
-          const ohlcv_w  = entry.ohlcv_w  || [];
-          const ohlcv_d  = entry.ohlcv    || [];   // RS-JSON: "ohlcv" = daily
-          const ohlcv_4h = entry.ohlcv_4h || [];
-          const trades = simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h);
-          if (trades.length === 0) return;
-          const kpis      = calcKpis(trades);
-          const openTrade = trades.find(t => t.isOpen) ?? null;
-          all.push({ ticker: tk, index: d._index, score: entry.score ?? 0, kpis, hasOpen: !!openTrade, openTrade });
+          stockMap[tk] = {
+            ticker: tk, index: d._index, score: entry.score ?? 0,
+            ohlcv_w:  entry.ohlcv_w  || [],
+            ohlcv_d:  entry.ohlcv    || [],   // RS-JSON: "ohlcv" = daily
+            ohlcv_4h: entry.ohlcv_4h || [],
+            hasFull: false,
+          };
         });
       });
-      setStocks(all);
-      setErrors(errs);
-      setLoading(false);
+
+      const tickers = Object.keys(stockMap);
+
+      // 2. Vollständige Backtest-Dateien laden (404 wird still ignoriert)
+      return Promise.allSettled(
+        tickers.map(tk =>
+          fetch(`backtest_${tk.toLowerCase()}.json`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null)
+        )
+      ).then(btResults => {
+        tickers.forEach((tk, i) => {
+          const bt = btResults[i].status === 'fulfilled' ? btResults[i].value : null;
+          if (bt && bt.ohlcv_w && bt.ohlcv_d) {
+            stockMap[tk].ohlcv_w  = bt.ohlcv_w;
+            stockMap[tk].ohlcv_d  = bt.ohlcv_d;
+            stockMap[tk].ohlcv_4h = bt.ohlcv_4h || [];
+            stockMap[tk].hasFull  = true;
+          }
+        });
+
+        // 3. Trades simulieren
+        const all = [];
+        for (const tk of tickers) {
+          const s = stockMap[tk];
+          const trades = simulateTrades(s.ohlcv_w, s.ohlcv_d, s.ohlcv_4h);
+          if (trades.length === 0) continue;
+          const kpis      = calcKpis(trades);
+          const openTrade = trades.find(t => t.isOpen) ?? null;
+          all.push({ ticker: s.ticker, index: s.index, score: s.score, kpis, hasOpen: !!openTrade, openTrade, hasFull: s.hasFull });
+        }
+        setStocks(all);
+        setErrors(errs);
+        setLoading(false);
+      });
     });
   }, []);
 
