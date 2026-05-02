@@ -160,7 +160,7 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
   });
 
   const trades = [];
-  let inTrade = false, entry = null;
+  let inTrade = false, entry = null, peakPrice = 0;
 
   for (let i = 1; i < weekRows.length; i++) {
     const prev = weekRows[i - 1], curr = weekRows[i];
@@ -209,9 +209,11 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
         const actualEntry = nextDay?.o ?? sigDay?.c ?? entryPrice;
 
         entry = { trigger, entryDate: entryDate ?? curr.week.d, weeklyDate, entryPrice: actualEntry, stopPrice, shares, invested: shares * actualEntry, entryWeekIdx: i };
+        peakPrice = actualEntry;
         inTrade = true;
       }
     } else {
+      peakPrice = Math.max(peakPrice, curr.week.h);
       if (curr.pD === 0) {
         const sigDay  = curr.dHistory.find(d => d.d >= curr.weekEnd && d.c < (curr.structDFull?.breakoutPrice ?? 0));
         const exitDay = curr.dHistory.find(d => sigDay && d.d > sigDay.d);
@@ -228,8 +230,10 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
   if (inTrade && entry) {
     const last = weekRows[weekRows.length - 1];
     const exitPrice = last.week.c;
+    peakPrice = Math.max(peakPrice, last.week.h);
+    const currentDD = peakPrice > exitPrice ? (peakPrice - exitPrice) / peakPrice * 100 : 0;
     const pnl = (exitPrice - entry.entryPrice) * entry.shares;
-    trades.push({ ...entry, exitDate: last.week.d, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: true, holdingWeeks: weekRows.length - 1 - entry.entryWeekIdx });
+    trades.push({ ...entry, exitDate: last.week.d, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: true, holdingWeeks: weekRows.length - 1 - entry.entryWeekIdx, currentDD, peakPrice });
   }
 
   return trades;
@@ -298,8 +302,10 @@ function OverviewApp() {
           const ohlcv_d  = entry.ohlcv    || [];   // RS-JSON: "ohlcv" = daily
           const ohlcv_4h = entry.ohlcv_4h || [];
           const trades = simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h);
-          const kpis   = calcKpis(trades);
-          all.push({ ticker: tk, index: d._index, score: entry.score ?? 0, kpis, hasOpen: trades.some(t => t.isOpen) });
+          if (trades.length === 0) return;
+          const kpis      = calcKpis(trades);
+          const openTrade = trades.find(t => t.isOpen) ?? null;
+          all.push({ ticker: tk, index: d._index, score: entry.score ?? 0, kpis, hasOpen: !!openTrade, openTrade });
         });
       });
       setStocks(all);
@@ -424,39 +430,66 @@ function OverviewApp() {
           </thead>
           <tbody>
             {filtered.map(stock => {
-              const k = stock.kpis;
+              const k  = stock.kpis;
+              const ot = stock.openTrade;
+              const rowBg     = stock.hasOpen ? '#0e0900' : undefined;
+              const borderCol = stock.hasOpen ? '#92400e' : 'transparent';
               return (
-                <tr key={stock.ticker} className="data-row"
-                  onClick={() => window.location.href = `backtest.html?t=${encodeURIComponent(stock.ticker)}`}>
-                  <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#f1f5f9', borderBottom: '1px solid #0d1526' }}>
-                    {stock.ticker}
-                    {stock.hasOpen && <span title="Offener Trade" style={{ marginLeft: 5, fontSize: 9, background: '#1d4ed8', color: '#93c5fd', borderRadius: 3, padding: '1px 4px' }}>OFFEN</span>}
-                  </td>
-                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #0d1526' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: IDX_COLOR[stock.index] ?? '#94a3b8',
-                      background: (IDX_COLOR[stock.index] ?? '#94a3b8') + '15', borderRadius: 4, padding: '2px 6px' }}>
-                      {stock.index}
-                    </span>
-                  </td>
-                  {k ? <>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: '#94a3b8', borderBottom: '1px solid #0d1526' }}>{k.nTrades}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: pnlColor(k.totalPnl), borderBottom: '1px solid #0d1526' }}>
-                      {fmt(k.totalPnl, 0)} €
+                <React.Fragment key={stock.ticker}>
+                  <tr className="data-row"
+                    onClick={() => window.location.href = `backtest.html?t=${encodeURIComponent(stock.ticker)}`}
+                    style={{ borderLeft: `3px solid ${borderCol}`, background: rowBg }}>
+                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#f1f5f9', borderBottom: stock.hasOpen ? 'none' : '1px solid #0d1526' }}>
+                      {stock.ticker}
+                      {stock.hasOpen && <span style={{ marginLeft: 6, fontSize: 9, background: '#78350f', color: '#fbbf24', borderRadius: 3, padding: '1px 5px', fontWeight: 700 }}>OFFEN</span>}
                     </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: pnlColor(k.totalReturn), borderBottom: '1px solid #0d1526' }}>
-                      {fmt(k.totalReturn)} %
+                    <td style={{ padding: '8px 12px', borderBottom: stock.hasOpen ? 'none' : '1px solid #0d1526' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: IDX_COLOR[stock.index] ?? '#94a3b8',
+                        background: (IDX_COLOR[stock.index] ?? '#94a3b8') + '15', borderRadius: 4, padding: '2px 6px' }}>
+                        {stock.index}
+                      </span>
                     </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: wr(k.winrate), borderBottom: '1px solid #0d1526' }}>
-                      {k.winrate.toFixed(0)} %
-                      <span style={{ color: '#334155', fontSize: 10, marginLeft: 4 }}>({k.nWins}/{k.nTrades})</span>
-                    </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: red, borderBottom: '1px solid #0d1526' }}>
-                      {k.maxDD > 0 ? `-${k.maxDD.toFixed(1)} %` : '–'}
-                    </td>
-                  </> : <>
-                    {[0,1,2,3,4].map(j => <td key={j} style={{ padding: '8px 12px', textAlign: 'right', color: '#334155', fontSize: 12, fontFamily: 'monospace', borderBottom: '1px solid #0d1526' }}>–</td>)}
-                  </>}
-                </tr>
+                    {k ? <>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: '#94a3b8', borderBottom: stock.hasOpen ? 'none' : '1px solid #0d1526' }}>{k.nTrades}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: pnlColor(k.totalPnl), borderBottom: stock.hasOpen ? 'none' : '1px solid #0d1526' }}>
+                        {fmt(k.totalPnl, 0)} €
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: pnlColor(k.totalReturn), borderBottom: stock.hasOpen ? 'none' : '1px solid #0d1526' }}>
+                        {fmt(k.totalReturn)} %
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: wr(k.winrate), borderBottom: stock.hasOpen ? 'none' : '1px solid #0d1526' }}>
+                        {k.winrate.toFixed(0)} %
+                        <span style={{ color: '#334155', fontSize: 10, marginLeft: 4 }}>({k.nWins}/{k.nTrades})</span>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: red, borderBottom: stock.hasOpen ? 'none' : '1px solid #0d1526' }}>
+                        {k.maxDD > 0 ? `-${k.maxDD.toFixed(1)} %` : '–'}
+                      </td>
+                    </> : <>
+                      {/* Nur offener Trade, noch kein geschlossener */}
+                      {[0,1,2,3,4].map(j => <td key={j} style={{ padding: '8px 12px', textAlign: 'right', color: '#334155', fontSize: 12, fontFamily: 'monospace', borderBottom: 'none' }}>–</td>)}
+                    </>}
+                  </tr>
+                  {stock.hasOpen && ot && (
+                    <tr style={{ borderLeft: `3px solid #92400e`, background: '#080600', cursor: 'pointer' }}
+                      onClick={() => window.location.href = `backtest.html?t=${encodeURIComponent(stock.ticker)}`}>
+                      <td colSpan={7} style={{ padding: '4px 14px 8px 14px', borderBottom: '1px solid #0d1526', fontFamily: 'monospace', fontSize: 10 }}>
+                        <span style={{ color: '#64748b' }}>
+                          Seit {ot.entryDate} · Entry {ot.entryPrice.toFixed(2)} → {ot.exitPrice?.toFixed(2) ?? '?'}
+                          {ot.stopPrice ? ` · Stop ${ot.stopPrice.toFixed(2)}` : ''}
+                        </span>
+                        {'  '}
+                        <span style={{ fontWeight: 700, color: pnlColor(ot.pnlPct) }}>
+                          {fmt(ot.pnlPct)} % · {fmt(ot.pnl, 0)} €
+                        </span>
+                        {ot.currentDD > 0.5 && (
+                          <span style={{ marginLeft: 12, color: '#f59e0b' }}>
+                            DD -{ot.currentDD.toFixed(1)} %
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
           </tbody>
