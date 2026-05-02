@@ -1,0 +1,38 @@
+name: RS-Historie aufbauen (Kursdaten)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180   # 500+ Ticker × max-History kann 2-3h dauern
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Abhängigkeiten installieren
+        run: pip install "yfinance==0.2.54" "pandas==2.2.3"
+
+      - name: Ticker-Liste aktualisieren
+        run: pip install lxml html5lib && python update_tickers.py
+
+      - name: RS-Historie berechnen
+        run: python build_rs_history.py
+
+      - name: Ergebnis committen und pushen
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add tickers_config.json rs_top20_history.json
+          git diff --staged --quiet || git commit -m "RS-Historie aufgebaut aus Kursdaten ($(date '+%Y-%m-%d'))"
+          git pull --rebase origin main
+          git push origin main
