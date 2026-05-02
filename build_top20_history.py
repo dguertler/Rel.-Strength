@@ -11,8 +11,10 @@ Ergebnis: rs_top20_history.json
 """
 import subprocess
 import json
+import re
 import sys
 
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 SOURCES = [
     ("QQQ", "rs_full.json"),
     ("SPX", "rs_sp500.json"),
@@ -69,12 +71,13 @@ def build_history():
         new_count = 0
         for commit_hash, commit_date in commits:
             data = get_file_at_commit(commit_hash, filepath)
-            if not data or "top20" not in data:
+            top20 = data.get("top20", [])
+            if not data or not top20:
                 continue
             # Datum aus dem Timestamp im JSON bevorzugen
             ts = data.get("timestamp", "")
             date_str = ts[:10] if ts else commit_date
-            if not date_str:
+            if not date_str or not DATE_RE.match(date_str):
                 continue
             if date_str in existing_dates:
                 continue
