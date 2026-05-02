@@ -26,8 +26,19 @@ jobs:
       - name: Abhängigkeiten installieren
         run: pip install "yfinance==0.2.54" "pandas==2.2.3"
 
-      - name: DAX Skript ausführen
-        run: python dax_colab.py
+      - name: DAX Skript ausführen (bis zu 3 Versuche)
+        run: |
+          for attempt in 1 2 3; do
+            echo "Versuch $attempt/3..."
+            python dax_colab.py && break
+            if [ $attempt -lt 3 ]; then
+              echo "Fehlgeschlagen – warte 120s vor Wiederholung..."
+              sleep 120
+            else
+              echo "Alle 3 Versuche fehlgeschlagen."
+              exit 1
+            fi
+          done
 
       - name: JSON committen und pushen
         run: |

@@ -28,10 +28,32 @@ jobs:
         run: pip install "yfinance==0.2.54" "pandas==2.2.3"
 
       - name: Teil 1 laden (Financials, Healthcare, Consumer, Energy, Industrials)
-        run: python sp500_colab_1.py
+        run: |
+          for attempt in 1 2 3; do
+            echo "Versuch $attempt/3..."
+            python sp500_colab_1.py && break
+            if [ $attempt -lt 3 ]; then
+              echo "Fehlgeschlagen – warte 120s vor Wiederholung..."
+              sleep 120
+            else
+              echo "Alle 3 Versuche fehlgeschlagen."
+              exit 1
+            fi
+          done
 
       - name: Teil 2 laden (Tech, Comm, Utilities, Real Estate, Materials)
-        run: python sp500_colab_2.py
+        run: |
+          for attempt in 1 2 3; do
+            echo "Versuch $attempt/3..."
+            python sp500_colab_2.py && break
+            if [ $attempt -lt 3 ]; then
+              echo "Fehlgeschlagen – warte 120s vor Wiederholung..."
+              sleep 120
+            else
+              echo "Alle 3 Versuche fehlgeschlagen."
+              exit 1
+            fi
+          done
 
       - name: Daten zusammenführen
         run: python sp500_merge.py
