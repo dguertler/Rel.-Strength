@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RS · Backtest Übersicht</title>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #060b14; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0a0f1e; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    .nav-bar { position:fixed; top:12px; left:12px; z-index:9999; display:inline-flex; align-items:center; gap:5px; }
+    .nav-switch { display:inline-flex; align-items:center; gap:6px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:6px 13px; font-size:12px; font-weight:700; color:#94a3b8; text-decoration:none; font-family:monospace; white-space:nowrap; box-shadow:0 2px 8px #00000066; transition:border-color .15s,color .15s; }
+    .nav-switch:hover  { border-color:#3b82f6; color:#e2e8f0; }
+    .nav-switch.active { border-color:#f59e0b; color:#fbbf24; background:#1a1a0a; }
+    table { border-collapse: collapse; width: 100%; }
+    th { position: sticky; top: 0; background: #0d1526; z-index: 10; }
+    tr.data-row { cursor: pointer; transition: background .1s; }
+    tr.data-row:hover { background: #1a2540 !important; }
+    tr.data-row:nth-child(even) { background: #080e1c; }
+    tr.data-row:nth-child(odd)  { background: #060b14; }
+  </style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html"            class="nav-switch">QQQ</a>
+  <a href="dax.html"              class="nav-switch">DAX</a>
+  <a href="sp500.html"            class="nav-switch">SPX</a>
+  <a href="backtest.html"         class="nav-switch">BACKTEST</a>
+  <a href="backtest_overview.html" class="nav-switch active">ÜBERSICHT</a>
+</div>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useMemo, useEffect } = React;
+
+// ── GWS-Analyse (identisch zu backtest.html) ─────────────────────────────────
+function analyzeStructure(ohlcv) {
+  if (!ohlcv || ohlcv.length < 30) return null;
+  const n = ohlcv.length;
+  const highs  = ohlcv.map(d => d.h);
+  const lows   = ohlcv.map(d => d.l);
+  const closes = ohlcv.map(d => d.c);
+  const swingHighs = [];
+  for (let i = 2; i < n - 2; i++)
+    if (highs[i] >= highs[i-1] && highs[i] >= highs[i-2] && highs[i] >= highs[i+1] && highs[i] >= highs[i+2])
+      swingHighs.push({ idx: i, date: ohlcv[i].d, price: highs[i] });
+  const swingLows = [];
+  for (let i = 2; i < n - 2; i++)
+    if (lows[i] <= lows[i-1] && lows[i] <= lows[i-2] && lows[i] <= lows[i+1] && lows[i] <= lows[i+2])
+      swingLows.push({ idx: i, date: ohlcv[i].d, price: lows[i] });
+  const gwsdCandidates = [];
+  for (let j = 1; j < swingLows.length; j++) {
+    const tiefNeu = swingLows[j], tiefAlt = swingLows[j - 1];
+    if (tiefNeu.price < tiefAlt.price) {
+      const hoch = swingHighs.filter(sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx);
+      if (hoch.length > 0) gwsdCandidates.push(hoch.reduce((b, h) => h.price > b.price ? h : b));
+    }
+  }
+  const gwsdHigh = gwsdCandidates.length > 0 ? gwsdCandidates[gwsdCandidates.length - 1] : null;
+  let breakoutIdx = null;
+  if (gwsdHigh) for (let i = gwsdHigh.idx + 1; i < n; i++) if (closes[i] > gwsdHigh.price) { breakoutIdx = i; break; }
+  let trend = 'neutral';
+  if (swingHighs.length >= 2) trend = swingHighs[swingHighs.length-1].price > swingHighs[swingHighs.length-2].price ? 'bullish' : 'bearish';
+  return { gwsdHigh, breakoutPrice: gwsdHigh?.price ?? null, breakoutIdx, broken: gwsdHigh !== null && breakoutIdx !== null, trend };
+}
+
+function analyzeWeeklyStructure(ohlcvW, ohlcvD = null) {
+  if (!ohlcvW || ohlcvW.length < 15) return null;
+  const n = ohlcvW.length;
+  const highs  = ohlcvW.map(d => d.h);
+  const lows   = ohlcvW.map(d => d.l);
+  const closes = ohlcvW.map(d => d.c);
+  const swingHighs = [];
+  for (let i = 1; i < n - 1; i++)
+    if (highs[i] >= highs[i-1] && highs[i] >= highs[i+1])
+      swingHighs.push({ idx: i, date: ohlcvW[i].d, price: highs[i] });
+  const swingLows = [];
+  for (let i = 1; i < n - 1; i++)
+    if (lows[i] <= lows[i-1] && lows[i] <= lows[i+1])
+      swingLows.push({ idx: i, date: ohlcvW[i].d, price: lows[i] });
+  const gwswCandidates = [];
+  let lastLow = null;
+  for (let j = 1; j < swingLows.length; j++) {
+    const tiefNeu = swingLows[j], tiefAlt = swingLows[j - 1];
+    if (tiefNeu.price < tiefAlt.price && (lastLow === null || tiefNeu.price < lastLow.price)) {
+      const hoch = swingHighs.filter(sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx);
+      if (hoch.length > 0) { gwswCandidates.push(hoch.reduce((b, h) => h.price > b.price ? h : b)); lastLow = tiefNeu; }
+    }
+  }
+  const gwswHigh = gwswCandidates.length > 0 ? gwswCandidates[gwswCandidates.length - 1] : null;
+  let breakoutIdx = null;
+  if (gwswHigh) for (let i = gwswHigh.idx + 1; i < n; i++) if (closes[i] > gwswHigh.price) { breakoutIdx = i; break; }
+  const hasDailyCandles = Array.isArray(ohlcvD) && ohlcvD.length > 0;
+  const broken = gwswHigh !== null && (hasDailyCandles ? ohlcvD.some(d => d.d > gwswHigh.date && d.c > gwswHigh.price) : breakoutIdx !== null);
+  return { gwswHigh, breakoutPrice: gwswHigh?.price ?? null, breakoutIdx, broken };
+}
+
+function analyze4HStructure(ohlcv4h) {
+  if (!ohlcv4h || ohlcv4h.length < 8) return null;
+  const n = ohlcv4h.length;
+  const highs  = ohlcv4h.map(d => d.h);
+  const lows   = ohlcv4h.map(d => d.l);
+  const closes = ohlcv4h.map(d => d.c);
+  const swingHighs = [];
+  for (let i = 2; i < n - 2; i++)
+    if (highs[i] >= highs[i-1] && highs[i] >= highs[i-2] && highs[i] >= highs[i+1] && highs[i] >= highs[i+2])
+      swingHighs.push({ idx: i, date: ohlcv4h[i].d, price: highs[i] });
+  const swingLows = [];
+  for (let i = 2; i < n - 2; i++)
+    if (lows[i] <= lows[i-1] && lows[i] <= lows[i-2] && lows[i] <= lows[i+1] && lows[i] <= lows[i+2])
+      swingLows.push({ idx: i, date: ohlcv4h[i].d, price: lows[i] });
+  const gws4hCandidates = [];
+  let lastLow = null;
+  for (let j = 1; j < swingLows.length; j++) {
+    const tiefNeu = swingLows[j], tiefAlt = swingLows[j - 1];
+    if (tiefNeu.price < tiefAlt.price && (lastLow === null || tiefNeu.price < lastLow.price)) {
+      const hoch = swingHighs.filter(sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx);
+      if (hoch.length > 0) { gws4hCandidates.push(hoch.reduce((b, h) => h.price > b.price ? h : b)); lastLow = tiefNeu; }
+    }
+  }
+  const gws4hHigh = gws4hCandidates.length > 0 ? gws4hCandidates[gws4hCandidates.length - 1] : null;
+  let breakout4hIdx = null;
+  if (gws4hHigh) for (let i = gws4hHigh.idx + 1; i < n; i++) if (closes[i] > gws4hHigh.price) { breakout4hIdx = i; break; }
+  return { gws4hHigh, breakout4hIdx, broken4h: gws4hHigh === null || breakout4hIdx !== null };
+}
+
+function getWeekEnd(s) {
+  const d = new Date(s + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 6);
+  return d.toISOString().slice(0, 10);
+}
+
+// ── Trade-Simulation (identisch zu backtest.html) ────────────────────────────
+const CAPITAL = 10000;
+const MAX_RISK = 1000;
+
+function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
+  if (!ohlcv_w || ohlcv_w.length < 15) return [];
+
+  const weekRows = ohlcv_w.map((week, i) => {
+    const weekEnd  = getWeekEnd(week.d);
+    const wSlice   = ohlcv_w.slice(Math.max(0, i - 59), i + 1);
+    const dHistory = ohlcv_d.filter(d => d.d <= weekEnd);
+    const dSlice   = dHistory.slice(-60);
+    const h4Slice  = ohlcv_4h.filter(d => d.d.slice(0, 10) <= weekEnd).slice(-90);
+    const structW     = analyzeWeeklyStructure(wSlice, dHistory);
+    const structDFull = analyzeStructure(dHistory);
+    const has4h       = h4Slice.length >= 8;
+    const struct4H    = has4h ? analyze4HStructure(h4Slice) : null;
+    const pW  = structW?.broken     ? 1 : 0;
+    const pD  = structDFull?.broken ? 1 : 0;
+    const p4H = has4h ? (struct4H?.broken4h ? 1 : 0) : null;
+    const pts = pW + pD + (has4h ? p4H : 0);
+    return { week, i, weekEnd, wSlice, dSlice, dHistory, h4Slice, structW, structDFull, struct4H, pW, pD, p4H, has4h, pts };
+  });
+
+  const trades = [];
+  let inTrade = false, entry = null;
+
+  for (let i = 1; i < weekRows.length; i++) {
+    const prev = weekRows[i - 1], curr = weekRows[i];
+
+    if (!inTrade) {
+      if (prev.pts < 3 && curr.pts === 3) {
+        const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
+        const newD  = prev.pD === 0 && curr.pD === 1;
+        const newW  = prev.pW === 0 && curr.pW === 1;
+        let entryPrice, stopPrice, trigger, entryDate;
+
+        if (new4H) {
+          entryPrice = curr.struct4H?.gws4hHigh?.price;
+          stopPrice  = curr.structDFull?.breakoutPrice ?? curr.structDFull?.gwsdHigh?.price;
+          trigger    = '4H';
+          const gws4h = curr.struct4H?.gws4hHigh;
+          entryDate  = gws4h ? curr.h4Slice.find(d => d.d > gws4h.date && d.c > gws4h.price)?.d : curr.week.d;
+        } else if (newD) {
+          entryPrice = curr.structDFull?.breakoutPrice;
+          stopPrice  = curr.structW?.breakoutPrice ?? curr.structW?.gwswHigh?.price;
+          trigger    = 'D';
+          const gwsD = curr.structDFull?.gwsdHigh;
+          entryDate  = gwsD ? curr.dHistory.find(d => d.d > gwsD.date && d.c > gwsD.price)?.d : curr.week.d;
+        } else if (newW) {
+          entryPrice = curr.structW?.breakoutPrice;
+          stopPrice  = curr.structDFull?.breakoutPrice ?? curr.structDFull?.gwsdHigh?.price;
+          trigger    = 'W';
+          const gwsW = curr.structW?.gwswHigh;
+          entryDate  = gwsW ? curr.dHistory.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d : curr.week.d;
+        } else {
+          entryPrice = curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice;
+          stopPrice  = curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
+          trigger    = '?';
+          entryDate  = curr.week.d;
+        }
+
+        if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
+        const riskPerShare = entryPrice - stopPrice;
+        let shares = Math.floor(MAX_RISK / riskPerShare);
+        if (shares * entryPrice > CAPITAL) shares = Math.floor(CAPITAL / entryPrice);
+        if (shares < 1) continue;
+
+        const weeklyDate = curr.week.d;
+        const sigDay     = curr.dHistory.find(d => d.d >= (entryDate ?? curr.week.d));
+        const nextDay    = sigDay ? curr.dHistory.find(d => d.d > sigDay.d) : null;
+        const actualEntry = nextDay?.o ?? sigDay?.c ?? entryPrice;
+
+        entry = { trigger, entryDate: entryDate ?? curr.week.d, weeklyDate, entryPrice: actualEntry, stopPrice, shares, invested: shares * actualEntry, entryWeekIdx: i };
+        inTrade = true;
+      }
+    } else {
+      if (curr.pD === 0) {
+        const sigDay  = curr.dHistory.find(d => d.d >= curr.weekEnd && d.c < (curr.structDFull?.breakoutPrice ?? 0));
+        const exitDay = curr.dHistory.find(d => sigDay && d.d > sigDay.d);
+        const exitPrice = exitDay?.o ?? curr.week.c;
+        const exitDate  = exitDay?.d  ?? curr.week.d;
+        const pnl = (exitPrice - entry.entryPrice) * entry.shares;
+        trades.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: false, holdingWeeks: i - entry.entryWeekIdx });
+        inTrade = false; entry = null;
+      }
+    }
+  }
+
+  // Offener Trade
+  if (inTrade && entry) {
+    const last = weekRows[weekRows.length - 1];
+    const exitPrice = last.week.c;
+    const pnl = (exitPrice - entry.entryPrice) * entry.shares;
+    trades.push({ ...entry, exitDate: last.week.d, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: true, holdingWeeks: weekRows.length - 1 - entry.entryWeekIdx });
+  }
+
+  return trades;
+}
+
+function calcKpis(trades) {
+  const closed = trades.filter(t => !t.isOpen);
+  if (closed.length === 0) return null;
+  const wins     = closed.filter(t =>  t.isWin);
+  const losses   = closed.filter(t => !t.isWin);
+  let equity = CAPITAL, peak = CAPITAL, maxDD = 0;
+  for (const t of closed) {
+    equity += t.pnl;
+    peak    = Math.max(peak, equity);
+    maxDD   = Math.max(maxDD, (peak - equity) / peak * 100);
+  }
+  return {
+    nTrades:     closed.length,
+    nWins:       wins.length,
+    winrate:     wins.length / closed.length * 100,
+    totalPnl:    equity - CAPITAL,
+    totalReturn: (equity / CAPITAL - 1) * 100,
+    maxDD,
+    hasOpen:     trades.some(t => t.isOpen),
+  };
+}
+
+// ── Farb-Helfer ───────────────────────────────────────────────────────────────
+const green = '#4ade80', red = '#f87171', neutral = '#64748b';
+const pnlColor = v => v > 0 ? green : v < 0 ? red : neutral;
+const wr = v => v >= 60 ? green : v >= 45 ? '#fbbf24' : red;
+const fmt = (v, d = 1) => (v >= 0 ? '+' : '') + v.toFixed(d);
+const IDX_COLOR = { QQQ: '#38bdf8', SPX: '#a78bfa', DAX: '#fb923c' };
+
+// ── Haupt-App ─────────────────────────────────────────────────────────────────
+function OverviewApp() {
+  const [stocks, setStocks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errors,  setErrors]  = useState([]);
+  const [filter,  setFilter]  = useState('ALL');
+  const [sortKey, setSortKey] = useState('totalReturn');
+  const [sortAsc, setSortAsc] = useState(false);
+  const [search,  setSearch]  = useState('');
+
+  useEffect(() => {
+    const sources = [
+      { file: 'rs_full.json',   index: 'QQQ' },
+      { file: 'rs_sp500.json',  index: 'SPX' },
+      { file: 'rs_dax.json',    index: 'DAX' },
+    ];
+    const seen = new Set();
+    const errs = [];
+
+    Promise.allSettled(sources.map(s =>
+      fetch(s.file).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(d => ({ ...d, _index: s.index }))
+    )).then(results => {
+      const all = [];
+      results.forEach((res, ri) => {
+        if (res.status === 'rejected') { errs.push(`${sources[ri].file}: ${res.reason}`); return; }
+        const d = res.value;
+        (d.data || []).forEach(entry => {
+          const tk = entry.ticker;
+          if (seen.has(tk)) return;
+          seen.add(tk);
+          const ohlcv_w  = entry.ohlcv_w  || [];
+          const ohlcv_d  = entry.ohlcv    || [];   // RS-JSON: "ohlcv" = daily
+          const ohlcv_4h = entry.ohlcv_4h || [];
+          const trades = simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h);
+          const kpis   = calcKpis(trades);
+          all.push({ ticker: tk, index: d._index, score: entry.score ?? 0, kpis, hasOpen: trades.some(t => t.isOpen) });
+        });
+      });
+      setStocks(all);
+      setErrors(errs);
+      setLoading(false);
+    });
+  }, []);
+
+  const filtered = useMemo(() => {
+    let s = stocks;
+    if (filter !== 'ALL') s = s.filter(x => x.index === filter);
+    if (search) s = s.filter(x => x.ticker.toLowerCase().includes(search.toLowerCase()));
+    s = [...s].sort((a, b) => {
+      let av = a.kpis?.[sortKey] ?? -Infinity;
+      let bv = b.kpis?.[sortKey] ?? -Infinity;
+      if (sortKey === 'ticker') { av = a.ticker; bv = b.ticker; }
+      if (sortKey === 'index')  { av = a.index;  bv = b.index; }
+      if (av < bv) return sortAsc ? -1 : 1;
+      if (av > bv) return sortAsc ?  1 : -1;
+      return 0;
+    });
+    return s;
+  }, [stocks, filter, sortKey, sortAsc, search]);
+
+  const summary = useMemo(() => {
+    const withTrades = filtered.filter(x => x.kpis);
+    if (!withTrades.length) return null;
+    return {
+      total:      withTrades.length,
+      trades:     withTrades.reduce((s, x) => s + x.kpis.nTrades, 0),
+      pnl:        withTrades.reduce((s, x) => s + x.kpis.totalPnl, 0),
+      avgReturn:  withTrades.reduce((s, x) => s + x.kpis.totalReturn, 0) / withTrades.length,
+      avgWr:      withTrades.reduce((s, x) => s + x.kpis.winrate, 0) / withTrades.length,
+      winners:    withTrades.filter(x => x.kpis.totalPnl > 0).length,
+    };
+  }, [filtered]);
+
+  const sortHeader = (key, label) => (
+    <th onClick={() => { if (sortKey === key) setSortAsc(p => !p); else { setSortKey(key); setSortAsc(false); } }}
+      style={{ padding: '10px 12px', textAlign: 'right', color: sortKey === key ? '#f1f5f9' : '#64748b',
+        fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', userSelect: 'none',
+        borderBottom: '1px solid #1e293b', whiteSpace: 'nowrap' }}>
+      {label}{sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''}
+    </th>
+  );
+
+  if (loading) return (
+    <div style={{ padding: '100px 24px', textAlign: 'center', color: '#475569', fontFamily: 'monospace', fontSize: 14 }}>
+      Lade Kursdaten und berechne Trades für alle Aktien…
+    </div>
+  );
+
+  return (
+    <div style={{ paddingTop: 60, paddingBottom: 40, maxWidth: 1100, margin: '0 auto', padding: '60px 16px 40px' }}>
+
+      {/* Fehler */}
+      {errors.map((e, i) => (
+        <div key={i} style={{ background: '#1c0a0a', border: '1px solid #7f1d1d', borderRadius: 6, padding: '8px 12px', marginBottom: 8, fontSize: 12, color: '#f87171', fontFamily: 'monospace' }}>
+          ⚠ {e}
+        </div>
+      ))}
+
+      {/* Titel + Filter */}
+      <div style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        <span style={{ fontSize: 18, fontWeight: 700, color: '#f1f5f9', marginRight: 8 }}>Backtest Übersicht</span>
+        {['ALL', 'QQQ', 'SPX', 'DAX'].map(k => (
+          <button key={k} onClick={() => setFilter(k)}
+            style={{ background: filter === k ? (k === 'ALL' ? '#1e293b' : IDX_COLOR[k] + '22') : 'transparent',
+              border: `1px solid ${filter === k ? (k === 'ALL' ? '#475569' : IDX_COLOR[k]) : '#1e293b'}`,
+              borderRadius: 6, padding: '5px 14px', color: filter === k ? (k === 'ALL' ? '#f1f5f9' : IDX_COLOR[k]) : '#64748b',
+              fontFamily: 'monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            {k}
+          </button>
+        ))}
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Suche Ticker…"
+          style={{ marginLeft: 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: 6,
+            color: '#f1f5f9', padding: '5px 10px', fontFamily: 'monospace', fontSize: 12, width: 130 }} />
+      </div>
+
+      {/* Summary-Kacheln */}
+      {summary && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
+          {[
+            ['Aktien mit Trades', summary.total, null],
+            ['Trades gesamt',     summary.trades, null],
+            ['Gewinner-Aktien',   `${summary.winners} / ${summary.total}`, null],
+            ['Ø Return pro Aktie', fmt(summary.avgReturn) + ' %', summary.avgReturn],
+            ['Ø Win Rate',         summary.avgWr.toFixed(1) + ' %', summary.avgWr - 50],
+          ].map(([label, val, col]) => (
+            <div key={label} style={{ background: '#0d1526', border: '1px solid #1e293b', borderRadius: 8,
+              padding: '12px 18px', flex: '1 1 150px', minWidth: 130 }}>
+              <div style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace', marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: col !== null ? pnlColor(col) : '#e2e8f0', fontFamily: 'monospace' }}>{val}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabelle */}
+      <div style={{ background: '#0a101e', border: '1px solid #1e293b', borderRadius: 10, overflow: 'auto' }}>
+        <table>
+          <thead>
+            <tr>
+              <th onClick={() => { if (sortKey === 'ticker') setSortAsc(p => !p); else { setSortKey('ticker'); setSortAsc(true); } }}
+                style={{ padding: '10px 12px', textAlign: 'left', color: sortKey === 'ticker' ? '#f1f5f9' : '#64748b',
+                  fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', userSelect: 'none',
+                  borderBottom: '1px solid #1e293b' }}>
+                Ticker{sortKey === 'ticker' ? (sortAsc ? ' ↑' : ' ↓') : ''}
+              </th>
+              <th onClick={() => { if (sortKey === 'index') setSortAsc(p => !p); else { setSortKey('index'); setSortAsc(true); } }}
+                style={{ padding: '10px 12px', textAlign: 'left', color: sortKey === 'index' ? '#f1f5f9' : '#64748b',
+                  fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', userSelect: 'none',
+                  borderBottom: '1px solid #1e293b' }}>
+                Index{sortKey === 'index' ? (sortAsc ? ' ↑' : ' ↓') : ''}
+              </th>
+              {sortHeader('nTrades',     'Trades')}
+              {sortHeader('totalPnl',    'P&L €')}
+              {sortHeader('totalReturn', 'Return %')}
+              {sortHeader('winrate',     'Win Rate')}
+              {sortHeader('maxDD',       'Max DD')}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(stock => {
+              const k = stock.kpis;
+              return (
+                <tr key={stock.ticker} className="data-row"
+                  onClick={() => window.location.href = `backtest.html?t=${encodeURIComponent(stock.ticker)}`}>
+                  <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#f1f5f9', borderBottom: '1px solid #0d1526' }}>
+                    {stock.ticker}
+                    {stock.hasOpen && <span title="Offener Trade" style={{ marginLeft: 5, fontSize: 9, background: '#1d4ed8', color: '#93c5fd', borderRadius: 3, padding: '1px 4px' }}>OFFEN</span>}
+                  </td>
+                  <td style={{ padding: '8px 12px', borderBottom: '1px solid #0d1526' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: IDX_COLOR[stock.index] ?? '#94a3b8',
+                      background: (IDX_COLOR[stock.index] ?? '#94a3b8') + '15', borderRadius: 4, padding: '2px 6px' }}>
+                      {stock.index}
+                    </span>
+                  </td>
+                  {k ? <>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: '#94a3b8', borderBottom: '1px solid #0d1526' }}>{k.nTrades}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: pnlColor(k.totalPnl), borderBottom: '1px solid #0d1526' }}>
+                      {fmt(k.totalPnl, 0)} €
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: pnlColor(k.totalReturn), borderBottom: '1px solid #0d1526' }}>
+                      {fmt(k.totalReturn)} %
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: wr(k.winrate), borderBottom: '1px solid #0d1526' }}>
+                      {k.winrate.toFixed(0)} %
+                      <span style={{ color: '#334155', fontSize: 10, marginLeft: 4 }}>({k.nWins}/{k.nTrades})</span>
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: red, borderBottom: '1px solid #0d1526' }}>
+                      {k.maxDD > 0 ? `-${k.maxDD.toFixed(1)} %` : '–'}
+                    </td>
+                  </> : <>
+                    {[0,1,2,3,4].map(j => <td key={j} style={{ padding: '8px 12px', textAlign: 'right', color: '#334155', fontSize: 12, fontFamily: 'monospace', borderBottom: '1px solid #0d1526' }}>–</td>)}
+                  </>}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filtered.length === 0 && (
+          <div style={{ padding: 32, textAlign: 'center', color: '#334155', fontFamily: 'monospace', fontSize: 13 }}>
+            Keine Ergebnisse
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 12, color: '#334155', fontSize: 11, fontFamily: 'monospace' }}>
+        Basis: {stocks.length} Aktien · Kapital €10.000 · Max Risiko €1.000/Trade · Daten: letzte ~60 Wochen · Klick auf Zeile → Detailansicht
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<OverviewApp />);
+</script>
+</body>
+</html>
