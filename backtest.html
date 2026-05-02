@@ -82,14 +82,12 @@ function analyzeStructure(ohlcv) {
 
   // ── Kernlogik: Tiefere Tiefs erkennen und GWS-D bestimmen ──────────────────
   const gwsdCandidates = [];
-  let lastGwsdDefLow = null; // definierendes Tief des letzten echten GWS-Kandidaten
 
   for (let j = 1; j < swingLows.length; j++) {
     const tiefNeu = swingLows[j];
     const tiefAlt = swingLows[j - 1];
 
-    if (tiefNeu.price < tiefAlt.price &&
-        (lastGwsdDefLow === null || tiefNeu.price < lastGwsdDefLow.price)) {
+    if (tiefNeu.price < tiefAlt.price) {
       const hochsDazwischen = swingHighs.filter(
         sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
       );
@@ -102,7 +100,6 @@ function analyzeStructure(ohlcv) {
           tiefAlt:  tiefAlt,
           tiefNeu:  tiefNeu,
         });
-        lastGwsdDefLow = tiefNeu;
       }
     }
   }
@@ -1405,43 +1402,49 @@ function BacktestApp() {
           {/* ── Trade-Liste ── */}
           {trades.length > 0 && (
             <div style={{marginBottom:10}}>
-              <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
-                <div style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px',
-                  gap:0,background:'#0f172a',borderBottom:'1px solid #1e293b',padding:'6px 12px',
-                  fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.04em'}}>
-                  <span>Datum</span>
-                  <span>TF</span>
-                  <span style={{textAlign:'right'}}>Entry €</span>
-                  <span style={{textAlign:'right'}}>Exit €</span>
-                  <span style={{textAlign:'right'}}>Gewinn €</span>
-                  <span style={{textAlign:'right'}}>Rendite</span>
-                </div>
-                {[...trades].reverse().map((t, i) => (
-                  <div key={i} style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px',
-                    gap:0,padding:'5px 12px',borderBottom:'1px solid #0f172a',alignItems:'center',
-                    background: t.isOpen ? '#0a1520' : t.isWin ? '#061206' : '#120606'}}>
-                    <span style={{fontFamily:'monospace',fontSize:11,color:'#94a3b8'}}>{t.entryDate}</span>
-                    <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,
-                      color: t.trigger==='4H' ? '#a78bfa' : t.trigger==='D' ? '#38bdf8' : '#fbbf24'}}>
-                      {t.trigger}
-                    </span>
-                    <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#cbd5e1'}}>
-                      {t.entryPrice.toFixed(2)}
-                    </span>
-                    <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,
-                      color: t.isOpen ? '#fbbf24' : '#cbd5e1'}}>
-                      {t.isOpen ? 'offen ◆' : t.exitPrice.toFixed(2)}
-                    </span>
-                    <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,fontWeight:700,
-                      color: t.pnl >= 0 ? '#4ade80' : '#f87171'}}>
-                      {t.pnl >= 0 ? '+' : ''}{t.pnl.toFixed(0)}
-                    </span>
-                    <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,
-                      color: t.pnlPct >= 0 ? '#4ade80' : '#f87171'}}>
-                      {t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(1)}%
-                    </span>
+              <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflowX:'auto'}}>
+                <div style={{minWidth:460}}>
+                  <div style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px 68px',
+                    gap:0,background:'#0f172a',borderBottom:'1px solid #1e293b',padding:'6px 12px',
+                    fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.04em'}}>
+                    <span>Entry-Datum</span>
+                    <span>TF</span>
+                    <span style={{textAlign:'right'}}>Entry €</span>
+                    <span style={{textAlign:'right'}}>Exit €</span>
+                    <span style={{textAlign:'right'}}>Gewinn €</span>
+                    <span style={{textAlign:'right'}}>Rendite</span>
+                    <span style={{textAlign:'right'}}>Wochen</span>
                   </div>
-                ))}
+                  {[...trades].reverse().map((t, i) => (
+                    <div key={i} style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px 68px',
+                      gap:0,padding:'5px 12px',borderBottom:'1px solid #0f172a',alignItems:'center',
+                      background: t.isOpen ? '#0a1520' : t.isWin ? '#061206' : '#120606'}}>
+                      <span style={{fontFamily:'monospace',fontSize:11,color:'#94a3b8'}}>{t.entryDate}</span>
+                      <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,
+                        color: t.trigger==='4H' ? '#a78bfa' : t.trigger==='D' ? '#38bdf8' : '#fbbf24'}}>
+                        {t.trigger}
+                      </span>
+                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#cbd5e1'}}>
+                        {t.entryPrice.toFixed(2)}
+                      </span>
+                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,
+                        color: t.isOpen ? '#fbbf24' : '#cbd5e1'}}>
+                        {t.isOpen ? 'offen ◆' : t.exitPrice.toFixed(2)}
+                      </span>
+                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,fontWeight:700,
+                        color: t.pnl >= 0 ? '#4ade80' : '#f87171'}}>
+                        {t.pnl >= 0 ? '+' : ''}{t.pnl.toFixed(0)}
+                      </span>
+                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,
+                        color: t.pnlPct >= 0 ? '#4ade80' : '#f87171'}}>
+                        {t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(1)}%
+                      </span>
+                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#475569'}}>
+                        {t.holdingWeeks}W
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
