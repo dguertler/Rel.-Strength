@@ -13,9 +13,6 @@ Score-Formel (identisch zu rs_colab.py):
   Windows: 5T, 10T, 20T, 50T, 6M(126T), 12M(252T)
   score = Summe aller verfügbaren RS_W-Werte
 """
-import subprocess
-subprocess.run(["pip", "install", "yfinance", "pandas", "-q"])
-
 import sys
 import json
 import os
@@ -51,27 +48,33 @@ def download_closes(tickers, benchmark, start=HISTORY_START):
         raw = None
         for attempt in range(3):
             try:
-                raw = yf.download(
+                r = yf.download(
                     chunk, start=start, interval="1d",
                     auto_adjust=True, progress=False,
                     timeout=60
                 )
-                break
+                if not r.empty:
+                    raw = r
+                    break
+                # Leeres Ergebnis → retry
+                wait = 20 * (attempt + 1)
+                print(f"    Versuch {attempt+1}: leer → warte {wait}s", flush=True)
+                time.sleep(wait)
             except Exception as e:
-                wait = 15 * (attempt + 1)
-                print(f"    Fehler Versuch {attempt+1}: {e}  → warte {wait}s")
+                wait = 20 * (attempt + 1)
+                print(f"    Fehler Versuch {attempt+1}: {e}  → warte {wait}s", flush=True)
                 time.sleep(wait)
 
         if raw is None or raw.empty:
-            print(f"    → leer/fehlgeschlagen")
+            print(f"    → nach 3 Versuchen fehlgeschlagen", flush=True)
             n_fail += 1
             continue
 
         if isinstance(raw.columns, pd.MultiIndex):
             closes = raw["Close"]
         else:
-            closes = raw.rename(columns={"Close": chunk[0]})[["Close"]]
-            closes.columns = [chunk[0]]
+            # Einzelner Ticker: Spalten heißen Open/High/Low/Close/Volume
+            closes = raw[["Close"]].rename(columns={"Close": chunk[0]})
 
         # Nur Spalten mit ausreichend Daten behalten
         keeps = [c for c in closes.columns if closes[c].notna().sum() >= MIN_WINDOW]
