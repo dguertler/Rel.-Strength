@@ -25,17 +25,17 @@ import pandas as pd
 CONFIG_FILE   = "tickers_config.json"
 OUT_FILE      = "rs_top20_history.json"
 
-RS_WINDOWS    = {"5T": 5, "10T": 10, "20T": 20, "50T": 50, "6M": 126, "12M": 252}
-MIN_WINDOW    = max(RS_WINDOWS.values())   # 252
-HISTORY_START = "2018-01-01"              # ~7 Jahre – deckt alle RS-Fenster ab
-CHUNK_SIZE    = 50                         # kleine Chunks gegen Rate-Limits
+RS_WINDOWS = {"5T": 5, "10T": 10, "20T": 20, "50T": 50, "6M": 126, "12M": 252}
+MIN_WINDOW = max(RS_WINDOWS.values())   # 252
+PERIOD     = "5y"                        # period= statt start= (identisch zu rs_colab.py)
+CHUNK_SIZE = 50                          # kleine Chunks gegen Rate-Limits
 
 
 # ── Download ──────────────────────────────────────────────────────────────────
 
-def download_closes(tickers, benchmark, start=HISTORY_START):
+def download_closes(tickers, benchmark):
     all_tickers = sorted(set(tickers) | {benchmark})
-    print(f"  {len(all_tickers)} Ticker, Chunks à {CHUNK_SIZE}, ab {start}")
+    print(f"  {len(all_tickers)} Ticker, Chunks à {CHUNK_SIZE}, period={PERIOD}")
     frames = []
     n_ok, n_fail, n_empty = 0, 0, 0
 
@@ -49,7 +49,7 @@ def download_closes(tickers, benchmark, start=HISTORY_START):
         for attempt in range(3):
             try:
                 r = yf.download(
-                    chunk, start=start, interval="1d",
+                    chunk, period=PERIOD, interval="1d",
                     auto_adjust=True, progress=False,
                     timeout=60
                 )
