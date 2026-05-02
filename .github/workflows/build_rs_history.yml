@@ -1,14 +1,7 @@
 name: RS-Historie aufbauen (Kursdaten)
 
 on:
-  # Workflow deaktiviert: yfinance-Downloads schlagen in GitHub Actions fehl
-  # und überschreiben die gültigen Daten mit leeren Arrays.
-  # Stattdessen: build_top20_history.yml (liest Git-Historie, kein Download nötig)
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: 'Nur starten wenn yfinance-Downloads funktionieren (tippe: ja)'
-        required: true
 
 jobs:
   build:
