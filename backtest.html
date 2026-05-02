@@ -305,7 +305,7 @@ function analyze4HStructure(ohlcv4h) {
     return (lastDate - breakoutDate) / (1000 * 60 * 60 * 24) <= 7;
   })();
   return {
-    gws4hHigh, breakout4hIdx, broken4h: gws4hHigh !== null && breakout4hIdx !== null,
+    gws4hHigh, breakout4hIdx, broken4h: gws4hHigh === null || breakout4hIdx !== null,
     prevGws4hHigh, prevBreakout4hIdx,
     recentBreakout,
     swingHighs: swingHighs.slice(-8),
@@ -1133,7 +1133,8 @@ function BacktestApp() {
   // Entry:  erste Woche mit 3 Punkten nach einer Woche mit <3 Punkten
   //         → Kauf zum Open der Folgewoche
   // Stop:   Daily-GWS-Preis bei Entry → bestimmt Positionsgröße (Max 1.000€ Risiko)
-  // Exit:   Weekly-Close der ersten Woche, in der Daily nicht mehr grün (pD === 0)
+  // Exit:   Open des nächsten Handelstags nach dem Tag, an dem pD erstmals 0 wird
+  //         (d.h. der tägliche GWS-Bruch-Check schlägt fehl → Sell am Folge-Open)
   const CAPITAL   = 10000;
   const MAX_RISK  = 1000;  // 10 % von 10.000 €
 
@@ -1212,13 +1213,30 @@ function BacktestApp() {
           };
         }
       } else {
-        // Exit: Daily wird rot
+        // Exit: Daily wird rot – genauen Signaletag innerhalb der Woche scannen
         if (curr.pD === 0) {
-          const exitPrice = curr.week.c;
-          const pnl       = (exitPrice - entry.entryPrice) * entry.shares;
+          // Scan durch Tageskerzen dieser Woche: erster Tag, an dem analyzeStructure.broken = false
+          const wStart = curr.week.d.slice(0, 10);
+          const daysThisWeek = curr.dHistory.filter(d => d.d >= wStart);
+          let sigDay = null;
+          for (const day of daysThisWeek) {
+            const histToDay = curr.dHistory.filter(d => d.d <= day.d);
+            if (!analyzeStructure(histToDay)?.broken) { sigDay = day; break; }
+          }
+
+          // Exit-Preis = Open des nächsten Handelstags nach sigDay
+          let exitPrice = curr.week.c; // Fallback: Wochenschluss
+          let exitDate  = curr.week.d;
+          if (sigDay) {
+            const nextDay = data.ohlcv_d.find(d => d.d > sigDay.d);
+            exitPrice = nextDay ? nextDay.o : sigDay.c;
+            exitDate  = nextDay ? nextDay.d : sigDay.d;
+          }
+
+          const pnl = (exitPrice - entry.entryPrice) * entry.shares;
           result.push({
             ...entry,
-            exitDate:     curr.week.d,
+            exitDate,
             exitPrice,
             pnl,
             pnlPct:       (exitPrice / entry.entryPrice - 1) * 100,
@@ -1249,7 +1267,7 @@ function BacktestApp() {
     }
 
     return result;
-  }, [weekRows]);
+  }, [weekRows, data]);
 
   const kpis = useMemo(() => {
     const closed = trades.filter(t => !t.isOpen);
