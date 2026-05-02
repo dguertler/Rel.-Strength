@@ -7,49 +7,21 @@ import pandas as pd
 import json
 from datetime import datetime, timedelta
 
-# DAX 40 Mitglieder (yfinance Ticker mit .DE Suffix)
-tickers = [
-    "ADS.DE",   # Adidas
-    "AIR.DE",   # Airbus
-    "ALV.DE",   # Allianz
-    "BAS.DE",   # BASF
-    "BAYN.DE",  # Bayer
-    "BEI.DE",   # Beiersdorf
-    "BMW.DE",   # BMW
-    "BNR.DE",   # Brenntag
-    "CBK.DE",   # Commerzbank
-    "CON.DE",   # Continental
-    "1COV.DE",  # Covestro
-    "DTG.DE",   # Daimler Truck
-    "DBK.DE",   # Deutsche Bank
-    "DB1.DE",   # Deutsche Börse
-    "DHL.DE",   # Deutsche Post / DHL
-    "DTE.DE",   # Deutsche Telekom
-    "EOAN.DE",  # E.ON
-    "FRE.DE",   # Fresenius
-    "FME.DE",   # Fresenius Medical Care
-    "HNR1.DE",  # Hannover Re
-    "HEIG.DE",  # Heidelberg Materials
-    "HEN3.DE",  # Henkel Vz
-    "IFX.DE",   # Infineon
-    "MRK.DE",   # Merck KGaA
-    "MBG.DE",   # Mercedes-Benz
-    "MTX.DE",   # MTU Aero Engines
-    "MUV2.DE",  # Munich Re
-    "P911.DE",  # Porsche AG
-    "PAH3.DE",  # Porsche SE
-    "QIA.DE",   # Qiagen
-    "RHM.DE",   # Rheinmetall
-    "RWE.DE",   # RWE
-    "SAP.DE",   # SAP
-    "SRT3.DE",  # Sartorius Vz
-    "SIE.DE",   # Siemens
-    "ENR.DE",   # Siemens Energy
-    "SHL.DE",   # Siemens Healthineers
-    "SY1.DE",   # Symrise
-    "VOW3.DE",  # Volkswagen Vz
-    "VNA.DE",   # Vonovia
-]
+try:
+    with open("tickers_config.json") as _f:
+        tickers = json.load(_f).get("DAX", [])
+    print(f"Ticker aus tickers_config.json geladen: {len(tickers)} DAX-Ticker")
+except FileNotFoundError:
+    tickers = [
+        "ADS.DE", "AIR.DE", "ALV.DE", "BAS.DE", "BAYN.DE", "BEI.DE",
+        "BMW.DE", "BNR.DE", "CBK.DE", "CON.DE", "1COV.DE", "DTG.DE",
+        "DBK.DE", "DB1.DE", "DHL.DE", "DTE.DE", "EOAN.DE", "FRE.DE",
+        "FME.DE", "HNR1.DE", "HEIG.DE", "HEN3.DE", "IFX.DE", "MRK.DE",
+        "MBG.DE", "MTX.DE", "MUV2.DE", "P911.DE", "PAH3.DE", "QIA.DE",
+        "RHM.DE", "RWE.DE", "SAP.DE", "SRT3.DE", "SIE.DE", "ENR.DE",
+        "SHL.DE", "SY1.DE", "VOW3.DE", "VNA.DE",
+    ]
+    print("WARNUNG: tickers_config.json nicht gefunden – Fallback-Liste verwendet")
 tickers = list(set(tickers))
 
 benchmark  = "^GDAXI"  # DAX Performance Index

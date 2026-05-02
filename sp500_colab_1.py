@@ -7,37 +7,38 @@ import json
 import math
 from datetime import datetime, timedelta
 
-# S&P 500 – Teil 1: Financials, Healthcare, Consumer, Energy, Industrials
-# Alle Werte die NICHT schon im QQQ-Dashboard abgedeckt sind.
-tickers = [
-    # Financials
-    "JPM", "BAC", "WFC", "GS",  "MS",   "BLK", "C",   "AXP", "SCHW", "USB",
-    "PNC", "TFC", "COF", "SPGI","ICE",  "MCO", "CME", "CB",  "MMC",  "PGR",
-    "TRV", "AFL", "MET", "PRU", "ALL",  "AIG", "HIG", "BK",  "STT",  "NTRS",
-    "GPN", "FIS", "FI",  "V",   "MA",   "AMP", "SYF", "DFS", "ALLY", "CBOE",
-    "NDAQ","RJF", "WRB", "L",   "CINF", "TROW","AON",
-    # Healthcare
-    "UNH", "LLY", "JNJ", "ABBV","MRK",  "TMO", "ABT", "DHR", "PFE",  "SYK",
-    "BSX", "HCA", "ELV", "CI",  "CVS",  "MCK", "CAH", "CNC", "MOH",  "HUM",
-    "A",   "BDX", "BAX", "EW",  "RMD",  "IQV", "ZBH", "BMY", "HOLX", "VTRS",
-    "HSIC","ALGN","TFX", "COO", "DGX",  "LH",  "BIO",
-    # Consumer Discretionary
-    "HD",  "MCD", "NKE", "TGT", "LOW",  "CMG", "TJX", "AZO", "GM",   "F",
-    "BBY", "DRI", "YUM", "EXPE","POOL", "NVR", "PHM", "DHI", "LEN",  "TOL",
-    "TPR", "RL",  "APTV","MGM", "WYNN", "LVS", "MAR", "HLT", "H",    "RCL",
-    "CCL", "NCLH","CZR",
-    # Consumer Staples
-    "WMT", "PG",  "KO",  "PM",  "MO",   "CL",  "KR",  "GIS", "K",    "SJM",
-    "CPB", "CAG", "TSN", "HRL", "MKC",  "CHD", "CLX", "EL",  "SYY",  "WBA",
-    # Energy
-    "XOM", "CVX", "COP", "SLB", "OXY",  "EOG", "PSX", "MPC", "VLO",  "HAL",
-    "DVN", "BKR", "APA", "HES", "MRO",  "CTRA","EQT", "RRC", "SM",   "OVV",
-    # Industrials
-    "CAT", "GE",  "UNP", "BA",  "RTX",  "LMT", "NOC", "GD",  "MMM",  "DE",
-    "EMR", "ETN", "ITW", "PH",  "CSX",  "NSC", "UPS", "FDX", "ROK",  "CMI",
-    "WM",  "RSG", "FTV", "CARR","OTIS", "JCI", "TT",  "IR",  "ROP",  "SWK",
-    "HII", "HWM", "XYL", "MAS", "AME",
-]
+# S&P 500 – Teil 1: erste Hälfte der config-Liste
+try:
+    with open("tickers_config.json") as _f:
+        _all_spx = json.load(_f).get("SPX", [])
+    _mid = len(_all_spx) // 2
+    tickers = _all_spx[:_mid]
+    print(f"Ticker aus tickers_config.json geladen: {len(tickers)} SPX-Ticker (Teil 1/{len(_all_spx)} gesamt)")
+except FileNotFoundError:
+    tickers = [
+        "JPM", "BAC", "WFC", "GS",  "MS",   "BLK", "C",   "AXP", "SCHW", "USB",
+        "PNC", "TFC", "COF", "SPGI","ICE",  "MCO", "CME", "CB",  "MMC",  "PGR",
+        "TRV", "AFL", "MET", "PRU", "ALL",  "AIG", "HIG", "BK",  "STT",  "NTRS",
+        "GPN", "FIS", "FI",  "V",   "MA",   "AMP", "SYF", "DFS", "ALLY", "CBOE",
+        "NDAQ","RJF", "WRB", "L",   "CINF", "TROW","AON",
+        "UNH", "LLY", "JNJ", "ABBV","MRK",  "TMO", "ABT", "DHR", "PFE",  "SYK",
+        "BSX", "HCA", "ELV", "CI",  "CVS",  "MCK", "CAH", "CNC", "MOH",  "HUM",
+        "A",   "BDX", "BAX", "EW",  "RMD",  "IQV", "ZBH", "BMY", "HOLX", "VTRS",
+        "HSIC","ALGN","TFX", "COO", "DGX",  "LH",  "BIO",
+        "HD",  "MCD", "NKE", "TGT", "LOW",  "CMG", "TJX", "AZO", "GM",   "F",
+        "BBY", "DRI", "YUM", "EXPE","POOL", "NVR", "PHM", "DHI", "LEN",  "TOL",
+        "TPR", "RL",  "APTV","MGM", "WYNN", "LVS", "MAR", "HLT", "H",    "RCL",
+        "CCL", "NCLH","CZR",
+        "WMT", "PG",  "KO",  "PM",  "MO",   "CL",  "KR",  "GIS", "K",    "SJM",
+        "CPB", "CAG", "TSN", "HRL", "MKC",  "CHD", "CLX", "EL",  "SYY",  "WBA",
+        "XOM", "CVX", "COP", "SLB", "OXY",  "EOG", "PSX", "MPC", "VLO",  "HAL",
+        "DVN", "BKR", "APA", "HES", "MRO",  "CTRA","EQT", "RRC", "SM",   "OVV",
+        "CAT", "GE",  "UNP", "BA",  "RTX",  "LMT", "NOC", "GD",  "MMM",  "DE",
+        "EMR", "ETN", "ITW", "PH",  "CSX",  "NSC", "UPS", "FDX", "ROK",  "CMI",
+        "WM",  "RSG", "FTV", "CARR","OTIS", "JCI", "TT",  "IR",  "ROP",  "SWK",
+        "HII", "HWM", "XYL", "MAS", "AME",
+    ]
+    print("WARNUNG: tickers_config.json nicht gefunden – Fallback-Liste verwendet")
 tickers = list(set(tickers))
 
 benchmark   = "^GSPC"
