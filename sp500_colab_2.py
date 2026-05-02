@@ -7,38 +7,37 @@ import json
 import math
 from datetime import datetime, timedelta
 
-# S&P 500 – Teil 2: Tech (non-QQQ), Communication, Utilities, Real Estate, Materials + Ergänzungen
-# Alle Werte die NICHT schon im QQQ-Dashboard abgedeckt sind.
-tickers = [
-    # Technology (nicht im QQQ)
-    "ORCL","CRM", "IBM", "ACN", "FICO","GLW", "HPQ", "HPE", "STX", "WDC",
-    "NTAP","KEYS","TER", "SWKS","QRVO","AKAM","CDW", "GDDY","VRT", "LDOS",
-    "TDY", "TRMB","PAYC","IT",  "JNPR","JKHY","ANET","PTC", "EPAM","DXC",
-    "ZBRA",
-    # Communication Services (nicht im QQQ)
-    "DIS", "CMCSA","T",  "VZ",  "WBD", "FOXA","FOX", "IPG", "OMC", "LYV",
-    "PARA","NWSA",
-    # Utilities
-    "NEE", "DUK", "SO",  "D",   "EXC", "SRE", "PCG", "ED",  "ETR", "FE",
-    "PPL", "CMS", "NI",  "WEC", "DTE", "EIX", "ES",  "AWK", "AES", "CNP",
-    "PNW", "EVRG",
-    # Real Estate
-    "PLD", "AMT", "EQIX","SPG", "O",   "VICI","AVB", "EQR", "MAA", "UDR",
-    "CPT", "ESS", "BXP", "VTR", "IRM", "PSA", "EXR", "DLR", "CCI", "SBAC",
-    "GLPI","KIM", "REG", "FRT", "ARE",
-    # Materials
-    "LIN", "APD", "SHW", "FCX", "NEM", "NUE", "PPG", "DOW", "DD",  "LYB",
-    "CF",  "MOS", "IFF", "EMN", "CE",  "ALB", "FMC", "IP",  "WRK", "PKG",
-    "SON", "SEE", "GWW", "RPM", "STLD","RS",
-    # Weitere Financials
-    "BEN", "AMG", "IVZ", "PFG", "WTW", "PRI", "ERIE","RNR", "ACGL","EG",
-    "BRO", "FAF", "MTB", "CFG", "FITB","HBAN","KEY", "RF",  "ZION",
-    # Weitere Healthcare
-    "ALNY","INCY","EXAS","NTRA","BMRN","SRPT","PODD","CRL", "NVCR",
-    # Weitere Industrials (Transport, Defense, Spezial)
-    "LHX", "SAIC","WAT", "CHRW","EXPD","XPO", "GXO", "JBHT","LSTR","HUBB",
-    "NDSN","GGG", "PWR", "FLR", "J",   "MTZ", "ACM",
-]
+# S&P 500 – Teil 2: zweite Hälfte der config-Liste
+try:
+    with open("tickers_config.json") as _f:
+        _all_spx = json.load(_f).get("SPX", [])
+    _mid = len(_all_spx) // 2
+    tickers = _all_spx[_mid:]
+    print(f"Ticker aus tickers_config.json geladen: {len(tickers)} SPX-Ticker (Teil 2/{len(_all_spx)} gesamt)")
+except FileNotFoundError:
+    tickers = [
+        "ORCL","CRM", "IBM", "ACN", "FICO","GLW", "HPQ", "HPE", "STX", "WDC",
+        "NTAP","KEYS","TER", "SWKS","QRVO","AKAM","CDW", "GDDY","VRT", "LDOS",
+        "TDY", "TRMB","PAYC","IT",  "JNPR","JKHY","ANET","PTC", "EPAM","DXC",
+        "ZBRA",
+        "DIS", "CMCSA","T",  "VZ",  "WBD", "FOXA","FOX", "IPG", "OMC", "LYV",
+        "PARA","NWSA",
+        "NEE", "DUK", "SO",  "D",   "EXC", "SRE", "PCG", "ED",  "ETR", "FE",
+        "PPL", "CMS", "NI",  "WEC", "DTE", "EIX", "ES",  "AWK", "AES", "CNP",
+        "PNW", "EVRG",
+        "PLD", "AMT", "EQIX","SPG", "O",   "VICI","AVB", "EQR", "MAA", "UDR",
+        "CPT", "ESS", "BXP", "VTR", "IRM", "PSA", "EXR", "DLR", "CCI", "SBAC",
+        "GLPI","KIM", "REG", "FRT", "ARE",
+        "LIN", "APD", "SHW", "FCX", "NEM", "NUE", "PPG", "DOW", "DD",  "LYB",
+        "CF",  "MOS", "IFF", "EMN", "CE",  "ALB", "FMC", "IP",  "WRK", "PKG",
+        "SON", "SEE", "GWW", "RPM", "STLD","RS",
+        "BEN", "AMG", "IVZ", "PFG", "WTW", "PRI", "ERIE","RNR", "ACGL","EG",
+        "BRO", "FAF", "MTB", "CFG", "FITB","HBAN","KEY", "RF",  "ZION",
+        "ALNY","INCY","EXAS","NTRA","BMRN","SRPT","PODD","CRL", "NVCR",
+        "LHX", "SAIC","WAT", "CHRW","EXPD","XPO", "GXO", "JBHT","LSTR","HUBB",
+        "NDSN","GGG", "PWR", "FLR", "J",   "MTZ", "ACM",
+    ]
+    print("WARNUNG: tickers_config.json nicht gefunden – Fallback-Liste verwendet")
 tickers = list(set(tickers))
 
 benchmark   = "^GSPC"
