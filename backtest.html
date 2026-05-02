@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RS · Backtest SNDK</title>
+  <title>RS · Backtest</title>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -1079,18 +1079,28 @@ function EquityCurve({ curve }) {
 
 // ── Backtest App ────────────────────────────────────────────────────────────
 function BacktestApp() {
+  const ticker = (new URLSearchParams(window.location.search).get('t') || 'SNDK').toUpperCase();
+  const jsonFile = `backtest_${ticker.toLowerCase().replace(/\./g,'_')}.json`;
+
   const [data,        setData]        = useState(null);
   const [loadError,   setLoadError]   = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [selectedIdx, setSelectedIdx] = useState(null);
+  const [inputVal,    setInputVal]    = useState(ticker);
   const chartRef = useRef(null);
 
   useEffect(() => {
-    fetch('backtest_sndk.json')
+    document.title = `RS · Backtest ${ticker}`;
+    fetch(jsonFile)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d  => { setData(d); setLoading(false); })
       .catch(e => { setLoadError(e.message); setLoading(false); });
-  }, []);
+  }, [jsonFile]);
+
+  const goToTicker = (t) => {
+    const v = t.trim().toUpperCase();
+    if (v) window.location.href = `backtest.html?t=${encodeURIComponent(v)}`;
+  };
 
   // ── Pre-Compute aller Wochen mit historisch korrekt geschnittenen Daten ──
   const weekRows = useMemo(() => {
@@ -1292,20 +1302,39 @@ function BacktestApp() {
   // Neueste zuerst
   const tableRows = [...weekRows].reverse();
 
+  const tickerInput = (
+    <form onSubmit={e => { e.preventDefault(); goToTicker(inputVal); }}
+      style={{display:'flex',gap:4,alignItems:'center'}}>
+      <input
+        value={inputVal}
+        onChange={e => setInputVal(e.target.value.toUpperCase())}
+        placeholder="Ticker…"
+        style={{background:'#1e293b',border:'1px solid #334155',borderRadius:5,
+          color:'#f1f5f9',padding:'4px 8px',fontFamily:'monospace',fontSize:12,width:90}}
+      />
+      <button type="submit"
+        style={{background:'#1e293b',border:'1px solid #475569',borderRadius:5,
+          color:'#94a3b8',padding:'4px 10px',fontFamily:'monospace',fontSize:12,cursor:'pointer'}}>
+        laden
+      </button>
+    </form>
+  );
+
   if (loading) return (
     <div style={{padding:'80px 24px',textAlign:'center',color:'#475569',fontFamily:'monospace'}}>
-      Lade backtest_sndk.json …
+      Lade {jsonFile} …
     </div>
   );
 
   if (loadError) return (
     <div style={{padding:'80px 24px',textAlign:'center',fontFamily:'monospace'}}>
-      <div style={{color:'#f87171',fontSize:15,marginBottom:16}}>Keine Daten gefunden</div>
+      <div style={{color:'#f87171',fontSize:15,marginBottom:16}}>Keine Daten für <b>{ticker}</b></div>
       <div style={{color:'#64748b',fontSize:13,marginBottom:8}}>Bitte zuerst ausführen:</div>
       <code style={{background:'#1e293b',color:'#fbbf24',padding:'8px 18px',borderRadius:6,fontSize:13,display:'inline-block'}}>
-        python3 load_backtest.py
+        BACKTEST_TICKER={ticker} python3 load_backtest.py
       </code>
-      <div style={{color:'#334155',fontSize:11,marginTop:12}}>({loadError})</div>
+      <div style={{color:'#334155',fontSize:11,marginTop:12,marginBottom:20}}>({loadError})</div>
+      {tickerInput}
     </div>
   );
 
@@ -1315,9 +1344,10 @@ function BacktestApp() {
       {/* ── Header ── */}
       <div style={{marginBottom:14,display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
         <div>
-          <span style={{fontSize:20,fontWeight:800,color:'#f1f5f9',fontFamily:'monospace'}}>SNDK</span>
+          <span style={{fontSize:20,fontWeight:800,color:'#f1f5f9',fontFamily:'monospace'}}>{ticker}</span>
           <span style={{fontSize:12,color:'#475569',marginLeft:10,fontFamily:'monospace'}}>Backtest · historische GWS-Punkte</span>
         </div>
+        {tickerInput}
         <div style={{marginLeft:'auto',fontSize:11,color:'#334155',fontFamily:'monospace'}}>
           {weekRows.length} Wochen · Stand {data.generated}
         </div>
@@ -1484,7 +1514,7 @@ function BacktestApp() {
               <div style={{background:'#0f172a',border:'1px solid #1e293b',borderRadius:10,
                 padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
                 <span style={{fontFamily:'monospace',fontSize:14,fontWeight:800,color:'#f1f5f9'}}>
-                  SNDK · KW {sel.kw} / {sel.year}
+                  {ticker} · KW {sel.kw} / {sel.year}
                 </span>
                 <span style={{fontFamily:'monospace',fontSize:11,color:'#64748b'}}>{sel.week.d}</span>
                 <span style={{fontFamily:'monospace',fontSize:12,color:'#cbd5e1',marginLeft:'auto'}}>
