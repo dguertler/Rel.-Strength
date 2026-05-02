@@ -1,0 +1,43 @@
+name: Backtest-Daten laden (NASDAQ 100)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # ~100 Ticker × 2-3 Min = bis zu 5h
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Abhängigkeiten installieren
+        run: pip install yfinance pandas
+
+      - name: Backtest-Daten für alle NASDAQ-100 Ticker laden
+        run: |
+          tickers=$(python3 -c "import json; cfg=json.load(open('tickers_config.json')); print(' '.join(cfg['QQQ']))")
+          total=$(echo $tickers | wc -w)
+          count=0
+          for ticker in $tickers; do
+            count=$((count + 1))
+            echo "=== [$count/$total] $ticker ==="
+            BACKTEST_TICKER=$ticker python load_backtest.py || echo "FEHLER bei $ticker – übersprungen"
+          done
+
+      - name: JSON committen und pushen
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add backtest_*.json
+          git diff --staged --quiet || git commit -m "Backtest-Daten aktualisiert (NASDAQ 100 – $(date '+%Y-%m-%d'))"
+          git pull --rebase origin main
+          git push origin main
