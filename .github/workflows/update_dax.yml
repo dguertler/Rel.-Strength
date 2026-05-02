@@ -44,7 +44,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add rs_dax.json
+          git add rs_dax.json rs_top20_history.json
           git diff --staged --quiet || git commit -m "DAX Daten aktualisiert ($(date -u +'%Y-%m-%d %H:%M UTC'))"
           git pull --rebase origin main
           git push origin main
