@@ -1,4 +1,4 @@
-name: RS-Historie aufbauen (Kursdaten) [DEAKTIVIERT]
+name: RS-Historie aufbauen (Kursdaten)
 
 on:
   # Workflow deaktiviert: yfinance-Downloads schlagen in GitHub Actions fehl
