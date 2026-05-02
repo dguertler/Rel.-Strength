@@ -1,7 +1,14 @@
-name: RS-Historie aufbauen (Kursdaten)
+name: RS-Historie aufbauen (Kursdaten) [DEAKTIVIERT]
 
 on:
+  # Workflow deaktiviert: yfinance-Downloads schlagen in GitHub Actions fehl
+  # und überschreiben die gültigen Daten mit leeren Arrays.
+  # Stattdessen: build_top20_history.yml (liest Git-Historie, kein Download nötig)
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Nur starten wenn yfinance-Downloads funktionieren (tippe: ja)'
+        required: true
 
 jobs:
   build:
@@ -27,6 +34,20 @@ jobs:
 
       - name: RS-Historie berechnen
         run: python build_rs_history.py
+
+      - name: Sicherheitsprüfung: Ergebnis validieren
+        run: |
+          python3 -c "
+          import json, sys
+          with open('rs_top20_history.json') as f:
+              d = json.load(f)
+          total = sum(len(v) for v in d.values())
+          if total == 0:
+              print('FEHLER: rs_top20_history.json ist leer – Commit abgebrochen')
+              sys.exit(1)
+          for k, v in d.items():
+              print(f'{k}: {len(v)} Tage')
+          "
 
       - name: Ergebnis committen und pushen
         run: |
