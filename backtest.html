@@ -41,6 +41,7 @@
   <a href="dax.html"    class="nav-switch">DAX</a>
   <a href="sp500.html"  class="nav-switch">SPX</a>
   <a href="backtest.html" class="nav-switch active">BACKTEST</a>
+  <a href="backtest_overview.html" class="nav-switch">ÜBERSICHT</a>
 </div>
 <div id="root"></div>
 <script type="text/babel">
@@ -308,7 +309,7 @@ function analyze4HStructure(ohlcv4h) {
     swingLows:  swingLows.slice(-8),
   };
 }
-function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, signals = [], tradeMarkers = [] }) {
+function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -464,26 +465,6 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
           </g>;
         })}
 
-        {/* Trade-Marker: Entry ↑ grün / Exit ↓ rot */}
-        {tradeMarkers.map((m, mi) => {
-          const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === (m.weeklyDate ?? m.date).slice(0,10));
-          if (idx < 0) return null;
-          const x = toX(idx);
-          if (m.type === 'entry') {
-            const yTip = Math.min(toY(ohlcvW[idx].l) + 3, PT + cH - 16);
-            return <g key={`tm${mi}`}>
-              <polygon points={`${x-5},${yTip+10} ${x+5},${yTip+10} ${x},${yTip}`} fill="#4ade80" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yTip+10} y2={Math.min(yTip+20, PT+cH)} stroke="#4ade80" strokeWidth="1.5"/>
-            </g>;
-          } else {
-            const yTip = Math.max(toY(ohlcvW[idx].h) - 3, PT + 14);
-            return <g key={`tm${mi}`}>
-              <polygon points={`${x-5},${yTip-10} ${x+5},${yTip-10} ${x},${yTip}`} fill="#f87171" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yTip-10} y2={Math.max(yTip-20, PT)} stroke="#f87171" strokeWidth="1.5"/>
-            </g>;
-          }
-        })}
-
         {/* Signal-Pfeile (Weekly-Chart: alle Timeframes) */}
         {signals.filter(s => s.weekly_bar_date).map((sig, si) => {
           const idx = ohlcvW.findIndex(d => d.d.slice(0,10) === sig.weekly_bar_date.slice(0,10));
@@ -542,7 +523,7 @@ function ChartWeekly({ ohlcvW, structureW, chartId, benchOhlcv, benchLabel, sign
 }
 
 // ── Daily Candlestick Chart ────────────────────────────────────────────────
-function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signals = [], tradeMarkers = [] }) {
+function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 270;
@@ -701,34 +682,6 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
           </g>;
         })}
 
-        {/* Trade-Marker: Entry ↑ grün / Exit ↓ rot */}
-        {tradeMarkers.map((m, mi) => {
-          const target = m.date.slice(0,10);
-          let best = Infinity, idx = -1;
-          ohlcv.forEach((d, i) => { const diff = Math.abs(new Date(d.d.slice(0,10)) - new Date(target)); if (diff < best) { best = diff; idx = i; } });
-          if (idx < 0 || best > 5 * 86400000) return null;
-          const x = toX(idx);
-          if (m.type === 'entry') {
-            const yTip = Math.min(toY(ohlcv[idx].l) + 3, PT + cH - 16);
-            const ySL  = m.stopPrice != null ? toY(m.stopPrice) : null;
-            const x2SL = Math.min(toX(idx + 5), PL + cW - 4);
-            return <g key={`tm${mi}`}>
-              <polygon points={`${x-5},${yTip+10} ${x+5},${yTip+10} ${x},${yTip}`} fill="#4ade80" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yTip+10} y2={Math.min(yTip+20, PT+cH)} stroke="#4ade80" strokeWidth="1.5"/>
-              {ySL != null && ySL > PT && ySL < PT + cH && <>
-                <line x1={x} x2={x2SL} y1={ySL} y2={ySL} stroke="#e2e8f0" strokeWidth="1.2" strokeDasharray="4,3" opacity="0.85"/>
-                <text x={x2SL + 2} y={ySL + 3} fill="#e2e8f0" fontSize="8" fontFamily="monospace" opacity="0.85">SL</text>
-              </>}
-            </g>;
-          } else {
-            const yTip = Math.max(toY(ohlcv[idx].h) - 3, PT + 14);
-            return <g key={`tm${mi}`}>
-              <polygon points={`${x-5},${yTip-10} ${x+5},${yTip-10} ${x},${yTip}`} fill="#f87171" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yTip-10} y2={Math.max(yTip-20, PT)} stroke="#f87171" strokeWidth="1.5"/>
-            </g>;
-          }
-        })}
-
         {/* Signal-Pfeile (Daily-Chart: alle Signale mit daily_bar_date) */}
         {signals.filter(s => s.daily_bar_date).map((sig, si) => {
           const idx = ohlcv.findIndex(d => d.d.slice(0,10) === sig.daily_bar_date.slice(0,10));
@@ -787,7 +740,7 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
 }
 
 // ── 4H Candlestick Chart (60 Kerzen) ─────────────────────────────────────────
-function Chart4H({ ohlcv4h, structure4h, chartId, signals = [], tradeMarkers = [] }) {
+function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null);
   const W = 600, H = 260;
@@ -935,28 +888,6 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [], tradeMarkers = [
           </g>;
         })}
 
-        {/* Trade-Marker: Entry ↑ grün / Exit ↓ rot */}
-        {tradeMarkers.map((m, mi) => {
-          const target = m.date.slice(0,10);
-          let best = Infinity, idx = -1;
-          display4h.forEach((d, i) => { const diff = Math.abs(new Date(d.d.slice(0,10)) - new Date(target)); if (diff < best) { best = diff; idx = i; } });
-          if (idx < 0 || best > 5 * 86400000) return null;
-          const x = toX(idx);
-          if (m.type === 'entry') {
-            const yTip = Math.min(toY(display4h[idx].l) + 3, PT + cH - 16);
-            return <g key={`tm${mi}`}>
-              <polygon points={`${x-5},${yTip+10} ${x+5},${yTip+10} ${x},${yTip}`} fill="#4ade80" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yTip+10} y2={Math.min(yTip+20, PT+cH)} stroke="#4ade80" strokeWidth="1.5"/>
-            </g>;
-          } else {
-            const yTip = Math.max(toY(display4h[idx].h) - 3, PT + 14);
-            return <g key={`tm${mi}`}>
-              <polygon points={`${x-5},${yTip-10} ${x+5},${yTip-10} ${x},${yTip}`} fill="#f87171" opacity="0.95"/>
-              <line x1={x} x2={x} y1={yTip-10} y2={Math.max(yTip-20, PT)} stroke="#f87171" strokeWidth="1.5"/>
-            </g>;
-          }
-        })}
-
         {/* Signal-Pfeile (4H-Chart: alle Signale mit h4_bar_date) */}
         {signals.filter(s => s.h4_bar_date).map((sig, si) => {
           const idx = display4h.findIndex(d => d.d.slice(0,16) === sig.h4_bar_date.slice(0,16));
@@ -1040,44 +971,6 @@ function PktBadge({ pts, has4h }) {
   );
 }
 
-// ── Equity-Kurven-Chart ──────────────────────────────────────────────────────
-function EquityCurve({ curve }) {
-  const W = 600, H = 90;
-  const PL = 52, PR = 12, PT = 8, PB = 22;
-  const cW = W - PL - PR, cH = H - PT - PB;
-  const equities = curve.map(p => p.equity);
-  const minE = Math.min(...equities), maxE = Math.max(...equities);
-  const range = maxE - minE || 1;
-  const toX = i => PL + (i / (curve.length - 1)) * cW;
-  const toY = e => PT + cH - ((e - minE) / range) * cH;
-  const pts = curve.map((p, i) => `${toX(i)},${toY(p.equity)}`).join(' ');
-  const yBase = toY(10000);
-  return (
-    <div style={{marginBottom:12}}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',maxWidth:W,display:'block',
-        background:'#07090f',borderRadius:6,border:'1px solid #1e293b'}}>
-        <line x1={PL} x2={W-PR} y1={yBase} y2={yBase}
-          stroke="#1e293b" strokeWidth="1" strokeDasharray="4,3"/>
-        <text x={PL-4} y={yBase+3} fill="#334155" fontSize="7" textAnchor="end">10k</text>
-        <polyline points={pts} fill="none" stroke="#4ade80" strokeWidth="1.5"/>
-        {curve.map((p, i) => (
-          <circle key={i} cx={toX(i)} cy={toY(p.equity)} r="2.5"
-            fill={p.equity >= 10000 ? '#4ade80' : '#f87171'} opacity="0.9"/>
-        ))}
-        <text x={PL-4} y={PT+6} fill="#475569" fontSize="7" textAnchor="end">
-          {maxE >= 10000 ? '+' : ''}€{(maxE-10000).toFixed(0)}
-        </text>
-        <text x={PL-4} y={H-PB+6} fill="#475569" fontSize="7" textAnchor="end">
-          {minE >= 10000 ? '+' : ''}€{(minE-10000).toFixed(0)}
-        </text>
-        <text x={W/2} y={H-3} fill="#334155" fontSize="7" textAnchor="middle">
-          Equity-Kurve · {curve.length - 1} abgeschl. Trades · Start €10.000
-        </text>
-      </svg>
-    </div>
-  );
-}
-
 // ── Backtest App ────────────────────────────────────────────────────────────
 function BacktestApp() {
   const [data,        setData]        = useState(null);
@@ -1100,14 +993,12 @@ function BacktestApp() {
       const weekEnd = getWeekEnd(week.d);
 
       // Historisch korrekter Schnitt: nur Daten die zu diesem Zeitpunkt sichtbar waren
-      const wSlice   = data.ohlcv_w.slice(Math.max(0, i - 59), i + 1);
-      const dHistory = data.ohlcv_d.filter(d => d.d <= weekEnd);
-      const dSlice   = dHistory.slice(-60);
-      const h4Slice  = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90);
+      const wSlice  = data.ohlcv_w.slice(Math.max(0, i - 59), i + 1);          // letzte 60 Wochen
+      const dSlice  = data.ohlcv_d .filter(d => d.d          <= weekEnd).slice(-60); // letzte 60 Tage
+      const h4Slice = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90); // letzte 90 4H
 
-      const structW     = analyzeWeeklyStructure(wSlice);
-      const structD     = analyzeStructure(dSlice);
-      const structDFull = analyzeStructure(dHistory);
+      const structW  = analyzeWeeklyStructure(wSlice);
+      const structD  = analyzeStructure(dSlice);
       const has4h    = h4Slice.length >= 8;
       const struct4H = has4h ? analyze4HStructure(h4Slice) : null;
 
@@ -1117,172 +1008,11 @@ function BacktestApp() {
       const pts = pW + pD + (has4h ? p4H : 0);
       const { kw, year } = isoWeek(week.d);
 
-      return { week, i, weekEnd, kw, year, wSlice, dSlice, dHistory, h4Slice, structW, structD, structDFull, struct4H, pW, pD, p4H, has4h, pts };
+      return { week, i, weekEnd, kw, year, wSlice, dSlice, h4Slice, structW, structD, struct4H, pW, pD, p4H, has4h, pts };
     });
   }, [data]);
 
   const sel = selectedIdx !== null ? weekRows[selectedIdx] : null;
-
-  // ── Trade-Simulation ──────────────────────────────────────────────────────
-  // Entry:  erste Woche mit 3 Punkten nach einer Woche mit <3 Punkten
-  // Stop:   Daily-GWS-Preis bei Entry → bestimmt Positionsgröße (Max 1.000€ Risiko)
-  // Exit:   Open des nächsten Handelstags nachdem pD erstmals 0 wird
-  const CAPITAL  = 10000;
-  const MAX_RISK = 1000;
-
-  const trades = useMemo(() => {
-    const result = [];
-    let inTrade = false;
-    let entry   = null;
-
-    for (let i = 1; i < weekRows.length; i++) {
-      const prev = weekRows[i - 1];
-      const curr = weekRows[i];
-
-      if (!inTrade) {
-        if (prev.pts < 3 && curr.pts === 3) {
-          const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
-          const newD  = prev.pD === 0 && curr.pD === 1;
-          const newW  = prev.pW === 0 && curr.pW === 1;
-
-          let entryPrice, stopPrice, trigger, entryDate;
-          const dStop = curr.structDFull?.gwsdHigh?.tiefNeu?.price
-                     ?? curr.structDFull?.swingLows?.at(-1)?.price;
-          const wStop = curr.structW?.swingLows?.at(-1)?.price ?? dStop;
-
-          if (new4H) {
-            entryPrice = curr.struct4H?.gws4hHigh?.price;
-            stopPrice  = dStop;
-            trigger    = '4H';
-            const gws4h = curr.struct4H?.gws4hHigh;
-            entryDate  = gws4h
-              ? (curr.h4Slice.find(d => d.d > gws4h.date && d.c > gws4h.price)?.d.slice(0,10) ?? curr.week.d)
-              : curr.week.d;
-          } else if (newD) {
-            entryPrice = curr.structDFull?.breakoutPrice;
-            stopPrice  = dStop;
-            trigger    = 'D';
-            const gwsD = curr.structDFull?.gwsdHigh;
-            entryDate  = gwsD
-              ? (curr.dHistory.find(d => d.d > gwsD.date && d.c > gwsD.price)?.d ?? curr.week.d)
-              : curr.week.d;
-          } else if (newW) {
-            entryPrice = curr.structW?.breakoutPrice;
-            stopPrice  = wStop;
-            trigger    = 'W';
-            const gwsW = curr.structW?.gwswHigh;
-            entryDate  = gwsW
-              ? (curr.dHistory.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d ?? curr.week.d)
-              : curr.week.d;
-          } else {
-            entryPrice = curr.struct4H?.gws4hHigh?.price
-                      ?? curr.structDFull?.breakoutPrice
-                      ?? curr.structW?.breakoutPrice;
-            stopPrice  = dStop ?? wStop;
-            trigger    = '?';
-            entryDate  = curr.week.d;
-          }
-
-          if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
-
-          const riskPerShare = entryPrice - stopPrice;
-          let shares = Math.floor(MAX_RISK / riskPerShare);
-          if (shares * entryPrice > CAPITAL) shares = Math.floor(CAPITAL / entryPrice);
-          if (shares <= 0) continue;
-
-          inTrade = true;
-          entry = {
-            signalDate: curr.week.d, weeklyDate: curr.week.d,
-            entryDate, trigger, entryPrice, stopPrice, shares,
-            invested: shares * entryPrice,
-            riskAmount: shares * riskPerShare,
-            entryWeekIdx: i,
-          };
-        }
-      } else {
-        if (curr.pD === 0) {
-          const wStart = curr.week.d.slice(0, 10);
-          const daysThisWeek = curr.dHistory.filter(d => d.d >= wStart);
-          let sigDay = null;
-          for (const day of daysThisWeek) {
-            const histToDay = curr.dHistory.filter(d => d.d <= day.d);
-            if (!analyzeStructure(histToDay)?.broken) { sigDay = day; break; }
-          }
-          let exitPrice = curr.week.c;
-          let exitDate  = curr.week.d;
-          if (sigDay) {
-            const nextDay = data.ohlcv_d.find(d => d.d > sigDay.d);
-            exitPrice = nextDay ? nextDay.o : sigDay.c;
-            exitDate  = nextDay ? nextDay.d : sigDay.d;
-          }
-          const pnl = (exitPrice - entry.entryPrice) * entry.shares;
-          result.push({
-            ...entry, exitDate, exitPrice, pnl,
-            pnlPct: (exitPrice / entry.entryPrice - 1) * 100,
-            isWin: pnl > 0,
-            holdingWeeks: i - entry.entryWeekIdx,
-            isOpen: false,
-          });
-          inTrade = false;
-          entry   = null;
-        }
-      }
-    }
-
-    if (inTrade && entry) {
-      const last      = weekRows[weekRows.length - 1];
-      const exitPrice = last.week.c;
-      const pnl       = (exitPrice - entry.entryPrice) * entry.shares;
-      result.push({
-        ...entry, exitDate: last.week.d, exitPrice, pnl,
-        pnlPct: (exitPrice / entry.entryPrice - 1) * 100,
-        isWin: pnl > 0,
-        holdingWeeks: weekRows.length - 1 - entry.entryWeekIdx,
-        isOpen: true,
-      });
-    }
-    return result;
-  }, [weekRows, data]);
-
-  const kpis = useMemo(() => {
-    const closed = trades.filter(t => !t.isOpen);
-    if (closed.length === 0) return null;
-    const wins   = closed.filter(t =>  t.isWin);
-    const losses = closed.filter(t => !t.isWin);
-    const grossWin  = wins.reduce((s, t) => s + t.pnl, 0);
-    const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
-
-    let equity = CAPITAL, peak = CAPITAL, maxDD = 0;
-    const equityCurve = [{ equity: CAPITAL }];
-    for (const t of closed) {
-      equity += t.pnl;
-      peak    = Math.max(peak, equity);
-      maxDD   = Math.max(maxDD, (peak - equity) / peak * 100);
-      equityCurve.push({ date: t.exitDate, equity });
-    }
-
-    const gesamtGewinn = trades.reduce((s, t) => s + t.pnl, 0);
-
-    return {
-      nTrades: closed.length,
-      nWins: wins.length,
-      nLosses: losses.length,
-      winrate: wins.length / closed.length * 100,
-      profitFactor: grossLoss > 0 ? grossWin / grossLoss : null,
-      maxDD,
-      avgWin:  wins.length   > 0 ? grossWin   / wins.length   : 0,
-      avgLoss: losses.length > 0 ? grossLoss  / losses.length : 0,
-      gesamtGewinn,
-      equityCurve,
-    };
-  }, [trades]);
-
-  const tradeMarkers = useMemo(() =>
-    trades.flatMap(t => [
-      { date: t.entryDate, weeklyDate: t.weeklyDate, type: 'entry', stopPrice: t.stopPrice },
-      ...(!t.isOpen ? [{ date: t.exitDate, type: 'exit' }] : []),
-    ]),
-  [trades]);
 
   const handleRowClick = (i) => {
     setSelectedIdx(prev => prev === i ? null : i);
@@ -1334,89 +1064,6 @@ function BacktestApp() {
 
         {/* ── Linke Spalte: Tabelle ── */}
         <div className="desktop-left">
-
-          {/* ── KPI-Boxen ── */}
-          {kpis && (
-            <div style={{marginBottom:10}}>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(110px,1fr))',gap:6,marginBottom:8}}>
-                {[
-                  ['Trades',        kpis.nTrades,                                                               '',  '#94a3b8'],
-                  ['Winrate',       kpis.winrate.toFixed(0),                                                    '%', kpis.winrate >= 50 ? '#4ade80' : '#f87171'],
-                  ['Profit Faktor', kpis.profitFactor != null ? kpis.profitFactor.toFixed(2) : '∞',             '',  kpis.profitFactor == null || kpis.profitFactor >= 1 ? '#4ade80' : '#f87171'],
-                  ['Max Drawdown',  kpis.maxDD.toFixed(1),                                                      '%', '#f87171'],
-                  ['Ø Win',         '+€' + kpis.avgWin.toFixed(0),                                             '',  '#4ade80'],
-                  ['Ø Loss',        '−€' + kpis.avgLoss.toFixed(0),                                            '',  '#f87171'],
-                  ['Gesamtgewinn',  (kpis.gesamtGewinn >= 0 ? '+€' : '−€') + Math.abs(kpis.gesamtGewinn).toFixed(0), '', kpis.gesamtGewinn >= 0 ? '#4ade80' : '#f87171'],
-                ].map(([label, val, unit, color]) => (
-                  <div key={label} style={{background:'#0a0f1e',border:'1px solid #1e293b',
-                    borderRadius:8,padding:'8px 10px',fontFamily:'monospace'}}>
-                    <div style={{fontSize:9,color:'#475569',marginBottom:3,letterSpacing:'0.04em'}}>{label}</div>
-                    <div style={{fontSize:17,fontWeight:800,color,lineHeight:1}}>
-                      {val}<span style={{fontSize:10,fontWeight:400}}>{unit}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {kpis.equityCurve.length > 1 && <EquityCurve curve={kpis.equityCurve}/>}
-            </div>
-          )}
-          {!kpis && weekRows.length > 0 && (
-            <div style={{marginBottom:10,fontSize:11,color:'#475569',fontFamily:'monospace',
-              background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:8,padding:'10px 14px'}}>
-              Keine abgeschlossenen Trades im Datenzeitraum
-            </div>
-          )}
-
-          {/* ── Trade-Liste ── */}
-          {trades.length > 0 && (
-            <div style={{marginBottom:10}}>
-              <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflowX:'auto'}}>
-                <div style={{minWidth:460}}>
-                  <div style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px 68px',
-                    gap:0,background:'#0f172a',borderBottom:'1px solid #1e293b',padding:'6px 12px',
-                    fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.04em'}}>
-                    <span>Entry-Datum</span>
-                    <span>TF</span>
-                    <span style={{textAlign:'right'}}>Entry €</span>
-                    <span style={{textAlign:'right'}}>Exit €</span>
-                    <span style={{textAlign:'right'}}>Gewinn €</span>
-                    <span style={{textAlign:'right'}}>Rendite</span>
-                    <span style={{textAlign:'right'}}>Wochen</span>
-                  </div>
-                  {[...trades].reverse().map((t, i) => (
-                    <div key={i} style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px 68px',
-                      gap:0,padding:'5px 12px',borderBottom:'1px solid #0f172a',alignItems:'center',
-                      background: t.isOpen ? '#0a1520' : t.isWin ? '#061206' : '#120606'}}>
-                      <span style={{fontFamily:'monospace',fontSize:11,color:'#94a3b8'}}>{t.entryDate}</span>
-                      <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,
-                        color: t.trigger==='4H' ? '#a78bfa' : t.trigger==='D' ? '#38bdf8' : '#fbbf24'}}>
-                        {t.trigger}
-                      </span>
-                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#cbd5e1'}}>
-                        {t.entryPrice.toFixed(2)}
-                      </span>
-                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,
-                        color: t.isOpen ? '#fbbf24' : '#cbd5e1'}}>
-                        {t.isOpen ? 'offen ◆' : t.exitPrice.toFixed(2)}
-                      </span>
-                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,fontWeight:700,
-                        color: t.pnl >= 0 ? '#4ade80' : '#f87171'}}>
-                        {t.pnl >= 0 ? '+' : ''}{t.pnl.toFixed(0)}
-                      </span>
-                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,
-                        color: t.pnlPct >= 0 ? '#4ade80' : '#f87171'}}>
-                        {t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(1)}%
-                      </span>
-                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#475569'}}>
-                        {t.holdingWeeks}W
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflow:'hidden'}}>
 
             {/* Tabellen-Header */}
@@ -1508,8 +1155,7 @@ function BacktestApp() {
                   <ChartWeekly
                     ohlcvW={sel.wSlice}
                     structureW={sel.structW}
-                    chartId={`bt_w_${sel.i}`}
-                    tradeMarkers={tradeMarkers}/>
+                    chartId={`bt_w_${sel.i}`}/>
                 ) : (
                   <div style={{background:'#07090f',borderRadius:8,border:'1px solid #1e293b',
                     padding:'20px',color:'#334155',fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
@@ -1522,8 +1168,7 @@ function BacktestApp() {
                   <CandleChart
                     ohlcv={sel.dSlice}
                     structure={sel.structD}
-                    chartId={`bt_d_${sel.i}`}
-                    tradeMarkers={tradeMarkers}/>
+                    chartId={`bt_d_${sel.i}`}/>
                 ) : (
                   <div style={{background:'#07090f',borderRadius:8,border:'1px solid #1e293b',
                     padding:'20px',color:'#334155',fontSize:11,fontFamily:'monospace',textAlign:'center'}}>
@@ -1537,8 +1182,7 @@ function BacktestApp() {
                     <Chart4H
                       ohlcv4h={sel.h4Slice}
                       structure4h={sel.struct4H}
-                      chartId={`bt_4h_${sel.i}`}
-                      tradeMarkers={tradeMarkers}/>
+                      chartId={`bt_4h_${sel.i}`}/>
                   </div>
                 ) : (
                   <div className="chart-full-width" style={{background:'#07090f',borderRadius:8,
