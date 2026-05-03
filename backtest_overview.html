@@ -154,7 +154,7 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
     const struct4H    = has4h ? analyze4HStructure(h4Slice) : null;
     const pW  = structW?.broken     ? 1 : 0;
     const pD  = structDFull?.broken ? 1 : 0;
-    const p4H = (has4h && struct4H?.broken4h) ? 1 : 0;
+    const p4H = (has4h && struct4H?.broken) ? 1 : 0;
     const pts = pW + pD + (has4h ? p4H : 0);
     return { week, i, weekEnd, wSlice, dSlice, dHistory, h4Slice, structW, structDFull, struct4H, pW, pD, p4H, has4h, pts };
   });
