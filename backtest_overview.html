@@ -313,98 +313,6 @@ function EquityCurve({ curve }) {
   );
 }
 
-// ── Detail-Panel (klappt in der Tabelle auf) ──────────────────────────────────
-function StockDetailPanel({ stock, onClose }) {
-  const k      = stock.kpis;
-  const trades = stock.trades ?? [];
-  const ot     = stock.openTrade;
-  const gesamtGewinn = k ? k.gesamtGewinn : (ot?.pnl ?? 0);
-  return (
-    <div style={{padding:'14px 10px',background:'#070c18',borderTop:'1px solid #1e293b'}}>
-      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-        <span style={{fontFamily:'monospace',fontWeight:800,fontSize:14,color:'#f1f5f9'}}>{stock.ticker}</span>
-        <a href={`backtest.html?t=${encodeURIComponent(stock.ticker)}`}
-          style={{fontSize:11,color:'#38bdf8',fontFamily:'monospace',textDecoration:'none'}}>
-          → Chartansicht
-        </a>
-        <button onClick={onClose}
-          style={{marginLeft:'auto',background:'transparent',border:'1px solid #334155',borderRadius:4,
-            color:'#64748b',padding:'2px 8px',cursor:'pointer',fontFamily:'monospace',fontSize:11}}>
-          ✕
-        </button>
-      </div>
-
-      {k && (
-        <>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(110px,1fr))',gap:6,marginBottom:8}}>
-            {[
-              ['Trades',        k.nTrades,                                                    '', '#94a3b8'],
-              ['Winrate',       k.winrate.toFixed(0),                                         '%', k.winrate >= 50 ? green : red],
-              ['Profit Faktor', k.profitFactor != null ? k.profitFactor.toFixed(2) : '∞',    '', k.profitFactor == null || k.profitFactor >= 1 ? green : red],
-              ['Rendite',       fmt(k.totalReturn, 1),                                        '%', k.totalReturn >= 0 ? green : red],
-              ['Max Drawdown',  k.maxDD.toFixed(1),                                           '%', red],
-              ['Ø Win',         '+€' + k.avgWin.toFixed(0),                                   '', green],
-              ['Ø Loss',        '−€' + k.avgLoss.toFixed(0),                                  '', red],
-              ['Gesamtgewinn',  (gesamtGewinn >= 0 ? '+€' : '−€') + Math.abs(gesamtGewinn).toFixed(0), '', pnlColor(gesamtGewinn)],
-            ].map(([label, val, unit, color]) => (
-              <div key={label} style={{background:'#060b14',border:'1px solid #1e293b',borderRadius:8,padding:'8px 10px',fontFamily:'monospace'}}>
-                <div style={{fontSize:9,color:'#475569',marginBottom:3}}>{label}</div>
-                <div style={{fontSize:17,fontWeight:800,color,lineHeight:1}}>
-                  {val}<span style={{fontSize:10,fontWeight:400}}>{unit}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          {k.equityCurve?.length > 1 && <EquityCurve curve={k.equityCurve}/>}
-        </>
-      )}
-
-      {trades.length > 0 && (
-        <div style={{background:'#060b14',border:'1px solid #1e293b',borderRadius:8,overflowX:'auto',marginTop:6}}>
-          <div style={{minWidth:440}}>
-            <div style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px 60px',
-              gap:0,background:'#0a0f1e',borderBottom:'1px solid #1e293b',padding:'5px 10px',
-              fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.04em'}}>
-              <span>Entry</span><span>TF</span>
-              <span style={{textAlign:'right'}}>Entry €</span>
-              <span style={{textAlign:'right'}}>Exit €</span>
-              <span style={{textAlign:'right'}}>Gewinn €</span>
-              <span style={{textAlign:'right'}}>Rendite</span>
-              <span style={{textAlign:'right'}}>Wochen</span>
-            </div>
-            {[...trades].reverse().map((t, i) => (
-              <div key={i} style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px 60px',
-                gap:0,padding:'4px 10px',borderBottom:'1px solid #0a0f1e',alignItems:'center',
-                background: t.isOpen ? '#0a1520' : t.isWin ? '#061206' : '#120606'}}>
-                <span style={{fontFamily:'monospace',fontSize:11,color:'#94a3b8'}}>{t.entryDate}</span>
-                <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,
-                  color: t.trigger==='4H'?'#a78bfa':t.trigger==='D'?'#38bdf8':'#fbbf24'}}>
-                  {t.trigger}
-                </span>
-                <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#cbd5e1'}}>
-                  {t.entryPrice.toFixed(2)}
-                </span>
-                <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:t.isOpen?'#fbbf24':'#cbd5e1'}}>
-                  {t.isOpen ? 'offen ◆' : t.exitPrice.toFixed(2)}
-                </span>
-                <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,fontWeight:700,color:t.pnl>=0?green:red}}>
-                  {t.pnl>=0?'+':''}{t.pnl.toFixed(0)}
-                </span>
-                <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:t.pnlPct>=0?green:red}}>
-                  {t.pnlPct>=0?'+':''}{t.pnlPct.toFixed(1)}%
-                </span>
-                <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#475569'}}>
-                  {t.holdingWeeks}W
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Haupt-App ─────────────────────────────────────────────────────────────────
 function OverviewApp() {
   const { useRef } = React;
@@ -417,7 +325,6 @@ function OverviewApp() {
   const [sortKey,       setSortKey]       = useState('totalReturn');
   const [sortAsc,       setSortAsc]       = useState(false);
   const [search,        setSearch]        = useState('');
-  const [selected,      setSelected]      = useState(null);
   const cache = useRef({});
 
   useEffect(() => {
@@ -453,7 +360,6 @@ function OverviewApp() {
 
   useEffect(() => {
     if (!rsMap) return;
-    setSelected(null);
     if (cache.current[filter]) { setStocks(cache.current[filter]); return; }
 
     const sources = filter === 'ALL'
@@ -623,12 +529,11 @@ function OverviewApp() {
               const ot = stock.openTrade;
               const rowBg     = stock.hasOpen ? '#0e0900' : undefined;
               const borderCol = stock.hasOpen ? '#92400e' : 'transparent';
-              const isSelected = selected === stock.ticker;
               return (
                 <React.Fragment key={stock.ticker}>
                   <tr className="data-row"
-                    onClick={() => setSelected(prev => prev === stock.ticker ? null : stock.ticker)}
-                    style={{ borderLeft: `3px solid ${isSelected ? '#3b82f6' : borderCol}`, background: isSelected ? '#0d1a2e' : rowBg }}>
+                    onClick={() => { window.location.href = `backtest.html?t=${encodeURIComponent(stock.ticker)}`; }}
+                    style={{ borderLeft: `3px solid ${borderCol}`, background: rowBg }}>
                     <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#f1f5f9', borderBottom: '1px solid #0d1526' }}>
                       {stock.ticker}
                       {stock.hasOpen && <span style={{ marginLeft: 6, fontSize: 9, background: '#78350f', color: '#fbbf24', borderRadius: 3, padding: '1px 5px', fontWeight: 700 }}>OFFEN</span>}
@@ -670,13 +575,6 @@ function OverviewApp() {
                       {[0,1,2,3,4].map(j => <td key={j} style={{ padding: '8px 12px', textAlign: 'right', color: '#334155', fontSize: 12, fontFamily: 'monospace', borderBottom: '1px solid #0d1526' }}>–</td>)}
                     </>}
                   </tr>
-                  {isSelected && (
-                    <tr>
-                      <td colSpan={7} style={{ padding: 0, borderBottom: '2px solid #1e3a5f' }}>
-                        <StockDetailPanel stock={stock} onClose={() => setSelected(null)}/>
-                      </td>
-                    </tr>
-                  )}
                 </React.Fragment>
               );
             })}
@@ -696,7 +594,7 @@ function OverviewApp() {
       )}
 
       <div style={{ marginTop: 12, color: '#334155', fontSize: 11, fontFamily: 'monospace' }}>
-        Basis: {stocks.length} Aktien · Kapital €10.000 · Max Risiko €1.000/Trade · Daten: letzte 2 Jahre · Klick auf Zeile → Details aufklappen
+        Basis: {stocks.length} Aktien · Kapital €10.000 · Max Risiko €1.000/Trade · Daten: letzte 2 Jahre · Klick auf Zeile → Detailansicht
       </div>
     </div>
   );
