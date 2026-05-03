@@ -305,6 +305,7 @@ function analyze4HStructure(ohlcv4h) {
     gws4hHigh, breakout4hIdx, broken4h: gws4hHigh === null || breakout4hIdx !== null,
     prevGws4hHigh, prevBreakout4hIdx,
     recentBreakout,
+    tiefNeu: lastGws4hDefLow,
     swingHighs: swingHighs.slice(-8),
     swingLows:  swingLows.slice(-8),
   };
@@ -1166,7 +1167,10 @@ function BacktestApp() {
           // Fallback 1: Minimum der letzten 5 Tage vor Entry
           if (recentSwingLow == null && barsBeforeEntry.length > 0)
             recentSwingLow = Math.min(...barsBeforeEntry.slice(-5).map(d => d.l));
-          // Fallback 2: letztes 4H-Swing-Tief vor Entry (±1-Bar, gleiche Logik wie Daily)
+          // Fallback 2: 4H-tiefNeu (definierendes GWS-Strukturtief der 4H-Analyse)
+          if (recentSwingLow == null)
+            recentSwingLow = curr.struct4H?.tiefNeu?.price ?? null;
+          // Fallback 3: letztes 4H-Swing-Tief vor Entry (±1-Bar, gleiche Logik wie Daily)
           if (recentSwingLow == null && curr.h4Slice.length > 0) {
             const h4Before = curr.h4Slice.filter(d => d.d.slice(0,10) < entryDate);
             for (let k = h4Before.length - 2; k >= 1; k--) {
@@ -1178,7 +1182,7 @@ function BacktestApp() {
             if (recentSwingLow == null && h4Before.length > 0)
               recentSwingLow = Math.min(...h4Before.slice(-5).map(d => d.l));
           }
-          // Fallback 3: strukturelles tiefNeu der GWS-Analyse (z.B. Datenbeginn)
+          // Fallback 4: strukturelles tiefNeu der Daily-GWS-Analyse
           if (recentSwingLow == null)
             recentSwingLow = curr.structDFull?.gwsdHigh?.tiefNeu?.price
                           ?? curr.structDFull?.swingLows?.at(-1)?.price
