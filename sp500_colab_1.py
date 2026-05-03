@@ -100,7 +100,7 @@ end_date     = datetime.now()
 end_str      = (end_date + timedelta(days=1)).strftime("%Y-%m-%d")
 start_weekly = end_date - timedelta(days=730)
 start_daily  = end_date - timedelta(days=730)
-start_4h     = end_date - timedelta(days=730)
+start_4h     = end_date - timedelta(days=60)
 
 all_tickers_list = [r["ticker"] for r in all_results]
 

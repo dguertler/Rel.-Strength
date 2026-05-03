@@ -153,8 +153,8 @@ def extract_ohlcv_daily(ticker, raw_data, n_candles=520):
         return []
 
 # ── Schritt 4: 4H OHLCV für ALLE Ticker (ca. 2 Jahre inkl. Extended Hours)
-print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (730 Tage, inkl. Pre-/Post-Market)...")
-start_4h = end_date - timedelta(days=730)
+print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (60 Tage, inkl. Pre-/Post-Market)...")
+start_4h = end_date - timedelta(days=60)
 
 def extract_ohlcv_4h(ticker, n_candles=3000):
     """Lädt 4H-Daten inkl. Extended Hours (Pre-Market 04:00-09:30 ET ≈ London-Session,

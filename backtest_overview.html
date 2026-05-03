@@ -166,10 +166,11 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
     const prev = weekRows[i - 1], curr = weekRows[i];
 
     if (!inTrade) {
-      if (prev.pts < 3 && curr.pts === 3) {
+      const threshold = curr.has4h ? 3 : 2;
+      if (prev.pts < threshold && curr.pts === threshold) {
         const newD  = prev.pD  === 0 && curr.pD  === 1;
         const newW  = prev.pW  === 0 && curr.pW  === 1;
-        const new4H = prev.p4H === 0 && curr.p4H === 1;
+        const new4H = curr.has4h && prev.p4H === 0 && curr.p4H === 1;
         let entryPrice, stopPrice, trigger, entryDate;
 
         if (new4H) {
