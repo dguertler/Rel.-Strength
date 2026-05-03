@@ -67,11 +67,11 @@ all_results.sort(key=lambda x: x["score"], reverse=True)
 top20 = [r["ticker"] for r in all_results[:20]]
 print(f"Top 20: {', '.join(top20)}")
 
-# ── Schritt 2: Weekly OHLCV für ALLE Ticker (letzte 156 Wochen = 3 Jahre)
-print(f"\nSchritt 2: Weekly OHLCV für alle {len(tickers)} Ticker (156 Wochen)...")
+# ── Schritt 2: Weekly OHLCV für ALLE Ticker (letzte 104 Wochen = 2 Jahre)
+print(f"\nSchritt 2: Weekly OHLCV für alle {len(tickers)} Ticker (104 Wochen)...")
 end_date    = datetime.now()
 end_str     = (end_date + timedelta(days=1)).strftime("%Y-%m-%d")
-start_weekly = end_date - timedelta(days=1185)
+start_weekly = end_date - timedelta(days=730)
 
 all_tickers_list = [r["ticker"] for r in all_results]
 raw_weekly = yf.download(
@@ -83,7 +83,7 @@ raw_weekly = yf.download(
     progress=False
 )
 
-def extract_ohlcv_weekly(ticker, raw_data, n_candles=156):
+def extract_ohlcv_weekly(ticker, raw_data, n_candles=104):
     """Extrahiert Weekly OHLCV-Daten für einen Ticker, letzte n_candles Kerzen."""
     try:
         if isinstance(raw_data.columns, pd.MultiIndex):
@@ -111,9 +111,9 @@ def extract_ohlcv_weekly(ticker, raw_data, n_candles=156):
         print(f"  Fehler Weekly OHLCV {ticker}: {e}")
         return []
 
-# ── Schritt 3: Daily OHLCV für ALLE Ticker (letzte 780 Kerzen ≈ 3 Jahre)
-print(f"\nSchritt 3: Daily OHLCV für alle {len(tickers)} Ticker (780 Kerzen)...")
-start_daily = end_date - timedelta(days=1185)
+# ── Schritt 3: Daily OHLCV für ALLE Ticker (letzte 520 Kerzen ≈ 2 Jahre)
+print(f"\nSchritt 3: Daily OHLCV für alle {len(tickers)} Ticker (520 Kerzen)...")
+start_daily = end_date - timedelta(days=730)
 
 raw_daily = yf.download(
     all_tickers_list + [benchmark],
@@ -124,7 +124,7 @@ raw_daily = yf.download(
     progress=False
 )
 
-def extract_ohlcv_daily(ticker, raw_data, n_candles=780):
+def extract_ohlcv_daily(ticker, raw_data, n_candles=520):
     """Extrahiert Daily OHLCV-Daten für einen Ticker, letzte n_candles Kerzen."""
     try:
         if isinstance(raw_data.columns, pd.MultiIndex):
@@ -152,11 +152,11 @@ def extract_ohlcv_daily(ticker, raw_data, n_candles=780):
         print(f"  Fehler Daily OHLCV {ticker}: {e}")
         return []
 
-# ── Schritt 4: 4H OHLCV für ALLE Ticker (letzte 90 Kerzen inkl. Extended Hours)
-print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (90 Kerzen, inkl. Pre-/Post-Market)...")
+# ── Schritt 4: 4H OHLCV für ALLE Ticker (ca. 2 Jahre inkl. Extended Hours)
+print(f"\nSchritt 4: 4H OHLCV für alle {len(tickers)} Ticker (60 Tage, inkl. Pre-/Post-Market)...")
 start_4h = end_date - timedelta(days=60)
 
-def extract_ohlcv_4h(ticker, n_candles=90):
+def extract_ohlcv_4h(ticker, n_candles=3000):
     """Lädt 4H-Daten inkl. Extended Hours (Pre-Market 04:00-09:30 ET ≈ London-Session,
     After-Hours 16:00-20:00 ET) via yfinance (1H → 4H aggregiert), letzte n_candles."""
     try:
