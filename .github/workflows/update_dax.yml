@@ -24,7 +24,7 @@ jobs:
           python-version: '3.11'
 
       - name: Abhängigkeiten installieren
-        run: pip install yfinance pandas
+        run: pip install yfinance pandas lxml
 
       - name: DAX Skript ausführen
         run: python dax_colab.py

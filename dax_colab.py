@@ -7,8 +7,7 @@ import json
 import math
 from datetime import datetime, timedelta
 
-# DAX 40 Mitglieder (yfinance Ticker mit .DE Suffix)
-tickers = [
+_DAX40_FALLBACK = [
     "ADS.DE",   # Adidas
     "AIR.DE",   # Airbus
     "ALV.DE",   # Allianz
@@ -50,7 +49,25 @@ tickers = [
     "VOW3.DE",  # Volkswagen Vz
     "VNA.DE",   # Vonovia
 ]
-tickers = list(set(tickers))
+
+def _fetch_dax40_tickers():
+    try:
+        tables = pd.read_html('https://en.wikipedia.org/wiki/DAX')
+        for t in tables:
+            for col in t.columns:
+                if str(col).lower() in ('ticker', 'symbol'):
+                    ts = t[col].dropna().astype(str).str.strip().tolist()
+                    ts = [x if x.endswith('.DE') else x + '.DE' for x in ts if x and len(x) <= 10]
+                    ts = [x for x in ts if x.endswith('.DE')]
+                    if len(ts) >= 35:
+                        print(f"DAX 40: {len(ts)} Ticker von Wikipedia geladen")
+                        return ts
+        raise ValueError("Keine Ticker-Spalte gefunden")
+    except Exception as e:
+        print(f"⚠️  Wikipedia-Fetch fehlgeschlagen ({e}), nutze Fallback ({len(_DAX40_FALLBACK)} Ticker)")
+        return _DAX40_FALLBACK
+
+tickers = list(set(_fetch_dax40_tickers()))
 
 benchmark = "^GDAXI"  # DAX Performance Index
 rs_windows = {"5T": 5, "10T": 10, "20T": 20, "50T": 50, "6M": 126, "12M": 252}
@@ -270,3 +287,22 @@ print("Top 5:")
 for i, r in enumerate(data[:5]):
     print(f"  {i+1}. {r['ticker']}: Score={r['score']}, Weekly={len(r['ohlcv_w'])} Kerzen, Daily={len(r['ohlcv'])} Kerzen, 4H={len(r['ohlcv_4h'])} Kerzen")
 print("\nDatei gespeichert: rs_dax.json")
+
+# ── Validierung ───────────────────────────────────────────────────────────────
+_loaded   = len(data)
+_expected = len(tickers)
+_missing  = set(tickers) - {r['ticker'] for r in data}
+print(f"\nValidierung: {_loaded}/{_expected} Ticker geladen ({_loaded/_expected*100:.0f}%)")
+if _missing:
+    print(f"  Fehlende Ticker ({len(_missing)}): {', '.join(sorted(_missing))}")
+
+import os as _os
+_sf = _os.environ.get('GITHUB_STEP_SUMMARY')
+if _sf:
+    _pct  = _loaded / _expected * 100 if _expected else 0
+    _icon = '✅' if _pct >= 95 else '⚠️'
+    with open(_sf, 'a') as _f:
+        _f.write(f"### DAX 40\n{_icon} **{_loaded}/{_expected} Ticker geladen ({_pct:.0f}%)**\n")
+        if _missing:
+            _f.write(f"Fehlende Ticker: `{'`, `'.join(sorted(_missing))}`\n")
+        _f.write("\n")
