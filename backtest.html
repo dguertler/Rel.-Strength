@@ -1143,9 +1143,16 @@ function BacktestApp() {
             const g = curr.struct4H?.gws4hHigh;
             entryDate = g ? (curr.h4Slice.find(d => d.d > g.date && d.c > g.price)?.d.slice(0,10) ?? curr.week.d) : curr.week.d;
           } else if (newD) {
-            entryPrice = curr.structDFull?.breakoutPrice; trigger = 'D';
-            const g = curr.structDFull?.gwsdHigh;
-            entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
+            trigger = 'D';
+            if (curr.structD?.gwsdHigh) {
+              entryPrice = curr.structD.breakoutPrice;
+              const g = curr.structD.gwsdHigh;
+              entryDate = g ? (curr.dSlice.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
+            } else {
+              entryPrice = curr.structDFull?.breakoutPrice;
+              const g = curr.structDFull?.gwsdHigh;
+              entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
+            }
           } else if (newW) {
             entryPrice = curr.structW?.breakoutPrice; trigger = 'W';
             const g = curr.structW?.gwswHigh;
