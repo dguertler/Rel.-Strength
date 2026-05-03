@@ -1136,25 +1136,37 @@ function BacktestApp() {
           const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
           const newD  = prev.pD === 0 && curr.pD === 1;
           const newW  = prev.pW === 0 && curr.pW === 1;
-          let entryPrice, stopPrice, trigger, entryDate;
-          const dStop = curr.structDFull?.gwsdHigh?.tiefNeu?.price ?? curr.structDFull?.swingLows?.at(-1)?.price;
-          const wStop = curr.structW?.swingLows?.at(-1)?.price ?? dStop;
+          let entryPrice, trigger, entryDate;
           if (new4H) {
-            entryPrice = curr.struct4H?.gws4hHigh?.price; stopPrice = dStop; trigger = '4H';
+            entryPrice = curr.struct4H?.gws4hHigh?.price; trigger = '4H';
             const g = curr.struct4H?.gws4hHigh;
             entryDate = g ? (curr.h4Slice.find(d => d.d > g.date && d.c > g.price)?.d.slice(0,10) ?? curr.week.d) : curr.week.d;
           } else if (newD) {
-            entryPrice = curr.structDFull?.breakoutPrice; stopPrice = dStop; trigger = 'D';
+            entryPrice = curr.structDFull?.breakoutPrice; trigger = 'D';
             const g = curr.structDFull?.gwsdHigh;
             entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
           } else if (newW) {
-            entryPrice = curr.structW?.breakoutPrice; stopPrice = wStop; trigger = 'W';
+            entryPrice = curr.structW?.breakoutPrice; trigger = 'W';
             const g = curr.structW?.gwswHigh;
             entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
           } else {
             entryPrice = curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
-            stopPrice = dStop ?? wStop; trigger = '?'; entryDate = curr.week.d;
+            trigger = '?'; entryDate = curr.week.d;
           }
+
+          // SL = letztes lokales Tagestief (±1-Bar-Swing) vor Entry-Datum − 1%
+          const barsBeforeEntry = curr.dHistory.filter(d => d.d < entryDate);
+          let recentSwingLow = null;
+          for (let k = barsBeforeEntry.length - 2; k >= 1; k--) {
+            if (barsBeforeEntry[k].l <= barsBeforeEntry[k-1].l && barsBeforeEntry[k].l <= barsBeforeEntry[k+1].l) {
+              recentSwingLow = barsBeforeEntry[k].l;
+              break;
+            }
+          }
+          if (recentSwingLow == null && barsBeforeEntry.length > 0)
+            recentSwingLow = Math.min(...barsBeforeEntry.slice(-5).map(d => d.l));
+          const stopPrice = recentSwingLow != null ? recentSwingLow * 0.99 : null;
+
           if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
           const riskPerShare = entryPrice - stopPrice;
           let shares = Math.floor(MAX_RISK / riskPerShare);
