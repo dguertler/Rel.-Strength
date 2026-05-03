@@ -1161,8 +1161,7 @@ function BacktestApp() {
     for (let i = 1; i < weekRows.length; i++) {
       const prev = weekRows[i - 1], curr = weekRows[i];
       if (!inTrade) {
-        const threshold = curr.has4h ? 3 : 2;
-        if (prev.pts < threshold && curr.pts === threshold) {
+        if (prev.pts < 3 && curr.pts === 3) {
           const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
           const newD  = prev.pD === 0 && curr.pD === 1;
           const newW  = prev.pW === 0 && curr.pW === 1;
