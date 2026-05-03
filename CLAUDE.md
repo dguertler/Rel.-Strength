@@ -25,3 +25,14 @@ Kein Feature-Branching. Der `main`-Branch ist der einzige aktive Branch.
 | `stock_alerts.yml` | Di–Sa 02:00 UTC (03:00 MEZ) | Breakout-Alarm prüfen + E-Mail |
 
 Die Datendateien (`rs_full.json`, `rs_dax.json`, `alerts_state.json`) werden ausschließlich von GitHub Actions geschrieben – nie manuell ändern.
+
+## Änderungsprotokoll
+
+Nach jeder Änderung den Git-Commit-Hash explizit nennen, z. B.:
+
+> Änderung committed: `bd675b4`
+
+So kann der Stand vor einer Änderung jederzeit wiederhergestellt werden:
+```bash
+git checkout <hash-davor> -- <datei>
+```
