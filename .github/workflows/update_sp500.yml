@@ -25,7 +25,7 @@ jobs:
           python-version: '3.11'
 
       - name: Abhängigkeiten installieren
-        run: pip install yfinance pandas
+        run: pip install yfinance pandas lxml
 
       - name: Teil 1 laden (Financials, Healthcare, Consumer, Energy, Industrials)
         run: python sp500_colab_1.py

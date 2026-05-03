@@ -7,9 +7,7 @@ import json
 import math
 from datetime import datetime, timedelta
 
-# S&P 500 – Teil 1: Financials, Healthcare, Consumer, Energy, Industrials
-# Alle Werte die NICHT schon im QQQ-Dashboard abgedeckt sind.
-tickers = [
+_SP500_FALLBACK_1 = [
     # Financials
     "JPM", "BAC", "WFC", "GS",  "MS",   "BLK", "C",   "AXP", "SCHW", "USB",
     "PNC", "TFC", "COF", "SPGI","ICE",  "MCO", "CME", "CB",  "MMC",  "PGR",
@@ -38,7 +36,26 @@ tickers = [
     "WM",  "RSG", "FTV", "CARR","OTIS", "JCI", "TT",  "IR",  "ROP",  "SWK",
     "HII", "HWM", "XYL", "MAS", "AME",
 ]
-tickers = list(set(tickers))
+
+def _fetch_sp500_tickers():
+    try:
+        df = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')[0]
+        ts = df['Symbol'].dropna().astype(str).str.strip().str.replace('.', '-').tolist()
+        ts = sorted([x for x in ts if x and len(x) <= 6])
+        if len(ts) >= 490:
+            print(f"S&P 500: {len(ts)} Ticker von Wikipedia geladen")
+            return ts
+        raise ValueError(f"Nur {len(ts)} Ticker gefunden")
+    except Exception as e:
+        print(f"⚠️  Wikipedia-Fetch fehlgeschlagen ({e}), nutze Fallback")
+        return None
+
+_all_sp500 = _fetch_sp500_tickers()
+if _all_sp500:
+    tickers = _all_sp500[:len(_all_sp500)//2]
+    print(f"Teil 1: {len(tickers)} Ticker (erste Hälfte A–M)")
+else:
+    tickers = list(set(_SP500_FALLBACK_1))
 
 benchmark   = "^GSPC"
 rs_windows  = {"5T": 5, "10T": 10, "20T": 20, "50T": 50, "6M": 126, "12M": 252}
@@ -171,3 +188,22 @@ output = {
 with open(OUTPUT_FILE, "w") as f:
     json.dump(sanitize_nan(output), f)
 print(f"✅ Teil 1 fertig – {len(data)} Ticker → {OUTPUT_FILE}")
+
+# ── Validierung ───────────────────────────────────────────────────────────────
+_loaded   = len(data)
+_expected = len(tickers)
+_missing  = set(tickers) - {r['ticker'] for r in data}
+print(f"\nValidierung: {_loaded}/{_expected} Ticker geladen ({_loaded/_expected*100:.0f}%)")
+if _missing:
+    print(f"  Fehlende Ticker ({len(_missing)}): {', '.join(sorted(_missing))}")
+
+import os as _os
+_sf = _os.environ.get('GITHUB_STEP_SUMMARY')
+if _sf:
+    _pct  = _loaded / _expected * 100 if _expected else 0
+    _icon = '✅' if _pct >= 95 else '⚠️'
+    with open(_sf, 'a') as _f:
+        _f.write(f"### S&P 500 – Teil 1\n{_icon} **{_loaded}/{_expected} Ticker geladen ({_pct:.0f}%)**\n")
+        if _missing:
+            _f.write(f"Fehlende Ticker: `{'`, `'.join(sorted(_missing))}`\n")
+        _f.write("\n")

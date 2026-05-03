@@ -6,7 +6,7 @@ import pandas as pd
 import json
 from datetime import datetime, timedelta
 
-tickers = [
+_NASDAQ100_FALLBACK = [
     "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST",
     "NFLX", "AMD", "ADBE", "QCOM", "PEP", "INTU", "CSCO", "AMAT", "TXN", "HON",
     "AMGN", "SBUX", "BKNG", "ISRG", "GILD", "ADI", "LRCX", "REGN", "MU", "VRTX",
@@ -18,7 +18,24 @@ tickers = [
     "CCEP", "COIN", "APP", "AXON", "WELL", "HUBS", "TTD", "OKTA", "SNDK", "MSTR",
     "PLTR", "RXRX", "GFS", "LULU", "EBAY", "CSGP", "FSLR", "DASH"
 ]
-tickers = list(set(tickers))
+
+def _fetch_nasdaq100_tickers():
+    try:
+        tables = pd.read_html('https://en.wikipedia.org/wiki/Nasdaq-100')
+        for t in tables:
+            for col in t.columns:
+                if str(col).lower() in ('ticker', 'symbol'):
+                    ts = t[col].dropna().astype(str).str.strip().tolist()
+                    ts = [x for x in ts if x and x.isalpha() and 1 < len(x) <= 5]
+                    if len(ts) >= 95:
+                        print(f"NASDAQ-100: {len(ts)} Ticker von Wikipedia geladen")
+                        return ts
+        raise ValueError("Keine Ticker-Spalte gefunden")
+    except Exception as e:
+        print(f"⚠️  Wikipedia-Fetch fehlgeschlagen ({e}), nutze Fallback ({len(_NASDAQ100_FALLBACK)} Ticker)")
+        return _NASDAQ100_FALLBACK
+
+tickers = list(set(_fetch_nasdaq100_tickers()))
 
 benchmark = "QQQ"
 rs_windows = {"5T": 5, "10T": 10, "20T": 20, "50T": 50, "6M": 126, "12M": 252}
@@ -243,3 +260,22 @@ print("Top 5:")
 for i, r in enumerate(data[:5]):
     print(f"  {i+1}. {r['ticker']}: Score={r['score']}, Weekly={len(r['ohlcv_w'])} Kerzen, Daily={len(r['ohlcv'])} Kerzen, 4H={len(r['ohlcv_4h'])} Kerzen")
 print("\nDatei gespeichert: rs_full.json")
+
+# ── Validierung ───────────────────────────────────────────────────────────────
+_loaded   = len(data)
+_expected = len(tickers)
+_missing  = set(tickers) - {r['ticker'] for r in data}
+print(f"\nValidierung: {_loaded}/{_expected} Ticker geladen ({_loaded/_expected*100:.0f}%)")
+if _missing:
+    print(f"  Fehlende Ticker ({len(_missing)}): {', '.join(sorted(_missing))}")
+
+import os as _os
+_sf = _os.environ.get('GITHUB_STEP_SUMMARY')
+if _sf:
+    _pct  = _loaded / _expected * 100 if _expected else 0
+    _icon = '✅' if _pct >= 95 else '⚠️'
+    with open(_sf, 'a') as _f:
+        _f.write(f"### NASDAQ 100\n{_icon} **{_loaded}/{_expected} Ticker geladen ({_pct:.0f}%)**\n")
+        if _missing:
+            _f.write(f"Fehlende Ticker: `{'`, `'.join(sorted(_missing))}`\n")
+        _f.write("\n")
