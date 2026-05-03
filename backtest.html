@@ -1166,7 +1166,19 @@ function BacktestApp() {
           // Fallback 1: Minimum der letzten 5 Tage vor Entry
           if (recentSwingLow == null && barsBeforeEntry.length > 0)
             recentSwingLow = Math.min(...barsBeforeEntry.slice(-5).map(d => d.l));
-          // Fallback 2: strukturelles tiefNeu der GWS-Analyse (z.B. Datenbeginn)
+          // Fallback 2: letztes 4H-Swing-Tief vor Entry (±1-Bar, gleiche Logik wie Daily)
+          if (recentSwingLow == null && curr.h4Slice.length > 0) {
+            const h4Before = curr.h4Slice.filter(d => d.d.slice(0,10) < entryDate);
+            for (let k = h4Before.length - 2; k >= 1; k--) {
+              if (h4Before[k].l <= h4Before[k-1].l && h4Before[k].l <= h4Before[k+1].l) {
+                recentSwingLow = h4Before[k].l;
+                break;
+              }
+            }
+            if (recentSwingLow == null && h4Before.length > 0)
+              recentSwingLow = Math.min(...h4Before.slice(-5).map(d => d.l));
+          }
+          // Fallback 3: strukturelles tiefNeu der GWS-Analyse (z.B. Datenbeginn)
           if (recentSwingLow == null)
             recentSwingLow = curr.structDFull?.gwsdHigh?.tiefNeu?.price
                           ?? curr.structDFull?.swingLows?.at(-1)?.price
