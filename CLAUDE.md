@@ -25,3 +25,18 @@ Kein Feature-Branching. Der `main`-Branch ist der einzige aktive Branch.
 | `stock_alerts.yml` | Di–Sa 02:00 UTC (03:00 MEZ) | Breakout-Alarm prüfen + E-Mail |
 
 Die Datendateien (`rs_full.json`, `rs_dax.json`, `alerts_state.json`) werden ausschließlich von GitHub Actions geschrieben – nie manuell ändern.
+
+## Versions-Backup-System
+
+Vor jedem `Edit` oder `Write` läuft automatisch `.claude/backup_version.sh` (PreToolUse-Hook).
+
+- Sicherungskopien landen in `.versions/` mit dem Format `dateiname_v001_2026-05-03_09-20.ext`
+- Jede Version wird sofort committed und auf GitHub gepusht
+- Pro Datei werden max. 5 Versionen behalten – die älteste wird automatisch gelöscht
+- Dateien >200KB werden übersprungen (Datendateien von GitHub Actions)
+- **Nach jedem Backup immer melden, welche Version gespeichert wurde**
+
+Wiederherstellen einer Version:
+```bash
+cp .versions/dateiname_v003_2026-05-03_10-15.ext dateiname.ext
+```
