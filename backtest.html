@@ -1163,8 +1163,14 @@ function BacktestApp() {
               break;
             }
           }
+          // Fallback 1: Minimum der letzten 5 Tage vor Entry
           if (recentSwingLow == null && barsBeforeEntry.length > 0)
             recentSwingLow = Math.min(...barsBeforeEntry.slice(-5).map(d => d.l));
+          // Fallback 2: strukturelles tiefNeu der GWS-Analyse (z.B. Datenbeginn)
+          if (recentSwingLow == null)
+            recentSwingLow = curr.structDFull?.gwsdHigh?.tiefNeu?.price
+                          ?? curr.structDFull?.swingLows?.at(-1)?.price
+                          ?? null;
           const stopPrice = recentSwingLow != null ? recentSwingLow * 0.99 : null;
 
           if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
