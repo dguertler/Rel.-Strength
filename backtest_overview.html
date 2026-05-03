@@ -154,7 +154,8 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
     const struct4H    = has4h ? analyze4HStructure(h4Slice) : null;
     const pW  = structW?.broken     ? 1 : 0;
     const pD  = structDFull?.broken ? 1 : 0;
-    const pts = pW + pD;
+    const p4H = (has4h && struct4H?.broken) ? 1 : 0;
+    const pts = pW + pD + (has4h ? p4H : 0);
     return { week, i, weekEnd, wSlice, dSlice, dHistory, h4Slice, structW, structDFull, struct4H, pW, pD, p4H, has4h, pts };
   });
 
@@ -165,12 +166,18 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
     const prev = weekRows[i - 1], curr = weekRows[i];
 
     if (!inTrade) {
-      if (prev.pts < 2 && curr.pts === 2) {
-        const newD = prev.pD === 0 && curr.pD === 1;
-        const newW = prev.pW === 0 && curr.pW === 1;
+      if (prev.pts < 3 && curr.pts === 3) {
+        const newD  = prev.pD  === 0 && curr.pD  === 1;
+        const newW  = prev.pW  === 0 && curr.pW  === 1;
+        const new4H = prev.p4H === 0 && curr.p4H === 1;
         let entryPrice, stopPrice, trigger, entryDate;
 
-        if (newD) {
+        if (new4H) {
+          entryPrice = curr.struct4H?.breakoutPrice ?? curr.structDFull?.breakoutPrice;
+          stopPrice  = curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
+          trigger    = '4H';
+          entryDate  = curr.week.d;
+        } else if (newD) {
           entryPrice = curr.structDFull?.breakoutPrice;
           stopPrice  = curr.structW?.breakoutPrice ?? curr.structW?.gwswHigh?.price;
           trigger    = 'D';
@@ -464,7 +471,7 @@ function OverviewApp() {
             const raw_w  = src ? src.ohlcv_w  : s.ohlcv_w;
             const raw_d  = src ? src.ohlcv_d  : s.ohlcv_d;
             const raw_4h = src ? (src.ohlcv_4h || []) : s.ohlcv_4h;
-            const ohlcv_w = raw_w.slice(-156);
+            const ohlcv_w = raw_w.slice(-104);
             const cutDate = ohlcv_w[0]?.d ?? '2000-01-01';
             return { ...s, hasFull: !!src,
               ohlcv_w,
@@ -688,7 +695,7 @@ function OverviewApp() {
       )}
 
       <div style={{ marginTop: 12, color: '#334155', fontSize: 11, fontFamily: 'monospace' }}>
-        Basis: {stocks.length} Aktien · Kapital €10.000 · Max Risiko €1.000/Trade · Daten: letzte 3 Jahre · Klick auf Zeile → Details aufklappen
+        Basis: {stocks.length} Aktien · Kapital €10.000 · Max Risiko €1.000/Trade · Daten: letzte 2 Jahre · Klick auf Zeile → Details aufklappen
       </div>
     </div>
   );

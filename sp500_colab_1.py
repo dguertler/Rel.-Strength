@@ -98,9 +98,9 @@ print(f"Top 5: {', '.join(r['ticker'] for r in all_results[:5])}")
 
 end_date     = datetime.now()
 end_str      = (end_date + timedelta(days=1)).strftime("%Y-%m-%d")
-start_weekly = end_date - timedelta(days=1185)
-start_daily  = end_date - timedelta(days=1185)
-start_4h     = end_date - timedelta(days=60)
+start_weekly = end_date - timedelta(days=730)
+start_daily  = end_date - timedelta(days=730)
+start_4h     = end_date - timedelta(days=730)
 
 all_tickers_list = [r["ticker"] for r in all_results]
 
@@ -138,7 +138,7 @@ def extract_ohlcv(ticker, raw_data, n_candles, date_fmt="%Y-%m-%d"):
     except:
         return []
 
-def extract_ohlcv_4h(ticker, n_candles=90):
+def extract_ohlcv_4h(ticker, n_candles=3000):
     try:
         df = yf.download(ticker, start=start_4h.strftime("%Y-%m-%d"), end=end_str,
                          interval="1h", prepost=True, auto_adjust=True, progress=False)
@@ -174,16 +174,16 @@ data = []
 for r in all_results:
     t = r["ticker"]
     data.append({"ticker": t, "score": r["score"], "windows": r["windows"],
-                 "ohlcv_w":  extract_ohlcv(t, raw_weekly, 156),
-                 "ohlcv":    extract_ohlcv(t, raw_daily, 780),
+                 "ohlcv_w":  extract_ohlcv(t, raw_weekly, 104),
+                 "ohlcv":    extract_ohlcv(t, raw_daily, 520),
                  "ohlcv_4h": ohlcv_4h_map.get(t, [])})
 
 output = {
     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
     "benchmark": "SPX",
     "data": data,
-    "benchmark_ohlcv_w": extract_ohlcv(benchmark, raw_weekly, 156),
-    "benchmark_ohlcv":   extract_ohlcv(benchmark, raw_daily, 780),
+    "benchmark_ohlcv_w": extract_ohlcv(benchmark, raw_weekly, 104),
+    "benchmark_ohlcv":   extract_ohlcv(benchmark, raw_daily, 520),
 }
 with open(OUTPUT_FILE, "w") as f:
     json.dump(sanitize_nan(output), f)
