@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RS · Backtest SNDK</title>
+  <title>RS · Backtest</title>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -1081,16 +1081,44 @@ function EquityCurve({ curve }) {
 // ── Backtest App ────────────────────────────────────────────────────────────
 function BacktestApp() {
   const [data,        setData]        = useState(null);
+  const [ticker,      setTicker]      = useState('SNDK');
   const [loadError,   setLoadError]   = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [selectedIdx, setSelectedIdx] = useState(null);
   const chartRef = useRef(null);
 
   useEffect(() => {
-    fetch('backtest_sndk.json')
+    const params      = new URLSearchParams(window.location.search);
+    const t           = (params.get('t') || 'SNDK').toUpperCase();
+    setTicker(t);
+    document.title    = `RS · Backtest ${t}`;
+    const jsonFile    = `backtest_${t.toLowerCase().replace(/\./g, '_')}.json`;
+
+    fetch(jsonFile)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d  => { setData(d); setLoading(false); })
-      .catch(e => { setLoadError(e.message); setLoading(false); });
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => {
+        // Fallback: Daten aus den RS-JSON-Dateien laden
+        const sources = ['rs_full.json', 'rs_sp500.json', 'rs_dax.json'];
+        Promise.any(
+          sources.map(src =>
+            fetch(src)
+              .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP error')))
+              .then(d => {
+                const entry = (d.data || []).find(e => e.ticker === t);
+                if (!entry) throw new Error('not found');
+                return {
+                  ohlcv_w:   entry.ohlcv_w  || [],
+                  ohlcv_d:   entry.ohlcv    || [],
+                  ohlcv_4h:  entry.ohlcv_4h || [],
+                  generated: d.generated    || '–',
+                };
+              })
+          )
+        )
+        .then(d => { setData(d); setLoading(false); })
+        .catch(e => { setLoadError(e.message); setLoading(false); });
+      });
   }, []);
 
   // ── Pre-Compute aller Wochen mit historisch korrekt geschnittenen Daten ──
@@ -1272,7 +1300,7 @@ function BacktestApp() {
 
   if (loading) return (
     <div style={{padding:'80px 24px',textAlign:'center',color:'#475569',fontFamily:'monospace'}}>
-      Lade backtest_sndk.json …
+      Lade {ticker} …
     </div>
   );
 
@@ -1293,7 +1321,7 @@ function BacktestApp() {
       {/* ── Header ── */}
       <div style={{marginBottom:14,display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
         <div>
-          <span style={{fontSize:20,fontWeight:800,color:'#f1f5f9',fontFamily:'monospace'}}>SNDK</span>
+          <span style={{fontSize:20,fontWeight:800,color:'#f1f5f9',fontFamily:'monospace'}}>{ticker}</span>
           <span style={{fontSize:12,color:'#475569',marginLeft:10,fontFamily:'monospace'}}>Backtest · historische GWS-Punkte</span>
         </div>
         <div style={{marginLeft:'auto',fontSize:11,color:'#334155',fontFamily:'monospace'}}>
@@ -1452,7 +1480,7 @@ function BacktestApp() {
               <div style={{background:'#0f172a',border:'1px solid #1e293b',borderRadius:10,
                 padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
                 <span style={{fontFamily:'monospace',fontSize:14,fontWeight:800,color:'#f1f5f9'}}>
-                  SNDK · KW {sel.kw} / {sel.year}
+                  {ticker} · KW {sel.kw} / {sel.year}
                 </span>
                 <span style={{fontFamily:'monospace',fontSize:11,color:'#64748b'}}>{sel.week.d}</span>
                 <span style={{fontFamily:'monospace',fontSize:12,color:'#cbd5e1',marginLeft:'auto'}}>
