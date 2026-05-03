@@ -26,13 +26,19 @@ Kein Feature-Branching. Der `main`-Branch ist der einzige aktive Branch.
 
 Die Datendateien (`rs_full.json`, `rs_dax.json`, `alerts_state.json`) werden ausschließlich von GitHub Actions geschrieben – nie manuell ändern.
 
-## Änderungsprotokoll
+## Änderungsprotokoll & Git-Vorgehen
 
-Nach jeder Änderung den Git-Commit-Hash explizit nennen, z. B.:
+**Immer direkt auf `main` committen und pushen** – kein Feature-Branching.
+
+Nach jeder Änderung den Git-Commit-Hash im Chat ausgeben, z. B.:
 
 > Änderung committed: `bd675b4`
 
-So kann der Stand vor einer Änderung jederzeit wiederhergestellt werden:
+Der Hash vor einer Änderung dient als Rückfallpunkt – kein separates Backup nötig:
 ```bash
+# Einzelne Datei auf Stand vor der Änderung zurücksetzen
 git checkout <hash-davor> -- <datei>
+
+# Ganzen Commit rückgängig machen
+git revert <hash>
 ```
