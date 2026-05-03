@@ -1,4 +1,4 @@
-name: RS Daten aktualisieren
+name: NASDAQ100 Daten aktualisieren
 
 on:
   schedule:
