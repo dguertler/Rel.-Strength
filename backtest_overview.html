@@ -154,8 +154,7 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
     const struct4H    = has4h ? analyze4HStructure(h4Slice) : null;
     const pW  = structW?.broken     ? 1 : 0;
     const pD  = structDFull?.broken ? 1 : 0;
-    const p4H = has4h ? (struct4H?.broken4h ? 1 : 0) : null;
-    const pts = pW + pD + (has4h ? p4H : 0);
+    const pts = pW + pD;
     return { week, i, weekEnd, wSlice, dSlice, dHistory, h4Slice, structW, structDFull, struct4H, pW, pD, p4H, has4h, pts };
   });
 
@@ -166,19 +165,12 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
     const prev = weekRows[i - 1], curr = weekRows[i];
 
     if (!inTrade) {
-      if (prev.pts < 3 && curr.pts === 3) {
-        const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
-        const newD  = prev.pD === 0 && curr.pD === 1;
-        const newW  = prev.pW === 0 && curr.pW === 1;
+      if (prev.pts < 2 && curr.pts === 2) {
+        const newD = prev.pD === 0 && curr.pD === 1;
+        const newW = prev.pW === 0 && curr.pW === 1;
         let entryPrice, stopPrice, trigger, entryDate;
 
-        if (new4H) {
-          entryPrice = curr.struct4H?.gws4hHigh?.price;
-          stopPrice  = curr.structDFull?.breakoutPrice ?? curr.structDFull?.gwsdHigh?.price;
-          trigger    = '4H';
-          const gws4h = curr.struct4H?.gws4hHigh;
-          entryDate  = gws4h ? curr.h4Slice.find(d => d.d > gws4h.date && d.c > gws4h.price)?.d : curr.week.d;
-        } else if (newD) {
+        if (newD) {
           entryPrice = curr.structDFull?.breakoutPrice;
           stopPrice  = curr.structW?.breakoutPrice ?? curr.structW?.gwswHigh?.price;
           trigger    = 'D';
@@ -191,8 +183,8 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
           const gwsW = curr.structW?.gwswHigh;
           entryDate  = gwsW ? curr.dHistory.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d : curr.week.d;
         } else {
-          entryPrice = curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice;
-          stopPrice  = curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
+          entryPrice = curr.structDFull?.breakoutPrice;
+          stopPrice  = curr.structW?.breakoutPrice;
           trigger    = '?';
           entryDate  = curr.week.d;
         }
