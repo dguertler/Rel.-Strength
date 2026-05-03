@@ -468,16 +468,17 @@ function OverviewApp() {
         fetch(`backtest_${s.ticker.toLowerCase().replace(/\./g, '_')}.json`)
           .then(r => r.ok ? r.json() : null).catch(() => null)
           .then(bt => {
-            if (bt && bt.ohlcv_w && bt.ohlcv_d) {
-              const ohlcv_w = bt.ohlcv_w.slice(-156);
-              const cutDate = ohlcv_w[0]?.d ?? '2000-01-01';
-              return { ...s, hasFull: true,
-                ohlcv_w,
-                ohlcv_d:  bt.ohlcv_d.filter(d => d.d >= cutDate),
-                ohlcv_4h: (bt.ohlcv_4h || []).filter(d => d.d.slice(0,10) >= cutDate),
-              };
-            }
-            return { ...s, hasFull: false };
+            const src = (bt && bt.ohlcv_w && bt.ohlcv_d) ? bt : null;
+            const raw_w  = src ? src.ohlcv_w  : s.ohlcv_w;
+            const raw_d  = src ? src.ohlcv_d  : s.ohlcv_d;
+            const raw_4h = src ? (src.ohlcv_4h || []) : s.ohlcv_4h;
+            const ohlcv_w = raw_w.slice(-156);
+            const cutDate = ohlcv_w[0]?.d ?? '2000-01-01';
+            return { ...s, hasFull: !!src,
+              ohlcv_w,
+              ohlcv_d:  raw_d.filter(d => d.d >= cutDate),
+              ohlcv_4h: raw_4h.filter(d => d.d.slice(0,10) >= cutDate),
+            };
           })
       )
     ).then(results => {

@@ -50,11 +50,11 @@ all_results.sort(key=lambda x: x["score"], reverse=True)
 top20 = [r["ticker"] for r in all_results[:20]]
 print(f"Top 20: {', '.join(top20)}")
 
-# ── Schritt 2: Weekly OHLCV für ALLE Ticker (letzte 60 Wochen = ~15 Monate)
-print(f"\nSchritt 2: Weekly OHLCV für alle {len(tickers)} Ticker (60 Wochen)...")
+# ── Schritt 2: Weekly OHLCV für ALLE Ticker (letzte 156 Wochen = 3 Jahre)
+print(f"\nSchritt 2: Weekly OHLCV für alle {len(tickers)} Ticker (156 Wochen)...")
 end_date    = datetime.now()
 end_str     = (end_date + timedelta(days=1)).strftime("%Y-%m-%d")
-start_weekly = end_date - timedelta(days=450)
+start_weekly = end_date - timedelta(days=1185)
 
 all_tickers_list = [r["ticker"] for r in all_results]
 raw_weekly = yf.download(
@@ -66,7 +66,7 @@ raw_weekly = yf.download(
     progress=False
 )
 
-def extract_ohlcv_weekly(ticker, raw_data, n_candles=60):
+def extract_ohlcv_weekly(ticker, raw_data, n_candles=156):
     """Extrahiert Weekly OHLCV-Daten für einen Ticker, letzte n_candles Kerzen."""
     try:
         if isinstance(raw_data.columns, pd.MultiIndex):
@@ -94,9 +94,9 @@ def extract_ohlcv_weekly(ticker, raw_data, n_candles=60):
         print(f"  Fehler Weekly OHLCV {ticker}: {e}")
         return []
 
-# ── Schritt 3: Daily OHLCV für ALLE Ticker (letzte 60 Kerzen ≈ 3 Monate)
-print(f"\nSchritt 3: Daily OHLCV für alle {len(tickers)} Ticker (60 Kerzen)...")
-start_daily = end_date - timedelta(days=100)
+# ── Schritt 3: Daily OHLCV für ALLE Ticker (letzte 780 Kerzen ≈ 3 Jahre)
+print(f"\nSchritt 3: Daily OHLCV für alle {len(tickers)} Ticker (780 Kerzen)...")
+start_daily = end_date - timedelta(days=1185)
 
 raw_daily = yf.download(
     all_tickers_list + [benchmark],
@@ -107,7 +107,7 @@ raw_daily = yf.download(
     progress=False
 )
 
-def extract_ohlcv_daily(ticker, raw_data, n_candles=60):
+def extract_ohlcv_daily(ticker, raw_data, n_candles=780):
     """Extrahiert Daily OHLCV-Daten für einen Ticker, letzte n_candles Kerzen."""
     try:
         if isinstance(raw_data.columns, pd.MultiIndex):
