@@ -40,7 +40,7 @@ _SP500_FALLBACK_1 = [
 def _fetch_sp500_tickers():
     try:
         df = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')[0]
-        ts = df['Symbol'].dropna().astype(str).str.strip().str.replace('.', '-').tolist()
+        ts = df['Symbol'].dropna().astype(str).str.strip().str.replace('.', '-', regex=False).tolist()
         ts = sorted([x for x in ts if x and len(x) <= 6])
         if len(ts) >= 490:
             print(f"S&P 500: {len(ts)} Ticker von Wikipedia geladen")
