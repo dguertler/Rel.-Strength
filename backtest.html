@@ -135,7 +135,7 @@ function analyzeStructure(ohlcv) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  const broken       = gwsdHigh === null || breakoutIdx !== null;
+  const broken       = gwsdHigh !== null && breakoutIdx !== null;
   const currentClose = closes[n - 1];
 
   const recentBreakout = broken && (n - 1 - breakoutIdx <= 7);
@@ -217,7 +217,7 @@ function analyzeWeeklyStructure(ohlcvW) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  const broken = gwswHigh === null || breakoutIdx !== null;
+  const broken = gwswHigh !== null && breakoutIdx !== null;
 
   const recentBreakout = breakoutIdx !== null && (n - 1 - breakoutIdx <= 1);
 
@@ -302,7 +302,7 @@ function analyze4HStructure(ohlcv4h) {
     return (lastDate - breakoutDate) / (1000 * 60 * 60 * 24) <= 7;
   })();
   return {
-    gws4hHigh, breakout4hIdx, broken4h: gws4hHigh === null || breakout4hIdx !== null,
+    gws4hHigh, breakout4hIdx, broken4h: gws4hHigh !== null && breakout4hIdx !== null,
     prevGws4hHigh, prevBreakout4hIdx,
     recentBreakout,
     tiefNeu: lastGws4hDefLow,
