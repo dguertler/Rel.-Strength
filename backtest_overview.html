@@ -173,27 +173,21 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
         let entryPrice, trigger, entryDate;
 
         if (new4H) {
-          entryPrice = curr.struct4H?.gws4hHigh?.price;
-          trigger    = '4H';
-          const g4h  = curr.struct4H?.gws4hHigh;
-          entryDate  = g4h ? (curr.h4Slice.find(d => d.d > g4h.date && d.c > g4h.price)?.d.slice(0,10) ?? curr.week.d) : curr.week.d;
+          entryPrice = curr.struct4H?.gws4hHigh?.price; trigger = '4H';
+          const g = curr.struct4H?.gws4hHigh;
+          entryDate = g ? (curr.h4Slice.find(d => d.d > g.date && d.c > g.price)?.d.slice(0,10) ?? curr.week.d) : curr.week.d;
         } else if (newD) {
-          entryPrice = curr.structDFull?.breakoutPrice;
-          trigger    = 'D';
-          const gwsD = curr.structDFull?.gwsdHigh;
-          entryDate  = gwsD ? curr.dHistory.find(d => d.d > gwsD.date && d.c > gwsD.price)?.d : curr.week.d;
+          entryPrice = curr.structDFull?.breakoutPrice; trigger = 'D';
+          const g = curr.structDFull?.gwsdHigh;
+          entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
         } else if (newW) {
-          entryPrice = curr.structW?.breakoutPrice;
-          trigger    = 'W';
-          const gwsW = curr.structW?.gwswHigh;
-          entryDate  = gwsW ? curr.dHistory.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d : curr.week.d;
+          entryPrice = curr.structW?.breakoutPrice; trigger = 'W';
+          const g = curr.structW?.gwswHigh;
+          entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
         } else {
           entryPrice = curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
-          trigger    = '?';
-          entryDate  = curr.week.d;
+          trigger = '?'; entryDate = curr.week.d;
         }
-
-        entryDate = entryDate ?? curr.week.d;
         const barsBeforeEntry = curr.dHistory.filter(d => d.d < entryDate);
         let recentSwingLow = null;
         for (let k = barsBeforeEntry.length - 2; k >= 1; k--) {
