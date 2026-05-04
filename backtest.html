@@ -1162,32 +1162,23 @@ function BacktestApp() {
       const prev = weekRows[i - 1], curr = weekRows[i];
       if (!inTrade) {
         if (prev.pts < 3 && curr.pts === 3) {
-          const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
+          const new4H = curr.has4h && prev.p4H === 0 && curr.p4H === 1;
           const newD  = prev.pD === 0 && curr.pD === 1;
           const newW  = prev.pW === 0 && curr.pW === 1;
           let entryPrice, trigger, entryDate;
           if (new4H) {
-            entryPrice = curr.struct4H?.gws4hHigh?.price; trigger = '4H';
-            const g = curr.struct4H?.gws4hHigh;
-            entryDate = g ? (curr.h4Slice.find(d => d.d > g.date && d.c > g.price)?.d.slice(0,10) ?? curr.week.d) : curr.week.d;
+            entryPrice = curr.struct4H?.breakoutPrice ?? curr.structDFull?.breakoutPrice;
+            trigger = '4H'; entryDate = curr.week.d;
           } else if (newD) {
-            trigger = 'D';
-            if (curr.structD?.gwsdHigh) {
-              entryPrice = curr.structD.breakoutPrice;
-              const g = curr.structD.gwsdHigh;
-              entryDate = g ? (curr.dSlice.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
-            } else {
-              entryPrice = curr.structDFull?.breakoutPrice;
-              const g = curr.structDFull?.gwsdHigh;
-              entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
-            }
+            entryPrice = curr.structDFull?.breakoutPrice; trigger = 'D';
+            const g = curr.structDFull?.gwsdHigh;
+            entryDate = g ? curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d : curr.week.d;
           } else if (newW) {
             entryPrice = curr.structW?.breakoutPrice; trigger = 'W';
             const g = curr.structW?.gwswHigh;
-            entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
+            entryDate = g ? curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d : curr.week.d;
           } else {
-            entryPrice = curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
-            trigger = '?'; entryDate = curr.week.d;
+            entryPrice = curr.structDFull?.breakoutPrice; trigger = '?'; entryDate = curr.week.d;
           }
 
           // SL = letztes lokales Tagestief (±1-Bar-Swing) vor Entry-Datum − 1%
