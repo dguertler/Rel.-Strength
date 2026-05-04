@@ -1133,15 +1133,15 @@ function BacktestApp() {
       const dSlice   = dHistory.slice(-60);
       const h4Slice  = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90);
 
-      const structW     = analyzeWeeklyStructure(wSlice);
+      const structW     = analyzeWeeklyStructure(wSlice, dHistory);
       const structD     = analyzeStructure(dSlice);
       const structDFull = analyzeStructure(dHistory);
       const has4h    = h4Slice.length >= 8;
       const struct4H = has4h ? analyze4HStructure(h4Slice) : null;
 
-      const pW  = structW ?.broken    ? 1 : 0;
-      const pD  = structD ?.broken    ? 1 : 0;
-      const p4H = has4h ? (struct4H?.broken4h ? 1 : 0) : null;
+      const pW  = structW?.broken              ? 1 : 0;
+      const pD  = structDFull?.broken          ? 1 : 0;
+      const p4H = (has4h && struct4H?.broken4h) ? 1 : 0;
       const pts = pW + pD + (has4h ? p4H : 0);
       const { kw, year } = isoWeek(week.d);
 
@@ -1157,94 +1157,54 @@ function BacktestApp() {
 
   const trades = useMemo(() => {
     const result = [];
-    let inTrade = false, entry = null;
+    let inTrade = false, entry = null, peakPrice = 0;
     for (let i = 1; i < weekRows.length; i++) {
       const prev = weekRows[i - 1], curr = weekRows[i];
       if (!inTrade) {
-        if (prev.pts < 3 && curr.pts === 3) {
-          const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
+        const threshold = curr.has4h ? 3 : 2;
+        if (prev.pts < threshold && curr.pts === threshold) {
+          const new4H = curr.has4h && prev.p4H === 0 && curr.p4H === 1;
           const newD  = prev.pD === 0 && curr.pD === 1;
           const newW  = prev.pW === 0 && curr.pW === 1;
-          let entryPrice, trigger, entryDate;
+          let entryPrice, stopPrice, trigger, entryDate;
           if (new4H) {
-            entryPrice = curr.struct4H?.gws4hHigh?.price; trigger = '4H';
-            const g = curr.struct4H?.gws4hHigh;
-            entryDate = g ? (curr.h4Slice.find(d => d.d > g.date && d.c > g.price)?.d.slice(0,10) ?? curr.week.d) : curr.week.d;
+            entryPrice = curr.struct4H?.breakoutPrice ?? curr.structDFull?.breakoutPrice;
+            stopPrice  = curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
+            trigger    = '4H'; entryDate = curr.week.d;
           } else if (newD) {
-            trigger = 'D';
-            if (curr.structD?.gwsdHigh) {
-              entryPrice = curr.structD.breakoutPrice;
-              const g = curr.structD.gwsdHigh;
-              entryDate = g ? (curr.dSlice.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
-            } else {
-              entryPrice = curr.structDFull?.breakoutPrice;
-              const g = curr.structDFull?.gwsdHigh;
-              entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
-            }
+            entryPrice = curr.structDFull?.breakoutPrice;
+            stopPrice  = curr.structW?.breakoutPrice ?? curr.structW?.gwswHigh?.price;
+            trigger    = 'D';
+            const gwsD = curr.structDFull?.gwsdHigh;
+            entryDate  = gwsD ? curr.dHistory.find(d => d.d > gwsD.date && d.c > gwsD.price)?.d : curr.week.d;
           } else if (newW) {
-            entryPrice = curr.structW?.breakoutPrice; trigger = 'W';
-            const g = curr.structW?.gwswHigh;
-            entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
+            entryPrice = curr.structW?.breakoutPrice;
+            stopPrice  = curr.structDFull?.breakoutPrice ?? curr.structDFull?.gwsdHigh?.price;
+            trigger    = 'W';
+            const gwsW = curr.structW?.gwswHigh;
+            entryDate  = gwsW ? curr.dHistory.find(d => d.d > gwsW.date && d.c > gwsW.price)?.d : curr.week.d;
           } else {
-            entryPrice = curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
-            trigger = '?'; entryDate = curr.week.d;
+            entryPrice = curr.structDFull?.breakoutPrice;
+            stopPrice  = curr.structW?.breakoutPrice;
+            trigger    = '?'; entryDate = curr.week.d;
           }
-
-          // SL = letztes lokales Tagestief (±1-Bar-Swing) vor Entry-Datum − 1%
-          const barsBeforeEntry = curr.dHistory.filter(d => d.d < entryDate);
-          let recentSwingLow = null;
-          for (let k = barsBeforeEntry.length - 2; k >= 1; k--) {
-            if (barsBeforeEntry[k].l <= barsBeforeEntry[k-1].l && barsBeforeEntry[k].l <= barsBeforeEntry[k+1].l) {
-              recentSwingLow = barsBeforeEntry[k].l;
-              break;
-            }
-          }
-          // Fallback 1: Minimum der letzten 5 Tage vor Entry
-          if (recentSwingLow == null && barsBeforeEntry.length > 0)
-            recentSwingLow = Math.min(...barsBeforeEntry.slice(-5).map(d => d.l));
-          // Fallback 2: 4H-tiefNeu (definierendes GWS-Strukturtief der 4H-Analyse)
-          if (recentSwingLow == null)
-            recentSwingLow = curr.struct4H?.tiefNeu?.price ?? null;
-          // Fallback 3: letztes 4H-Swing-Tief vor Entry (±1-Bar, gleiche Logik wie Daily)
-          if (recentSwingLow == null && curr.h4Slice.length > 0) {
-            const h4Before = curr.h4Slice.filter(d => d.d.slice(0,10) < entryDate);
-            for (let k = h4Before.length - 2; k >= 1; k--) {
-              if (h4Before[k].l <= h4Before[k-1].l && h4Before[k].l <= h4Before[k+1].l) {
-                recentSwingLow = h4Before[k].l;
-                break;
-              }
-            }
-            if (recentSwingLow == null && h4Before.length > 0)
-              recentSwingLow = Math.min(...h4Before.slice(-5).map(d => d.l));
-          }
-          // Fallback 4: strukturelles tiefNeu der Daily-GWS-Analyse
-          if (recentSwingLow == null)
-            recentSwingLow = curr.structDFull?.gwsdHigh?.tiefNeu?.price
-                          ?? curr.structDFull?.swingLows?.at(-1)?.price
-                          ?? null;
-          const stopPrice = recentSwingLow != null ? recentSwingLow * 0.99 : null;
-
           if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
           const riskPerShare = entryPrice - stopPrice;
           let shares = Math.floor(MAX_RISK / riskPerShare);
           if (shares * entryPrice > CAPITAL) shares = Math.floor(CAPITAL / entryPrice);
-          if (shares <= 0) continue;
-          inTrade = true;
-          entry = { signalDate: curr.week.d, weeklyDate: curr.week.d, entryDate, trigger, entryPrice, stopPrice, shares, invested: shares * entryPrice, riskAmount: shares * riskPerShare, entryWeekIdx: i };
+          if (shares < 1) continue;
+          inTrade = true; peakPrice = entryPrice;
+          entry = { trigger, entryDate: entryDate ?? curr.week.d, weeklyDate: curr.week.d, entryPrice, stopPrice, shares, invested: shares * entryPrice, entryWeekIdx: i };
         }
       } else {
+        peakPrice = Math.max(peakPrice, curr.week.h);
         if (curr.pD === 0) {
-          const wStart = curr.week.d.slice(0, 10);
-          const daysThisWeek = curr.dHistory.filter(d => d.d >= wStart);
-          let sigDay = null;
-          for (const day of daysThisWeek) {
-            const histToDay = curr.dHistory.filter(d => d.d <= day.d);
-            if (!analyzeStructure(histToDay)?.broken) { sigDay = day; break; }
-          }
-          let exitPrice = curr.week.c, exitDate = curr.week.d;
-          if (sigDay) { const nextDay = data.ohlcv_d.find(d => d.d > sigDay.d); exitPrice = nextDay ? nextDay.o : sigDay.c; exitDate = nextDay ? nextDay.d : sigDay.d; }
+          const sigDay  = curr.dHistory.find(d => d.d >= curr.weekEnd && d.c < (curr.structDFull?.breakoutPrice ?? 0));
+          const exitDay = curr.dHistory.find(d => sigDay && d.d > sigDay.d);
+          const exitPrice = exitDay?.o ?? curr.week.c;
+          const exitDate  = exitDay?.d  ?? curr.week.d;
           const pnl = (exitPrice - entry.entryPrice) * entry.shares;
-          result.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: i - entry.entryWeekIdx, isOpen: false });
+          result.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: false, holdingWeeks: i - entry.entryWeekIdx });
           inTrade = false; entry = null;
         }
       }
@@ -1252,11 +1212,13 @@ function BacktestApp() {
     if (inTrade && entry) {
       const last = weekRows[weekRows.length - 1];
       const exitPrice = last.week.c;
+      peakPrice = Math.max(peakPrice, last.week.h);
+      const currentDD = peakPrice > exitPrice ? (peakPrice - exitPrice) / peakPrice * 100 : 0;
       const pnl = (exitPrice - entry.entryPrice) * entry.shares;
-      result.push({ ...entry, exitDate: last.week.d, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: weekRows.length - 1 - entry.entryWeekIdx, isOpen: true });
+      result.push({ ...entry, exitDate: last.week.d, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: true, holdingWeeks: weekRows.length - 1 - entry.entryWeekIdx, currentDD, peakPrice });
     }
     return result;
-  }, [weekRows, data]);
+  }, [weekRows]);
 
   const kpis = useMemo(() => {
     const closed = trades.filter(t => !t.isOpen);
