@@ -1133,7 +1133,7 @@ function BacktestApp() {
       const dSlice   = dHistory.slice(-60);
       const h4Slice  = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90);
 
-      const structW     = analyzeWeeklyStructure(wSlice);
+      const structW     = analyzeWeeklyStructure(wSlice, dHistory);
       const structD     = analyzeStructure(dSlice);
       const structDFull = analyzeStructure(dHistory);
       const has4h    = h4Slice.length >= 8;
