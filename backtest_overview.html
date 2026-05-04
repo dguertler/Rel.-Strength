@@ -169,11 +169,11 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
       if (prev.pts < 3 && curr.pts === 3) {
         const newD  = prev.pD  === 0 && curr.pD  === 1;
         const newW  = prev.pW  === 0 && curr.pW  === 1;
-        const new4H = curr.has4h && prev.p4H === 0 && curr.p4H === 1;
+        const new4H = curr.has4h && prev.has4h && prev.p4H === 0 && curr.p4H === 1;
         let entryPrice, trigger, entryDate;
 
         if (new4H) {
-          entryPrice = curr.struct4H?.breakoutPrice ?? curr.structDFull?.breakoutPrice;
+          entryPrice = curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice;
           trigger    = '4H';
           entryDate  = curr.week.d;
         } else if (newD) {
