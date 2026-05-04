@@ -28,7 +28,18 @@ Kein Feature-Branching. Der `main`-Branch ist der einzige aktive Branch.
 
 Die Datendateien (`rs_full.json`, `rs_dax.json`, `alerts_state.json`) werden ausschließlich von GitHub Actions geschrieben – nie manuell ändern.
 
-## Änderungsprotokoll & Git-Vorgehen
+## Arbeitsweise der KI
+
+**Keine automatischen Änderungen ohne explizite Freigabe.**
+
+Bevor Code, Logik oder Konfiguration geändert wird:
+1. Alle geplanten Änderungen vollständig auflisten
+2. Freigabe durch den Nutzer abwarten
+3. Erst dann umsetzen und committen
+
+Dies gilt auch für scheinbar kleine oder offensichtliche Fixes.
+
+
 
 **Immer direkt auf `main` committen und pushen** – kein Feature-Branching.
 
