@@ -721,7 +721,9 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
               </>}
             </g>;
           } else {
-            const yTip = Math.max(toY(ohlcv[idx].h) - 3, PT + 14);
+            const yTip = m.price != null
+              ? toY(m.price)
+              : Math.max(toY(ohlcv[idx].h) - 3, PT + 14);
             return <g key={`tm${mi}`}>
               <polygon points={`${x-5},${yTip-10} ${x+5},${yTip-10} ${x},${yTip}`} fill="#f87171" opacity="0.95"/>
               <line x1={x} x2={x} y1={yTip-10} y2={Math.max(yTip-20, PT)} stroke="#f87171" strokeWidth="1.5"/>
@@ -1076,6 +1078,8 @@ function EquityCurve({ curve }) {
   );
 }
 
+const fmtK = v => Math.round(Math.abs(v)).toLocaleString('de-DE');
+
 // ── Backtest App ────────────────────────────────────────────────────────────
 function BacktestApp() {
   const [data,        setData]        = useState(null);
@@ -1269,7 +1273,7 @@ function BacktestApp() {
   const tradeMarkers = useMemo(() =>
     trades.flatMap(t => [
       { date: t.entryDate, weeklyDate: t.weeklyDate, type: 'entry', stopPrice: t.stopPrice },
-      ...(!t.isOpen ? [{ date: t.exitDate, type: 'exit' }] : []),
+      ...(!t.isOpen ? [{ date: t.exitDate, type: 'exit', price: t.exitPrice }] : []),
     ]),
   [trades]);
 
@@ -1328,9 +1332,9 @@ function BacktestApp() {
               ['Winrate',       kpis.winrate.toFixed(0),                                                    '%', kpis.winrate >= 50 ? '#4ade80' : '#f87171'],
               ['Profit Faktor', kpis.profitFactor != null ? kpis.profitFactor.toFixed(2) : '∞',             '',  kpis.profitFactor == null || kpis.profitFactor >= 1 ? '#4ade80' : '#f87171'],
               ['Max Drawdown',  kpis.maxDD.toFixed(1),                                                      '%', '#f87171'],
-              ['Ø Win',         '+€' + kpis.avgWin.toFixed(0),                                              '',  '#4ade80'],
-              ['Ø Loss',        '−€' + kpis.avgLoss.toFixed(0),                                             '',  '#f87171'],
-              ['Gesamtgewinn',  (kpis.gesamtGewinn >= 0 ? '+€' : '−€') + Math.abs(kpis.gesamtGewinn).toFixed(0), '', kpis.gesamtGewinn >= 0 ? '#4ade80' : '#f87171'],
+              ['Ø Win',         '+' + fmtK(kpis.avgWin) + ' €',                                            '',  '#4ade80'],
+              ['Ø Loss',        '−' + fmtK(kpis.avgLoss) + ' €',                                           '',  '#f87171'],
+              ['Gesamtgewinn',  (kpis.gesamtGewinn >= 0 ? '+' : '−') + fmtK(kpis.gesamtGewinn) + ' €',   '', kpis.gesamtGewinn >= 0 ? '#4ade80' : '#f87171'],
             ].map(([label, val, unit, color]) => (
               <div key={label} style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:8,padding:'8px 10px',fontFamily:'monospace'}}>
                 <div style={{fontSize:9,color:'#475569',marginBottom:3,letterSpacing:'0.04em'}}>{label}</div>
@@ -1367,7 +1371,7 @@ function BacktestApp() {
                     <span style={{textAlign:'right'}}>Entry €</span>
                     <span style={{textAlign:'right'}}>Exit</span>
                     <span style={{textAlign:'right'}}>Exit €</span>
-                    <span style={{textAlign:'right'}}>Gewinn €</span>
+                    <span style={{textAlign:'right'}}>Gewinn</span>
                     <span style={{textAlign:'right'}}>Rendite</span>
                     <span style={{textAlign:'right'}}>W</span>
                   </div>
@@ -1383,10 +1387,10 @@ function BacktestApp() {
                         {t.isOpen ? 'offen ◆' : t.exitDate}
                       </span>
                       <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:t.isOpen?'#fbbf24':'#cbd5e1'}}>
-                        {t.isOpen ? '–' : t.exitPrice.toFixed(2)}
+                        {t.exitPrice.toFixed(2)}
                       </span>
                       <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,fontWeight:700,color:t.pnl>=0?'#4ade80':'#f87171'}}>
-                        {t.pnl>=0?'+':''}{t.pnl.toFixed(0)}
+                        {t.pnl>=0?'+':'−'}{fmtK(t.pnl)} €
                       </span>
                       <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:t.pnlPct>=0?'#4ade80':'#f87171'}}>
                         {t.pnlPct>=0?'+':''}{t.pnlPct.toFixed(1)}%
