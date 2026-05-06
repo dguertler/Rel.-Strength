@@ -1230,6 +1230,10 @@ function App() {
                   {isBOC && <span className="flame-anim" style={{fontSize:11}}>🔥</span>}
                   {item.t}
                   {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}
+                  <a href={`backtest.html?t=${item.t}`} onClick={e=>e.stopPropagation()}
+                    style={{fontSize:8,color:"#475569",marginLeft:3,textDecoration:"none",fontWeight:400,
+                      background:"#1e293b",borderRadius:3,padding:"1px 4px",lineHeight:1.4}}
+                    title="Backtest anzeigen">BT</a>
                 </span>
                 <span style={{fontFamily:"monospace",fontSize:11,fontWeight:600,color:item.s>0?"#4ade80":"#f87171"}}>
                   {item.s>0?"+":""}{Math.round(item.s)}

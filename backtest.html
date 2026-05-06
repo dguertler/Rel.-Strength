@@ -1324,7 +1324,7 @@ function BacktestApp() {
         <div style={{marginBottom:12}}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(110px,1fr))',gap:6,marginBottom:8}}>
             {[
-              ['Trades',        kpis.nTrades,                                                               '',  '#94a3b8'],
+              ['Trades',        trades.length,                                                              '',  '#94a3b8'],
               ['Winrate',       kpis.winrate.toFixed(0),                                                    '%', kpis.winrate >= 50 ? '#4ade80' : '#f87171'],
               ['Profit Faktor', kpis.profitFactor != null ? kpis.profitFactor.toFixed(2) : '∞',             '',  kpis.profitFactor == null || kpis.profitFactor >= 1 ? '#4ade80' : '#f87171'],
               ['Max Drawdown',  kpis.maxDD.toFixed(1),                                                      '%', '#f87171'],
@@ -1359,27 +1359,31 @@ function BacktestApp() {
           {trades.length > 0 && (
             <div style={{marginBottom:10}}>
               <div style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:10,overflowX:'auto'}}>
-                <div style={{minWidth:460}}>
-                  <div style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px 68px',
+                <div style={{minWidth:540}}>
+                  <div style={{display:'grid',gridTemplateColumns:'80px 24px 72px 84px 72px 72px 62px 52px',
                     gap:0,background:'#0f172a',borderBottom:'1px solid #1e293b',padding:'6px 12px',
                     fontSize:10,fontWeight:700,color:'#475569',fontFamily:'monospace',letterSpacing:'0.04em'}}>
-                    <span>Entry-Datum</span><span>TF</span>
+                    <span>Entry</span><span>TF</span>
                     <span style={{textAlign:'right'}}>Entry €</span>
+                    <span style={{textAlign:'right'}}>Exit</span>
                     <span style={{textAlign:'right'}}>Exit €</span>
                     <span style={{textAlign:'right'}}>Gewinn €</span>
                     <span style={{textAlign:'right'}}>Rendite</span>
-                    <span style={{textAlign:'right'}}>Wochen</span>
+                    <span style={{textAlign:'right'}}>W</span>
                   </div>
                   {[...trades].reverse().map((t, i) => (
-                    <div key={i} style={{display:'grid',gridTemplateColumns:'96px 28px 80px 80px 80px 68px 68px',
+                    <div key={i} style={{display:'grid',gridTemplateColumns:'80px 24px 72px 84px 72px 72px 62px 52px',
                       gap:0,padding:'5px 12px',borderBottom:'1px solid #0f172a',alignItems:'center',
                       background: t.isOpen ? '#0a1520' : t.isWin ? '#061206' : '#120606'}}>
                       <span style={{fontFamily:'monospace',fontSize:11,color:'#94a3b8'}}>{t.entryDate}</span>
                       <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,
                         color: t.trigger==='4H'?'#a78bfa':t.trigger==='D'?'#38bdf8':'#fbbf24'}}>{t.trigger}</span>
                       <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:'#cbd5e1'}}>{t.entryPrice.toFixed(2)}</span>
+                      <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:t.isOpen?'#fbbf24':'#94a3b8'}}>
+                        {t.isOpen ? 'offen ◆' : t.exitDate}
+                      </span>
                       <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:t.isOpen?'#fbbf24':'#cbd5e1'}}>
-                        {t.isOpen ? 'offen ◆' : t.exitPrice.toFixed(2)}
+                        {t.isOpen ? '–' : t.exitPrice.toFixed(2)}
                       </span>
                       <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,fontWeight:700,color:t.pnl>=0?'#4ade80':'#f87171'}}>
                         {t.pnl>=0?'+':''}{t.pnl.toFixed(0)}
