@@ -59,7 +59,7 @@ const { useState, useMemo, useRef, useCallback, useEffect } = React;
 //   4. Aktuelles GWS-D = letztes so ermitteltes Hoch
 //   5. Bullish = Close über GWS-D Preis
 function analyzeStructure(ohlcv) {
-  if (!ohlcv || ohlcv.length < 10) return null;
+  if (!ohlcv || ohlcv.length < 30) return null;
   const n      = ohlcv.length;
   const highs  = ohlcv.map(d => d.h);
   const lows   = ohlcv.map(d => d.l);
@@ -83,14 +83,12 @@ function analyzeStructure(ohlcv) {
 
   // ── Kernlogik: Tiefere Tiefs erkennen und GWS-D bestimmen ──────────────────
   const gwsdCandidates = [];
-  let lastGwsdDefLow = null; // definierendes Tief des letzten echten GWS-Kandidaten
 
   for (let j = 1; j < swingLows.length; j++) {
     const tiefNeu = swingLows[j];
     const tiefAlt = swingLows[j - 1];
 
-    if (tiefNeu.price < tiefAlt.price &&
-        (lastGwsdDefLow === null || tiefNeu.price < lastGwsdDefLow.price)) {
+    if (tiefNeu.price < tiefAlt.price) {
       const hochsDazwischen = swingHighs.filter(
         sh => sh.idx > tiefAlt.idx && sh.idx < tiefNeu.idx
       );
@@ -103,7 +101,6 @@ function analyzeStructure(ohlcv) {
           tiefAlt:  tiefAlt,
           tiefNeu:  tiefNeu,
         });
-        lastGwsdDefLow = tiefNeu;
       }
     }
   }
@@ -151,8 +148,8 @@ function analyzeStructure(ohlcv) {
 }
 
 // ── GWS-W Analyse (Weekly, gleiche korrekte Logik) ───────────────────────────
-function analyzeWeeklyStructure(ohlcvW) {
-  if (!ohlcvW || ohlcvW.length < 8) return null;
+function analyzeWeeklyStructure(ohlcvW, ohlcvD = null) {
+  if (!ohlcvW || ohlcvW.length < 15) return null;
   const n      = ohlcvW.length;
   const highs  = ohlcvW.map(d => d.h);
   const lows   = ohlcvW.map(d => d.l);
@@ -217,7 +214,8 @@ function analyzeWeeklyStructure(ohlcvW) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
-  const broken = gwswHigh !== null && breakoutIdx !== null;
+  const hasDailyCandles = Array.isArray(ohlcvD) && ohlcvD.length > 0;
+  const broken = gwswHigh !== null && (hasDailyCandles ? ohlcvD.some(d => d.d > gwswHigh.date && d.c > gwswHigh.price) : breakoutIdx !== null);
 
   const recentBreakout = breakoutIdx !== null && (n - 1 - breakoutIdx <= 1);
 
@@ -302,7 +300,7 @@ function analyze4HStructure(ohlcv4h) {
     return (lastDate - breakoutDate) / (1000 * 60 * 60 * 24) <= 7;
   })();
   return {
-    gws4hHigh, breakout4hIdx, broken4h: gws4hHigh !== null && breakout4hIdx !== null,
+    gws4hHigh, breakout4hIdx, broken4h: gws4hHigh === null || breakout4hIdx !== null,
     prevGws4hHigh, prevBreakout4hIdx,
     recentBreakout,
     tiefNeu: lastGws4hDefLow,
