@@ -1088,7 +1088,8 @@ function BacktestApp() {
 
   useEffect(() => {
     const params      = new URLSearchParams(window.location.search);
-    const t           = (params.get('t') || 'SNDK').toUpperCase();
+    const t           = (params.get('t') || localStorage.getItem('bt_last_ticker') || 'SNDK').toUpperCase();
+    localStorage.setItem('bt_last_ticker', t);
     setTicker(t);
     document.title    = `RS · Backtest ${t}`;
     const jsonFile    = `backtest_${t.toLowerCase().replace(/\./g, '_')}.json`;
@@ -1329,9 +1330,9 @@ function BacktestApp() {
               ['Winrate',       kpis.winrate.toFixed(0),                                                    '%', kpis.winrate >= 50 ? '#4ade80' : '#f87171'],
               ['Profit Faktor', kpis.profitFactor != null ? kpis.profitFactor.toFixed(2) : '∞',             '',  kpis.profitFactor == null || kpis.profitFactor >= 1 ? '#4ade80' : '#f87171'],
               ['Max Drawdown',  kpis.maxDD.toFixed(1),                                                      '%', '#f87171'],
-              ['Ø Win',         '+' + fmtK(kpis.avgWin) + ' €',                                            '',  '#4ade80'],
-              ['Ø Loss',        '−' + fmtK(kpis.avgLoss) + ' €',                                           '',  '#f87171'],
-              ['Gesamtgewinn',  (kpis.gesamtGewinn >= 0 ? '+' : '−') + fmtK(kpis.gesamtGewinn) + ' €',   '', kpis.gesamtGewinn >= 0 ? '#4ade80' : '#f87171'],
+              ['Ø Win',         '+' + fmtK(kpis.avgWin) + '€',                                            '',  '#4ade80'],
+              ['Ø Loss',        '−' + fmtK(kpis.avgLoss) + '€',                                           '',  '#f87171'],
+              ['Gesamtgewinn',  (kpis.gesamtGewinn >= 0 ? '+' : '−') + fmtK(kpis.gesamtGewinn) + '€',   '', kpis.gesamtGewinn >= 0 ? '#4ade80' : '#f87171'],
             ].map(([label, val, unit, color]) => (
               <div key={label} style={{background:'#0a0f1e',border:'1px solid #1e293b',borderRadius:8,padding:'8px 10px',fontFamily:'monospace'}}>
                 <div style={{fontSize:9,color:'#475569',marginBottom:3,letterSpacing:'0.04em'}}>{label}</div>
@@ -1387,7 +1388,7 @@ function BacktestApp() {
                         {t.exitPrice.toFixed(2)}
                       </span>
                       <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,fontWeight:700,color:t.pnl>=0?'#4ade80':'#f87171'}}>
-                        {t.pnl>=0?'+':'−'}{fmtK(t.pnl)} €
+                        {t.pnl>=0?'+':'−'}{fmtK(t.pnl)}€
                       </span>
                       <span style={{textAlign:'right',fontFamily:'monospace',fontSize:11,color:t.pnlPct>=0?'#4ade80':'#f87171'}}>
                         {t.pnlPct>=0?'+':''}{t.pnlPct.toFixed(1)}%
