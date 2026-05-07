@@ -1084,6 +1084,7 @@ function BacktestApp() {
   const [loadError,   setLoadError]   = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [selectedIdx, setSelectedIdx] = useState(null);
+  const [top20Hist,   setTop20Hist]   = useState(null);
   const chartRef = useRef(null);
 
   useEffect(() => {
@@ -1128,7 +1129,18 @@ function BacktestApp() {
         )
         .then(d => { setData(d); setLoading(false); })
         .catch(e => { setLoadError(e.message); setLoading(false); });
-      });
+
+      // top20_history aus dem passenden rs-JSON laden
+      const rsFiles = ['rs_full.json', 'rs_sp500.json', 'rs_dax.json'];
+      Promise.any(rsFiles.map(f =>
+        fetch(f).then(r => r.ok ? r.json() : Promise.reject())
+          .then(d => {
+            if (!(d.data || []).find(e => e.ticker === t)) throw new Error('not found');
+            if (!d.top20_history) throw new Error('no history');
+            return d.top20_history;
+          })
+      )).then(h => setTop20Hist(h)).catch(() => setTop20Hist(null));
+    });
   }, []);
 
   // ── Pre-Compute aller Wochen mit historisch korrekt geschnittenen Daten ──
@@ -1220,6 +1232,10 @@ function BacktestApp() {
           const stopPrice = recentSwingLow != null ? recentSwingLow * 0.99 : null;
 
           if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
+          if (top20Hist) {
+            const dayList = top20Hist[entryDate] ?? top20Hist[curr.week.d.slice(0,10)];
+            if (!dayList || !dayList.includes(ticker)) continue;
+          }
           const riskPerShare = entryPrice - stopPrice;
           let shares = Math.floor(MAX_RISK / riskPerShare);
           if (shares * entryPrice > CAPITAL) shares = Math.floor(CAPITAL / entryPrice);
@@ -1251,7 +1267,7 @@ function BacktestApp() {
       result.push({ ...entry, exitDate: last.week.d, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: weekRows.length - 1 - entry.entryWeekIdx, isOpen: true });
     }
     return result;
-  }, [weekRows, data]);
+  }, [weekRows, data, top20Hist]);
 
   const kpis = useMemo(() => {
     const closed = trades.filter(t => !t.isOpen);

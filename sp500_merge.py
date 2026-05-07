@@ -16,10 +16,11 @@ def sanitize_nan(obj):
     return obj
 
 parts = ["rs_sp500_1.json", "rs_sp500_2.json"]
-all_data         = []
+all_data          = []
 benchmark_ohlcv_w = []
 benchmark_ohlcv   = []
 timestamps        = []
+combined_scores   = {}  # {date: {ticker: score}}
 
 for path in parts:
     if not os.path.exists(path):
@@ -33,15 +34,27 @@ for path in parts:
         benchmark_ohlcv_w = part.get("benchmark_ohlcv_w", [])
     if not benchmark_ohlcv:
         benchmark_ohlcv   = part.get("benchmark_ohlcv", [])
+    for date, scores in part.get("daily_scores_by_date", {}).items():
+        if date not in combined_scores:
+            combined_scores[date] = {}
+        for ticker, score in scores:
+            combined_scores[date][ticker] = score
 
 all_data.sort(key=lambda x: x.get("score", 0), reverse=True)
 top20 = [d["ticker"] for d in all_data[:20]]
 
+top20_history = {}
+for date in sorted(combined_scores):
+    ranked = sorted(combined_scores[date].items(), key=lambda x: x[1], reverse=True)
+    top20_history[date] = [t for t, _ in ranked[:20]]
+print(f"   top20_history: {len(top20_history)} Tage")
+
 output = {
-    "timestamp":        max(timestamps) if timestamps else "–",
-    "benchmark":        "SPX",
-    "top20":            top20,
-    "data":             all_data,
+    "timestamp":         max(timestamps) if timestamps else "–",
+    "benchmark":         "SPX",
+    "top20":             top20,
+    "top20_history":     top20_history,
+    "data":              all_data,
     "benchmark_ohlcv_w": benchmark_ohlcv_w,
     "benchmark_ohlcv":   benchmark_ohlcv,
 }

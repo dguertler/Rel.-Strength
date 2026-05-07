@@ -245,8 +245,31 @@ for i, ticker in enumerate(all_tickers_list):
     ohlcv_4h_map[ticker] = data_4h
     print(f"{len(data_4h)} Kerzen")
 
-# ── Schritt 5: JSON zusammenbauen ─────────────────────────────────────────
-print("\nSchritt 5: JSON zusammenbauen...")
+# ── Schritt 5: Historisches tägliches Top-20-Ranking ─────────────────────────
+print("\nSchritt 5: Historisches tägliches Top-20-Ranking...")
+try:
+    d_close = raw_daily["Close"] if isinstance(raw_daily.columns, pd.MultiIndex) else raw_daily[["Close"]]
+    bench_d = d_close[benchmark].dropna()
+    rs_frames = []
+    for label, days in rs_windows.items():
+        ret   = d_close.pct_change(days) * 100
+        b_ret = bench_d.pct_change(days) * 100
+        rs_frames.append(ret.sub(b_ret, axis=0))
+    rs_total = pd.concat(rs_frames).groupby(level=0).sum()
+    avail    = [t for t in all_tickers_list if t in rs_total.columns]
+    rs_sub   = rs_total[avail]
+    top20_history = {}
+    for date, row in rs_sub.iterrows():
+        valid = row.dropna()
+        if len(valid) >= 20:
+            top20_history[date.strftime("%Y-%m-%d")] = valid.sort_values(ascending=False).head(20).index.tolist()
+    print(f"  {len(top20_history)} Tage berechnet")
+except Exception as e:
+    top20_history = {}
+    print(f"  ⚠️ Fehler: {e}")
+
+# ── Schritt 6: JSON zusammenbauen ─────────────────────────────────────────
+print("\nSchritt 6: JSON zusammenbauen...")
 data = []
 for r in all_results:
     ticker  = r["ticker"]
@@ -268,10 +291,11 @@ benchmark_ohlcv_d = extract_ohlcv_daily(benchmark, raw_daily)
 print(f"Benchmark {benchmark}: Weekly={len(benchmark_ohlcv_w)} Kerzen, Daily={len(benchmark_ohlcv_d)} Kerzen")
 
 output = {
-    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    "benchmark": "DAX",
-    "top20": top20,
-    "data": data,
+    "timestamp":     datetime.now().strftime("%Y-%m-%d %H:%M"),
+    "benchmark":     "DAX",
+    "top20":         top20,
+    "top20_history": top20_history,
+    "data":          data,
     "benchmark_ohlcv_w": benchmark_ohlcv_w,
     "benchmark_ohlcv":   benchmark_ohlcv_d,
 }

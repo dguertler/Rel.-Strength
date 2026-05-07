@@ -169,6 +169,29 @@ for i, ticker in enumerate(all_tickers_list):
     ohlcv_4h_map[ticker] = extract_ohlcv_4h(ticker)
     print(f"{len(ohlcv_4h_map[ticker])} Kerzen")
 
+print("\nHistorisches tägliches Ranking (Teil 1)...")
+try:
+    d_close = raw_daily["Close"] if isinstance(raw_daily.columns, pd.MultiIndex) else raw_daily[["Close"]]
+    bench_d = d_close[benchmark].dropna()
+    rs_frames = []
+    for label, days in rs_windows.items():
+        ret   = d_close.pct_change(days) * 100
+        b_ret = bench_d.pct_change(days) * 100
+        rs_frames.append(ret.sub(b_ret, axis=0))
+    rs_total = pd.concat(rs_frames).groupby(level=0).sum()
+    avail    = [t for t in all_tickers_list if t in rs_total.columns]
+    rs_sub   = rs_total[avail]
+    daily_scores_by_date = {}
+    for date, row in rs_sub.iterrows():
+        valid = row.dropna()
+        if len(valid) >= 5:
+            ranked = valid.sort_values(ascending=False).head(50)
+            daily_scores_by_date[date.strftime("%Y-%m-%d")] = [[t, round(float(s), 2)] for t, s in ranked.items()]
+    print(f"  {len(daily_scores_by_date)} Tage berechnet")
+except Exception as e:
+    daily_scores_by_date = {}
+    print(f"  ⚠️ Fehler: {e}")
+
 print("\nJSON zusammenbauen...")
 data = []
 for r in all_results:
@@ -179,11 +202,12 @@ for r in all_results:
                  "ohlcv_4h": ohlcv_4h_map.get(t, [])})
 
 output = {
-    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    "benchmark": "SPX",
-    "data": data,
-    "benchmark_ohlcv_w": extract_ohlcv(benchmark, raw_weekly, 104),
-    "benchmark_ohlcv":   extract_ohlcv(benchmark, raw_daily, 520),
+    "timestamp":          datetime.now().strftime("%Y-%m-%d %H:%M"),
+    "benchmark":          "SPX",
+    "data":               data,
+    "daily_scores_by_date": daily_scores_by_date,
+    "benchmark_ohlcv_w":  extract_ohlcv(benchmark, raw_weekly, 104),
+    "benchmark_ohlcv":    extract_ohlcv(benchmark, raw_daily, 520),
 }
 with open(OUTPUT_FILE, "w") as f:
     json.dump(sanitize_nan(output), f)

@@ -139,7 +139,7 @@ function getWeekEnd(s) {
 const CAPITAL = 10000;
 const MAX_RISK = 1000;
 
-function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
+function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h, ticker, top20History) {
   if (!ohlcv_w || ohlcv_w.length < 15) return [];
 
   const weekRows = ohlcv_w.map((week, i) => {
@@ -210,6 +210,10 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
         const stopPrice = recentSwingLow != null ? recentSwingLow * 0.99 : null;
 
         if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
+        if (top20History) {
+          const dayList = top20History[entryDate] ?? top20History[curr.week.d.slice(0,10)];
+          if (!dayList || !dayList.includes(ticker)) continue;
+        }
         const riskPerShare = entryPrice - stopPrice;
         let shares = Math.floor(MAX_RISK / riskPerShare);
         if (shares * entryPrice > CAPITAL) shares = Math.floor(CAPITAL / entryPrice);
@@ -343,6 +347,7 @@ function OverviewApp() {
   const [loadingTrades, setLoadingTrades] = useState(false);
   const [errors,        setErrors]        = useState([]);
   const [filter,        setFilter]        = useState(() => localStorage.getItem('bt_last_filter') || 'QQQ');
+  const [top20HistMap,  setTop20HistMap]  = useState({});
   const [sortKey,       setSortKey]       = useState('totalReturn');
   const [sortAsc,       setSortAsc]       = useState(false);
   const [search,        setSearch]        = useState('');
@@ -357,6 +362,7 @@ function OverviewApp() {
     const errs = [];
     const map  = {};
 
+    const top20HistMap = {};
     Promise.allSettled(sources.map(s =>
       fetch(s.file).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
                    .then(d => ({ ...d, _index: s.index }))
@@ -372,12 +378,16 @@ function OverviewApp() {
           ohlcv_d:  entry.ohlcv    || [],
           ohlcv_4h: entry.ohlcv_4h || [],
         }));
+        top20HistMap[d._index] = d.top20_history || null;
       });
       setRsMap(map);
+      setTop20HistMap(top20HistMap);
       setErrors(errs);
       setLoadingRs(false);
     });
   }, []);
+
+  useEffect(() => { cache.current = {}; }, [top20HistMap]);
 
   useEffect(() => {
     if (!rsMap) return;
@@ -413,7 +423,7 @@ function OverviewApp() {
       for (const res of results) {
         if (res.status !== 'fulfilled') continue;
         const s      = res.value;
-        const trades = simulateTrades(s.ohlcv_w, s.ohlcv_d, s.ohlcv_4h);
+        const trades = simulateTrades(s.ohlcv_w, s.ohlcv_d, s.ohlcv_4h, s.ticker, top20HistMap[s.index] ?? null);
         if (trades.length === 0) continue;
         const kpis      = calcKpis(trades);
         const openTrade = trades.find(t => t.isOpen) ?? null;
