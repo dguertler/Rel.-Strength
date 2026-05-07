@@ -172,22 +172,36 @@ for i, ticker in enumerate(all_tickers_list):
 
 print("\nHistorisches tägliches Ranking (Teil 2)...")
 try:
-    d_close = raw_daily["Close"] if isinstance(raw_daily.columns, pd.MultiIndex) else raw_daily[["Close"]]
-    bench_d = d_close[benchmark].dropna()
-    rs_frames = []
-    for label, days in rs_windows.items():
-        ret   = d_close.pct_change(days) * 100
-        b_ret = bench_d.pct_change(days) * 100
-        rs_frames.append(ret.sub(b_ret, axis=0))
-    rs_total = pd.concat(rs_frames).groupby(level=0).sum()
-    avail    = [t for t in all_tickers_list if t in rs_total.columns]
-    rs_sub   = rs_total[avail]
+    d_close = raw_daily["Close"] if isinstance(raw_daily.columns, pd.MultiIndex) else raw_daily
+    if benchmark not in d_close.columns:
+        raise KeyError(f"Benchmark {benchmark} nicht in Tagesdaten")
+    bench_s = d_close[benchmark]
+    avail   = [t for t in all_tickers_list if t in d_close.columns]
     daily_scores_by_date = {}
-    for date, row in rs_sub.iterrows():
-        valid = row.dropna()
-        if len(valid) >= 5:
-            ranked = valid.sort_values(ascending=False).head(50)
-            daily_scores_by_date[date.strftime("%Y-%m-%d")] = [[t, round(float(s), 2)] for t, s in ranked.items()]
+    n = len(d_close)
+    for i in range(n):
+        date_str = d_close.index[i].strftime("%Y-%m-%d")
+        b_now = bench_s.iloc[i]
+        if pd.isna(b_now) or b_now == 0:
+            continue
+        scores = []
+        for t in avail:
+            s_now = d_close[t].iloc[i]
+            if pd.isna(s_now) or s_now == 0:
+                continue
+            total, cnt = 0, 0
+            for days in rs_windows.values():
+                if i >= days:
+                    s_prev = d_close[t].iloc[i - days]
+                    b_prev = bench_s.iloc[i - days]
+                    if not pd.isna(s_prev) and not pd.isna(b_prev) and s_prev != 0 and b_prev != 0:
+                        total += (s_now / s_prev - 1) * 100 - (b_now / b_prev - 1) * 100
+                        cnt   += 1
+            if cnt > 0:
+                scores.append((t, total))
+        if len(scores) >= 5:
+            scores.sort(key=lambda x: x[1], reverse=True)
+            daily_scores_by_date[date_str] = [[t, round(s, 2)] for t, s in scores[:50]]
     print(f"  {len(daily_scores_by_date)} Tage berechnet")
 except Exception as e:
     daily_scores_by_date = {}
