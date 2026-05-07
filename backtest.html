@@ -796,8 +796,7 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [], tradeMarkers = [
   const PL = 56, PR = 52, PT = 18, PB = 32;
   const cW = W - PL - PR, cH = H - PT - PB;
 
-  // Letzte 60 Kerzen anzeigen
-  const display4h = useMemo(() => ohlcv4h.slice(-60), [ohlcv4h]);
+  const display4h = useMemo(() => ohlcv4h, [ohlcv4h]);
   const n = display4h.length;
 
   const allH = display4h.map(d => d.h), allL = display4h.map(d => d.l);
@@ -818,12 +817,10 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [], tradeMarkers = [
     if (day !== lastDay && i % 2 === 0) { dayLabels.push({ i, label: d.d.slice(5, 10) }); lastDay = day; }
   });
 
-  // Offset für Struktur-Indizes (da wir nur die letzten 60 anzeigen)
-  const offset = ohlcv4h.length - display4h.length;
+  const offset = 0;
   const { gws4hHigh, breakout4hIdx, broken4h, prevGws4hHigh, prevBreakout4hIdx } = structure4h || {};
   const col4h = broken4h ? "#ef4444" : "#a78bfa";
 
-  // Lokale Indizes für die angezeigten 60 Kerzen
   const localGws4hIdx      = gws4hHigh      ? gws4hHigh.idx - offset      : null;
   const localBreakout4hIdx = breakout4hIdx  !== null ? breakout4hIdx - offset  : null;
   const localPrevGws4hIdx  = prevGws4hHigh  ? prevGws4hHigh.idx - offset  : null;
@@ -1133,7 +1130,7 @@ function BacktestApp() {
       const wSlice   = data.ohlcv_w.slice(Math.max(0, i - 59), i + 1);
       const dHistory = data.ohlcv_d.filter(d => d.d <= weekEnd);
       const dSlice   = dHistory.slice(-60);
-      const h4Slice  = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-90);
+      const h4Slice  = data.ohlcv_4h.filter(d => d.d.slice(0,10) <= weekEnd).slice(-60);
 
       const structW     = analyzeWeeklyStructure(wSlice, dHistory);
       const structD     = analyzeStructure(dSlice);

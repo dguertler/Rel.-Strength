@@ -741,8 +741,7 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
   const PL = 56, PR = 52, PT = 18, PB = 32;
   const cW = W - PL - PR, cH = H - PT - PB;
 
-  // Letzte 60 Kerzen anzeigen
-  const display4h = useMemo(() => ohlcv4h.slice(-60), [ohlcv4h]);
+  const display4h = useMemo(() => ohlcv4h, [ohlcv4h]);
   const n = display4h.length;
 
   const allH = display4h.map(d => d.h), allL = display4h.map(d => d.l);
@@ -763,12 +762,10 @@ function Chart4H({ ohlcv4h, structure4h, chartId, signals = [] }) {
     if (day !== lastDay && i % 2 === 0) { dayLabels.push({ i, label: d.d.slice(5, 10) }); lastDay = day; }
   });
 
-  // Offset für Struktur-Indizes (da wir nur die letzten 60 anzeigen)
-  const offset = ohlcv4h.length - display4h.length;
+  const offset = 0;
   const { gws4hHigh, breakout4hIdx, broken4h, prevGws4hHigh, prevBreakout4hIdx } = structure4h || {};
   const col4h = broken4h ? "#ef4444" : "#a78bfa";
 
-  // Lokale Indizes für die angezeigten 60 Kerzen
   const localGws4hIdx      = gws4hHigh      ? gws4hHigh.idx - offset      : null;
   const localBreakout4hIdx = breakout4hIdx  !== null ? breakout4hIdx - offset  : null;
   const localPrevGws4hIdx  = prevGws4hHigh  ? prevGws4hHigh.idx - offset  : null;
@@ -1299,30 +1296,6 @@ function App() {
               </button>
             ) : null}
           </div>
-        </div>
-      </div>
-
-      {/* Portfolio-Schnellauswahl */}
-      <div style={{background:"#0f172a",borderRadius:10,padding:12,border:"1px solid #1e293b",marginBottom:12}}>
-        <p style={{margin:"0 0 6px",fontSize:9,color:"#475569",textTransform:"uppercase",letterSpacing:1}}>Portfolio · Top 20</p>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-          {sorted.slice(0,20).map((d,i) => {
-            const hasChart = data.data.find(e=>e.ticker===d.t)?.ohlcv?.length > 0;
-            const isBOC   = structureMap[d.t]?.daily?.broken;
-            return (
-              <span key={d.t}
-                onClick={()=>hasChart&&handleSelect(d.t)}
-                style={{
-                  background:isBOC?"#160303":i<3?"#1a2f4a":"#1e293b",
-                  border:`1px solid ${d.t===selected?"#3b82f6":isBOC?"#ef4444":i<3?"#2563eb":"#334155"}`,
-                  borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700,
-                  color:isBOC?"#fca5a5":i<3?"#93c5fd":"#94a3b8",
-                  fontFamily:"monospace", cursor:hasChart?"pointer":"default"
-                }}>
-                {isBOC&&"🔥"}{d.t}
-              </span>
-            );
-          })}
         </div>
       </div>
 
