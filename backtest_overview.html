@@ -147,7 +147,7 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h) {
     const wSlice   = ohlcv_w.slice(Math.max(0, i - 59), i + 1);
     const dHistory = ohlcv_d.filter(d => d.d <= weekEnd);
     const dSlice   = dHistory.slice(-60);
-    const h4Slice  = ohlcv_4h.filter(d => d.d.slice(0, 10) <= weekEnd).slice(-90);
+    const h4Slice  = ohlcv_4h.filter(d => d.d.slice(0, 10) <= weekEnd).slice(-60);
     const structW     = analyzeWeeklyStructure(wSlice, dHistory);
     const structDFull = analyzeStructure(dHistory);
     const has4h       = h4Slice.length >= 8;
