@@ -1085,6 +1085,7 @@ function BacktestApp() {
   const [loading,     setLoading]     = useState(true);
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [top20Hist,   setTop20Hist]   = useState(null);
+  const [useTop20,    setUseTop20]    = useState(() => localStorage.getItem('bt_use_top20') !== 'false');
   const chartRef = useRef(null);
 
   useEffect(() => {
@@ -1232,7 +1233,7 @@ function BacktestApp() {
           const stopPrice = recentSwingLow != null ? recentSwingLow * 0.99 : null;
 
           if (!entryPrice || !stopPrice || entryPrice <= stopPrice) continue;
-          if (top20Hist) {
+          if (useTop20 && top20Hist) {
             const dayList = top20Hist[entryDate] ?? top20Hist[curr.week.d.slice(0,10)];
             if (!dayList || !dayList.includes(ticker)) continue;
           }
@@ -1267,7 +1268,7 @@ function BacktestApp() {
       result.push({ ...entry, exitDate: last.week.d, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: weekRows.length - 1 - entry.entryWeekIdx, isOpen: true });
     }
     return result;
-  }, [weekRows, data, top20Hist]);
+  }, [weekRows, data, top20Hist, useTop20]);
 
   const kpis = useMemo(() => {
     const closed = trades.filter(t => !t.isOpen);
@@ -1335,6 +1336,13 @@ function BacktestApp() {
           <span style={{fontSize:20,fontWeight:800,color:'#f1f5f9',fontFamily:'monospace'}}>{ticker}</span>
           <span style={{fontSize:12,color:'#475569',marginLeft:10,fontFamily:'monospace'}}>Backtest · historische GWS-Punkte</span>
         </div>
+        <button onClick={() => { const v = !useTop20; setUseTop20(v); localStorage.setItem('bt_use_top20', v); }}
+          style={{ background: useTop20 ? '#14532d' : 'transparent',
+            border: `1px solid ${useTop20 ? '#4ade80' : '#334155'}`,
+            borderRadius: 6, padding: '5px 14px', color: useTop20 ? '#4ade80' : '#475569',
+            fontFamily: 'monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          TOP 20 {useTop20 ? 'AN' : 'AUS'}
+        </button>
         <div style={{marginLeft:'auto',fontSize:11,color:'#334155',fontFamily:'monospace'}}>
           {weekRows.length} Wochen · Stand {data.generated}
         </div>

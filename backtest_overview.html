@@ -348,6 +348,7 @@ function OverviewApp() {
   const [errors,        setErrors]        = useState([]);
   const [filter,        setFilter]        = useState(() => localStorage.getItem('bt_last_filter') || 'QQQ');
   const [top20HistMap,  setTop20HistMap]  = useState({});
+  const [useTop20,      setUseTop20]      = useState(() => localStorage.getItem('bt_use_top20') !== 'false');
   const [sortKey,       setSortKey]       = useState('totalReturn');
   const [sortAsc,       setSortAsc]       = useState(false);
   const [search,        setSearch]        = useState('');
@@ -387,7 +388,7 @@ function OverviewApp() {
     });
   }, []);
 
-  useEffect(() => { cache.current = {}; }, [top20HistMap]);
+  useEffect(() => { cache.current = {}; }, [top20HistMap, useTop20]);
 
   useEffect(() => {
     if (!rsMap) return;
@@ -423,7 +424,7 @@ function OverviewApp() {
       for (const res of results) {
         if (res.status !== 'fulfilled') continue;
         const s      = res.value;
-        const trades = simulateTrades(s.ohlcv_w, s.ohlcv_d, s.ohlcv_4h, s.ticker, top20HistMap[s.index] ?? null);
+        const trades = simulateTrades(s.ohlcv_w, s.ohlcv_d, s.ohlcv_4h, s.ticker, useTop20 ? (top20HistMap[s.index] ?? null) : null);
         if (trades.length === 0) continue;
         const kpis      = calcKpis(trades);
         const openTrade = trades.find(t => t.isOpen) ?? null;
@@ -463,7 +464,7 @@ function OverviewApp() {
       totalPnl:     withKpis.reduce((s, x) => s + x.kpis.totalPnl + (x.openTrade?.pnl ?? 0), 0)
                     + openOnly.reduce((s, x) => s + x.openTrade.pnl, 0),
       avgReturn:    withKpis.length ? withKpis.reduce((s, x) => s + x.kpis.totalReturn, 0) / withKpis.length : 0,
-      avgWr:        withKpis.length ? withKpis.reduce((s, x) => s + x.kpis.winrate, 0) / withKpis.length : 0,
+      avgWr:        (() => { const tw = withKpis.reduce((s,x)=>s+x.kpis.nWins,0); const tt = withKpis.reduce((s,x)=>s+x.kpis.nTrades,0); return tt > 0 ? tw/tt*100 : 0; })(),
       winners:      withKpis.filter(x => x.kpis.totalPnl > 0).length,
       profitFactor: gl < 0 ? Math.abs(gp / gl) : null,
       avgMaxDD:     withKpis.length ? withKpis.reduce((s, x) => s + x.kpis.maxDD, 0) / withKpis.length : 0,
@@ -505,6 +506,13 @@ function OverviewApp() {
             {k}
           </button>
         ))}
+        <button onClick={() => { const v = !useTop20; setUseTop20(v); localStorage.setItem('bt_use_top20', v); }}
+          style={{ marginLeft: 16, background: useTop20 ? '#14532d' : 'transparent',
+            border: `1px solid ${useTop20 ? '#4ade80' : '#334155'}`,
+            borderRadius: 6, padding: '5px 14px', color: useTop20 ? '#4ade80' : '#475569',
+            fontFamily: 'monospace', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          TOP 20 {useTop20 ? 'AN' : 'AUS'}
+        </button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Suche Ticker…"
           style={{ marginLeft: 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: 6,
             color: '#f1f5f9', padding: '5px 10px', fontFamily: 'monospace', fontSize: 12, width: 130 }} />
@@ -520,7 +528,7 @@ function OverviewApp() {
             ['Profit Faktor',      summary.profitFactor != null ? summary.profitFactor.toFixed(2) : '–', summary.profitFactor != null ? summary.profitFactor - 1.5 : 0],
             ['Ø Max Drawdown',     summary.avgMaxDD > 0 ? `-${summary.avgMaxDD.toFixed(1)}%` : '–', -summary.avgMaxDD],
             ['Ø Return pro Aktie', fmt(summary.avgReturn) + '%', summary.avgReturn],
-            ['Ø Win Rate',         summary.avgWr.toFixed(1) + '%', summary.avgWr - 50],
+            ['Win Rate (Trades)',   summary.avgWr.toFixed(1) + '%', summary.avgWr - 50],
           ].map(([label, val, col]) => (
             <div key={label} style={{ background: '#0d1526', border: '1px solid #1e293b', borderRadius: 8,
               padding: '12px 18px', flex: '1 1 150px', minWidth: 130 }}>
