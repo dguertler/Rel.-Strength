@@ -1128,18 +1128,18 @@ function BacktestApp() {
         )
         .then(d => { setData(d); setLoading(false); })
         .catch(e => { setLoadError(e.message); setLoading(false); });
-
-      // top20_history aus dem passenden rs-JSON laden
-      const rsFiles = ['rs_full.json', 'rs_sp500.json', 'rs_dax.json'];
-      Promise.any(rsFiles.map(f =>
-        fetch(f).then(r => r.ok ? r.json() : Promise.reject())
-          .then(d => {
-            if (!(d.data || []).find(e => e.ticker === t)) throw new Error('not found');
-            if (!d.top20_history) throw new Error('no history');
-            return d.top20_history;
-          })
-      )).then(h => setTop20Hist(h)).catch(() => setTop20Hist(null));
     });
+
+    // top20_history immer laden – unabhängig ob backtest-JSON oder rs-JSON
+    const rsFiles = ['rs_full.json', 'rs_sp500.json', 'rs_dax.json'];
+    Promise.any(rsFiles.map(f =>
+      fetch(f).then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => {
+          if (!(d.data || []).find(e => e.ticker === t)) throw new Error('not found');
+          if (!d.top20_history) throw new Error('no history');
+          return d.top20_history;
+        })
+    )).then(h => setTop20Hist(h)).catch(() => setTop20Hist(null));
   }, []);
 
   // ── Pre-Compute aller Wochen mit historisch korrekt geschnittenen Daten ──
