@@ -173,20 +173,35 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h, ticker, top20History) {
         let entryPrice, trigger, entryDate;
 
         if (new4H) {
-          entryPrice = curr.struct4H?.gws4hHigh?.price; trigger = '4H';
+          trigger = '4H';
           const g = curr.struct4H?.gws4hHigh;
-          entryDate = g ? (curr.h4Slice.find(d => d.d > g.date && d.c > g.price)?.d.slice(0,10) ?? curr.week.d) : curr.week.d;
+          const sigBar = g ? curr.h4Slice.find(d => d.d > g.date && d.c > g.price) : null;
+          const sigDate = sigBar?.d.slice(0,10) ?? curr.week.d;
+          const nextBar = ohlcv_d.find(d => d.d > sigDate);
+          entryDate = nextBar?.d ?? sigDate;
+          entryPrice = nextBar?.o ?? sigBar?.c ?? g?.price;
         } else if (newD) {
-          entryPrice = curr.structDFull?.breakoutPrice; trigger = 'D';
+          trigger = 'D';
           const g = curr.structDFull?.gwsdHigh;
-          entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
+          const sigBar = g ? curr.dHistory.find(d => d.d > g.date && d.c > g.price) : null;
+          const sigDate = sigBar?.d ?? curr.week.d;
+          const nextBar = ohlcv_d.find(d => d.d > sigDate);
+          entryDate = nextBar?.d ?? sigDate;
+          entryPrice = nextBar?.o ?? sigBar?.c ?? curr.structDFull?.breakoutPrice;
         } else if (newW) {
-          entryPrice = curr.structW?.breakoutPrice; trigger = 'W';
+          trigger = 'W';
           const g = curr.structW?.gwswHigh;
-          entryDate = g ? (curr.dHistory.find(d => d.d > g.date && d.c > g.price)?.d ?? curr.week.d) : curr.week.d;
+          const sigBar = g ? curr.dHistory.find(d => d.d > g.date && d.c > g.price) : null;
+          const sigDate = sigBar?.d ?? curr.week.d;
+          const nextBar = ohlcv_d.find(d => d.d > sigDate);
+          entryDate = nextBar?.d ?? sigDate;
+          entryPrice = nextBar?.o ?? sigBar?.c ?? curr.structW?.breakoutPrice;
         } else {
-          entryPrice = curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
-          trigger = '?'; entryDate = curr.week.d;
+          trigger = '?';
+          const sigDate = curr.week.d;
+          const nextBar = ohlcv_d.find(d => d.d > sigDate);
+          entryDate = nextBar?.d ?? sigDate;
+          entryPrice = nextBar?.o ?? curr.struct4H?.gws4hHigh?.price ?? curr.structDFull?.breakoutPrice ?? curr.structW?.breakoutPrice;
         }
         const barsBeforeEntry = curr.dHistory.filter(d => d.d < entryDate);
         let recentSwingLow = null;
