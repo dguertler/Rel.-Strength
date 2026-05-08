@@ -61,19 +61,12 @@ function analyzeStructure(ohlcv) {
       if (hoch.length > 0) gwsdCandidates.push(hoch.reduce((b, h) => h.price > b.price ? h : b));
     }
   }
-  const gwsdHigh     = gwsdCandidates.length > 0 ? gwsdCandidates[gwsdCandidates.length - 1] : null;
-  const prevGwsdHigh = gwsdCandidates.length > 1 ? gwsdCandidates[gwsdCandidates.length - 2] : null;
+  const gwsdHigh = gwsdCandidates.length > 0 ? gwsdCandidates[gwsdCandidates.length - 1] : null;
   let breakoutIdx = null;
   if (gwsdHigh) for (let i = gwsdHigh.idx + 1; i < n; i++) if (closes[i] > gwsdHigh.price) { breakoutIdx = i; break; }
-  let prevBreakoutIdx = null;
-  if (prevGwsdHigh) for (let i = prevGwsdHigh.idx + 1; i < n; i++) if (closes[i] > prevGwsdHigh.price) { prevBreakoutIdx = i; break; }
-  const currentClose = closes[n - 1];
-  const brokenCurrent = gwsdHigh !== null && breakoutIdx !== null;
-  const brokenViaOld  = prevGwsdHigh !== null && prevBreakoutIdx !== null && currentClose > prevGwsdHigh.price;
-  const broken = brokenCurrent || brokenViaOld;
   let trend = 'neutral';
   if (swingHighs.length >= 2) trend = swingHighs[swingHighs.length-1].price > swingHighs[swingHighs.length-2].price ? 'bullish' : 'bearish';
-  return { gwsdHigh, breakoutPrice: gwsdHigh?.price ?? null, breakoutIdx, broken, trend, swingLows: swingLows.slice(-6) };
+  return { gwsdHigh, breakoutPrice: gwsdHigh?.price ?? null, breakoutIdx, broken: gwsdHigh !== null && breakoutIdx !== null, trend };
 }
 
 function analyzeWeeklyStructure(ohlcvW, ohlcvD = null) {
@@ -247,18 +240,7 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h, ticker, top20History) {
       }
     } else {
       peakPrice = Math.max(peakPrice, curr.week.h);
-      // Stop-Loss täglich prüfen: Daily-Low ≤ Stop-Preis → Exit zum Stop-Preis
-      const weekStartStr = curr.week.d.slice(0, 10);
-      const thisWeekDays = curr.dHistory.filter(d => d.d >= weekStartStr);
-      const slHitDay = entry.stopPrice != null
-        ? thisWeekDays.find(d => d.l <= entry.stopPrice) : null;
-      if (slHitDay) {
-        const pnl = (entry.stopPrice - entry.entryPrice) * entry.shares;
-        trades.push({ ...entry, exitDate: slHitDay.d, exitPrice: entry.stopPrice, pnl,
-          pnlPct: (entry.stopPrice / entry.entryPrice - 1) * 100,
-          isWin: pnl > 0, isOpen: false, holdingWeeks: i - entry.entryWeekIdx });
-        inTrade = false; entry = null;
-      } else if (curr.pD === 0) {
+      if (curr.pD === 0) {
         const searchFrom = prev.week.d.slice(0, 10);
         const searchDays = curr.dHistory.filter(d => d.d >= searchFrom);
         const prevSLs    = prev.structDFull?.swingLows ?? [];
@@ -267,6 +249,7 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h, ticker, top20History) {
         for (const day of searchDays) {
           if (lastSL != null && day.c < lastSL.price) { sigDay = day; break; }
         }
+        const hardStop = entry.stopPrice != null && curr.week.c < entry.stopPrice;
         if (sigDay) {
           const nextDay = ohlcv_d.find(d => d.d > sigDay.d);
           const exitPrice = nextDay ? nextDay.o : sigDay.c;
@@ -274,8 +257,12 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h, ticker, top20History) {
           const pnl = (exitPrice - entry.entryPrice) * entry.shares;
           trades.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: false, holdingWeeks: i - entry.entryWeekIdx });
           inTrade = false; entry = null;
+        } else if (hardStop) {
+          const pnl = (curr.week.c - entry.entryPrice) * entry.shares;
+          trades.push({ ...entry, exitDate: curr.week.d, exitPrice: curr.week.c, pnl, pnlPct: (curr.week.c / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: false, holdingWeeks: i - entry.entryWeekIdx });
+          inTrade = false; entry = null;
         }
-        // Kein sigDay → Trade läuft weiter (pD-Signal war Artefakt der GWS-Neuberechnung)
+        // Kein sigDay und kein hardStop → Trade läuft weiter (pD-Signal war Artefakt)
       }
     }
   }

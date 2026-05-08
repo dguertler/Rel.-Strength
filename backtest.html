@@ -132,16 +132,10 @@ function analyzeStructure(ohlcv) {
     else if (last.price < prev.price) trend = "bearish";
   }
 
+  const broken       = gwsdHigh !== null && breakoutIdx !== null;
   const currentClose = closes[n - 1];
 
-  // Bullish wenn aktuelle GWS-D durchbrochen, ODER alte GWS-D durchbrochen
-  // und Kurs noch darüber (verhindert falsches broken=false bei neuer höherer GWS-D)
-  const brokenCurrent = gwsdHigh !== null && breakoutIdx !== null;
-  const brokenViaOld  = prevGwsdHigh !== null && prevBreakoutIdx !== null
-                        && currentClose > prevGwsdHigh.price;
-  const broken = brokenCurrent || brokenViaOld;
-
-  const recentBreakout = brokenCurrent && (n - 1 - breakoutIdx <= 7);
+  const recentBreakout = broken && (n - 1 - breakoutIdx <= 7);
 
   return {
     currentClose, gwsdHigh, breakoutIdx, breakoutPrice, broken, trend,
@@ -1266,18 +1260,7 @@ function BacktestApp() {
           entry = { signalDate: curr.week.d, weeklyDate: curr.week.d, entryDate, trigger, entryPrice, stopPrice, shares, invested: shares * entryPrice, riskAmount: shares * riskPerShare, entryWeekIdx: i };
         }
       } else {
-        // Stop-Loss täglich prüfen: Daily-Low ≤ Stop-Preis → Exit zum Stop-Preis
-        const weekStartStr = curr.week.d.slice(0, 10);
-        const thisWeekDays = curr.dHistory.filter(d => d.d >= weekStartStr);
-        const slHitDay = entry.stopPrice != null
-          ? thisWeekDays.find(d => d.l <= entry.stopPrice) : null;
-        if (slHitDay) {
-          const pnl = (entry.stopPrice - entry.entryPrice) * entry.shares;
-          result.push({ ...entry, exitDate: slHitDay.d, exitPrice: entry.stopPrice, pnl,
-            pnlPct: (entry.stopPrice / entry.entryPrice - 1) * 100,
-            isWin: pnl > 0, holdingWeeks: i - entry.entryWeekIdx, isOpen: false });
-          inTrade = false; entry = null;
-        } else if (curr.pD === 0) {
+        if (curr.pD === 0) {
           const searchFrom = prev.week.d.slice(0, 10);
           const searchDays = curr.dHistory.filter(d => d.d >= searchFrom);
           const prevSLs    = prev.structDFull?.swingLows ?? [];
@@ -1286,6 +1269,8 @@ function BacktestApp() {
           for (const day of searchDays) {
             if (lastSL != null && day.c < lastSL.price) { sigDay = day; break; }
           }
+          // Harter Stop: Wochenschluss unter originalem Stop-Preis
+          const hardStop = entry.stopPrice != null && curr.week.c < entry.stopPrice;
           if (sigDay) {
             const nextDay = data.ohlcv_d.find(d => d.d > sigDay.d);
             const exitPrice = nextDay ? nextDay.o : sigDay.c;
@@ -1293,8 +1278,12 @@ function BacktestApp() {
             const pnl = (exitPrice - entry.entryPrice) * entry.shares;
             result.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: i - entry.entryWeekIdx, isOpen: false });
             inTrade = false; entry = null;
+          } else if (hardStop) {
+            const pnl = (curr.week.c - entry.entryPrice) * entry.shares;
+            result.push({ ...entry, exitDate: curr.week.d, exitPrice: curr.week.c, pnl, pnlPct: (curr.week.c / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: i - entry.entryWeekIdx, isOpen: false });
+            inTrade = false; entry = null;
           }
-          // Kein sigDay → Trade läuft weiter (pD-Signal war Artefakt der GWS-Neuberechnung)
+          // Kein sigDay und kein hardStop → Trade läuft weiter (pD-Signal war Artefakt)
         }
       }
     }
