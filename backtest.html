@@ -1084,7 +1084,9 @@ function BacktestApp() {
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [top20Hist,   setTop20Hist]   = useState(null);
   const [useTop20,    setUseTop20]    = useState(() => localStorage.getItem('bt_use_top20') !== 'false');
-  const chartRef = useRef(null);
+  const chartRef     = useRef(null);
+  const weekTableRef = useRef(null);
+  const weekRowRefs  = useRef({});
 
   useEffect(() => {
     const params      = new URLSearchParams(window.location.search);
@@ -1323,6 +1325,17 @@ function BacktestApp() {
     setTimeout(() => chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
+  const handleTradeClick = (t) => {
+    const target = t.weeklyDate?.slice(0,10);
+    const row = weekRows.find(r => r.week.d.slice(0,10) === target);
+    if (!row) return;
+    setSelectedIdx(row.i);
+    setTimeout(() => {
+      const el = weekRowRefs.current[row.i];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  };
+
   // Neueste zuerst
   const tableRows = [...weekRows].reverse();
 
@@ -1424,8 +1437,10 @@ function BacktestApp() {
                     <span style={{textAlign:'right'}}>W</span>
                   </div>
                   {[...trades].reverse().map((t, i) => (
-                    <div key={i} style={{display:'grid',gridTemplateColumns:'80px 24px 72px 84px 72px 72px 62px 52px',
+                    <div key={i} onClick={() => handleTradeClick(t)}
+                      style={{display:'grid',gridTemplateColumns:'80px 24px 72px 84px 72px 72px 62px 52px',
                       gap:0,padding:'5px 12px',borderBottom:'1px solid #0f172a',alignItems:'center',
+                      cursor:'pointer',
                       background: t.isOpen ? '#0a1520' : t.isWin ? '#061206' : '#120606'}}>
                       <span style={{fontFamily:'monospace',fontSize:11,color:'#94a3b8'}}>{t.entryDate}</span>
                       <span style={{fontFamily:'monospace',fontSize:10,fontWeight:700,
@@ -1461,11 +1476,11 @@ function BacktestApp() {
               <span style={{textAlign:'center'}}>W</span>
               <span style={{textAlign:'center'}}>D</span>
               <span style={{textAlign:'center'}}>4H</span>
-              <span style={{textAlign:'center'}}>Pkt</span>
+              <span style={{textAlign:'center'}}>T20</span>
             </div>
 
             {/* Scroll-Container */}
-            <div style={{maxHeight:'75vh',overflowY:'auto'}}>
+            <div ref={weekTableRef} style={{maxHeight:'75vh',overflowY:'auto',scrollbarGutter:'stable'}}>
               {tableRows.map(row => {
                 const isSel = selectedIdx === row.i;
                 const bgPts = row.pts >= 3 ? '#0a1a0a'
@@ -1477,8 +1492,13 @@ function BacktestApp() {
                                  : row.pts >= 2 ? '3px solid #fbbf24'
                                  : row.pts >= 1 ? '3px solid #334155'
                                  : '3px solid transparent';
+                const fri = new Date(row.weekEnd + 'T12:00:00Z');
+                fri.setUTCDate(fri.getUTCDate() - 1);
+                const friStr = fri.toISOString().slice(0,10);
+                const isT20 = top20Hist ? (top20Hist[friStr] || []).includes(ticker) : null;
                 return (
                   <div key={row.i}
+                    ref={el => weekRowRefs.current[row.i] = el}
                     className="tbl-row"
                     onClick={() => handleRowClick(row.i)}
                     style={{
@@ -1503,7 +1523,11 @@ function BacktestApp() {
                     <span style={{textAlign:'center'}}><PktDot val={row.pW}  has={true}/></span>
                     <span style={{textAlign:'center'}}><PktDot val={row.pD}  has={row.dSlice.length >= 10}/></span>
                     <span style={{textAlign:'center'}}><PktDot val={row.p4H} has={row.has4h}/></span>
-                    <span style={{textAlign:'center'}}><PktBadge pts={row.pts} has4h={row.has4h}/></span>
+                    <span style={{textAlign:'center'}}>
+                      {isT20 === null ? <span style={{color:'#334155',fontSize:9}}>–</span>
+                        : isT20 ? <span style={{color:'#4ade80',fontSize:9,fontWeight:700,fontFamily:'monospace'}}>T20</span>
+                        : <span style={{color:'#1e293b',fontSize:9}}>·</span>}
+                    </span>
                   </div>
                 );
               })}
