@@ -706,7 +706,7 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
           const target = m.date.slice(0,10);
           let best = Infinity, idx = -1;
           ohlcv.forEach((d, i) => { const diff = Math.abs(new Date(d.d.slice(0,10)) - new Date(target)); if (diff < best) { best = diff; idx = i; } });
-          if (idx < 0 || best > 3 * 86400000) return null;
+          if (idx < 0 || best > 2 * 86400000) return null;
           const x = toX(idx);
           if (m.type === 'entry') {
             const yTip = Math.min(toY(ohlcv[idx].l) + 3, PT + cH - 16);
@@ -1557,7 +1557,7 @@ function BacktestApp() {
                       ohlcv4h={sel.h4Slice}
                       structure4h={sel.struct4H}
                       chartId={`bt_4h_${sel.i}`}
-                      tradeMarkers={tradeMarkers}/>
+                      tradeMarkers={tradeMarkers.filter(m => m.type === 'entry')}/>
                   </div>
                 ) : (
                   <div className="chart-full-width" style={{background:'#07090f',borderRadius:8,
