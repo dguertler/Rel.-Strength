@@ -247,18 +247,22 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h, ticker, top20History) {
         const lastSL     = prevSLs.length > 0 ? prevSLs[prevSLs.length - 1] : null;
         let sigDay = null;
         for (const day of searchDays) {
-          const belowSL = lastSL != null && day.c < lastSL.price;
-          if (belowSL) { sigDay = day; break; }
+          if (lastSL != null && day.c < lastSL.price) { sigDay = day; break; }
         }
-        let exitPrice = curr.week.c, exitDate = curr.week.d;
+        const hardStop = entry.stopPrice != null && curr.week.c < entry.stopPrice;
         if (sigDay) {
           const nextDay = ohlcv_d.find(d => d.d > sigDay.d);
-          exitPrice = nextDay ? nextDay.o : sigDay.c;
-          exitDate  = nextDay ? nextDay.d : sigDay.d;
+          const exitPrice = nextDay ? nextDay.o : sigDay.c;
+          const exitDate  = nextDay ? nextDay.d : sigDay.d;
+          const pnl = (exitPrice - entry.entryPrice) * entry.shares;
+          trades.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: false, holdingWeeks: i - entry.entryWeekIdx });
+          inTrade = false; entry = null;
+        } else if (hardStop) {
+          const pnl = (curr.week.c - entry.entryPrice) * entry.shares;
+          trades.push({ ...entry, exitDate: curr.week.d, exitPrice: curr.week.c, pnl, pnlPct: (curr.week.c / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: false, holdingWeeks: i - entry.entryWeekIdx });
+          inTrade = false; entry = null;
         }
-        const pnl = (exitPrice - entry.entryPrice) * entry.shares;
-        trades.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, isOpen: false, holdingWeeks: i - entry.entryWeekIdx });
-        inTrade = false; entry = null;
+        // Kein sigDay und kein hardStop → Trade läuft weiter (pD-Signal war Artefakt)
       }
     }
   }

@@ -1261,20 +1261,29 @@ function BacktestApp() {
         }
       } else {
         if (curr.pD === 0) {
-          const searchFrom   = prev.week.d.slice(0, 10);
-          const searchDays   = curr.dHistory.filter(d => d.d >= searchFrom);
-          const prevSLs      = prev.structDFull?.swingLows ?? [];
-          const lastSL       = prevSLs.length > 0 ? prevSLs[prevSLs.length - 1] : null;
+          const searchFrom = prev.week.d.slice(0, 10);
+          const searchDays = curr.dHistory.filter(d => d.d >= searchFrom);
+          const prevSLs    = prev.structDFull?.swingLows ?? [];
+          const lastSL     = prevSLs.length > 0 ? prevSLs[prevSLs.length - 1] : null;
           let sigDay = null;
           for (const day of searchDays) {
-            const belowSL = lastSL != null && day.c < lastSL.price;
-            if (belowSL) { sigDay = day; break; }
+            if (lastSL != null && day.c < lastSL.price) { sigDay = day; break; }
           }
-          let exitPrice = curr.week.c, exitDate = curr.week.d;
-          if (sigDay) { const nextDay = data.ohlcv_d.find(d => d.d > sigDay.d); exitPrice = nextDay ? nextDay.o : sigDay.c; exitDate = nextDay ? nextDay.d : sigDay.d; }
-          const pnl = (exitPrice - entry.entryPrice) * entry.shares;
-          result.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: i - entry.entryWeekIdx, isOpen: false });
-          inTrade = false; entry = null;
+          // Harter Stop: Wochenschluss unter originalem Stop-Preis
+          const hardStop = entry.stopPrice != null && curr.week.c < entry.stopPrice;
+          if (sigDay) {
+            const nextDay = data.ohlcv_d.find(d => d.d > sigDay.d);
+            const exitPrice = nextDay ? nextDay.o : sigDay.c;
+            const exitDate  = nextDay ? nextDay.d : sigDay.d;
+            const pnl = (exitPrice - entry.entryPrice) * entry.shares;
+            result.push({ ...entry, exitDate, exitPrice, pnl, pnlPct: (exitPrice / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: i - entry.entryWeekIdx, isOpen: false });
+            inTrade = false; entry = null;
+          } else if (hardStop) {
+            const pnl = (curr.week.c - entry.entryPrice) * entry.shares;
+            result.push({ ...entry, exitDate: curr.week.d, exitPrice: curr.week.c, pnl, pnlPct: (curr.week.c / entry.entryPrice - 1) * 100, isWin: pnl > 0, holdingWeeks: i - entry.entryWeekIdx, isOpen: false });
+            inTrade = false; entry = null;
+          }
+          // Kein sigDay und kein hardStop → Trade läuft weiter (pD-Signal war Artefakt)
         }
       }
     }
