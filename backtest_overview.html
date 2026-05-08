@@ -247,9 +247,8 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h, ticker, top20History) {
         const lastSL     = prevSLs.length > 0 ? prevSLs[prevSLs.length - 1] : null;
         let sigDay = null;
         for (const day of searchDays) {
-          const histToDay = curr.dHistory.filter(d => d.d <= day.d);
-          const belowSL   = lastSL != null && day.c < lastSL.price;
-          if (belowSL || !analyzeStructure(histToDay)?.broken) { sigDay = day; break; }
+          const belowSL = lastSL != null && day.c < lastSL.price;
+          if (belowSL) { sigDay = day; break; }
         }
         let exitPrice = curr.week.c, exitDate = curr.week.d;
         if (sigDay) {
