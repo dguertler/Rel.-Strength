@@ -721,9 +721,7 @@ function CandleChart({ ohlcv, structure, chartId, benchOhlcv, benchLabel, signal
               </>}
             </g>;
           } else {
-            const yTip = m.price != null
-              ? toY(m.price)
-              : Math.max(toY(ohlcv[idx].h) - 3, PT + 14);
+            const yTip = Math.max(toY(ohlcv[idx].h) - 3, PT + 14);
             return <g key={`tm${mi}`}>
               <polygon points={`${x-5},${yTip-10} ${x+5},${yTip-10} ${x},${yTip}`} fill="#f87171" opacity="0.95"/>
               <line x1={x} x2={x} y1={yTip-10} y2={Math.max(yTip-20, PT)} stroke="#f87171" strokeWidth="1.5"/>
@@ -1246,12 +1244,15 @@ function BacktestApp() {
         }
       } else {
         if (curr.pD === 0) {
-          const wStart = curr.week.d.slice(0, 10);
-          const daysThisWeek = curr.dHistory.filter(d => d.d >= wStart);
+          const searchFrom   = prev.week.d.slice(0, 10);
+          const searchDays   = curr.dHistory.filter(d => d.d >= searchFrom);
+          const prevSLs      = prev.structDFull?.swingLows ?? [];
+          const lastSL       = prevSLs.length > 0 ? prevSLs[prevSLs.length - 1] : null;
           let sigDay = null;
-          for (const day of daysThisWeek) {
+          for (const day of searchDays) {
             const histToDay = curr.dHistory.filter(d => d.d <= day.d);
-            if (!analyzeStructure(histToDay)?.broken) { sigDay = day; break; }
+            const belowSL   = lastSL != null && day.c < lastSL.price;
+            if (belowSL || !analyzeStructure(histToDay)?.broken) { sigDay = day; break; }
           }
           let exitPrice = curr.week.c, exitDate = curr.week.d;
           if (sigDay) { const nextDay = data.ohlcv_d.find(d => d.d > sigDay.d); exitPrice = nextDay ? nextDay.o : sigDay.c; exitDate = nextDay ? nextDay.d : sigDay.d; }

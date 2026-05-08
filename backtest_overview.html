@@ -226,12 +226,15 @@ function simulateTrades(ohlcv_w, ohlcv_d, ohlcv_4h, ticker, top20History) {
     } else {
       peakPrice = Math.max(peakPrice, curr.week.h);
       if (curr.pD === 0) {
-        const wStart = curr.week.d.slice(0, 10);
-        const daysThisWeek = curr.dHistory.filter(d => d.d >= wStart);
+        const searchFrom = prev.week.d.slice(0, 10);
+        const searchDays = curr.dHistory.filter(d => d.d >= searchFrom);
+        const prevSLs    = prev.structDFull?.swingLows ?? [];
+        const lastSL     = prevSLs.length > 0 ? prevSLs[prevSLs.length - 1] : null;
         let sigDay = null;
-        for (const day of daysThisWeek) {
+        for (const day of searchDays) {
           const histToDay = curr.dHistory.filter(d => d.d <= day.d);
-          if (!analyzeStructure(histToDay)?.broken) { sigDay = day; break; }
+          const belowSL   = lastSL != null && day.c < lastSL.price;
+          if (belowSL || !analyzeStructure(histToDay)?.broken) { sigDay = day; break; }
         }
         let exitPrice = curr.week.c, exitDate = curr.week.d;
         if (sigDay) {
@@ -286,8 +289,9 @@ function calcKpis(trades) {
     grossProfit,
     grossLoss,
     profitFactor: grossLoss < 0 ? Math.abs(grossProfit / grossLoss) : null,
-    avgWin:       wins.length   > 0 ? grossProfit / wins.length            : 0,
-    avgLoss:      losses.length > 0 ? Math.abs(grossLoss) / losses.length  : 0,
+    avgWin:       wins.length   > 0 ? grossProfit / wins.length                              : 0,
+    avgWinPct:    wins.length   > 0 ? wins.reduce((s,t) => s + t.pnlPct, 0) / wins.length  : 0,
+    avgLoss:      losses.length > 0 ? Math.abs(grossLoss) / losses.length                  : 0,
     gesamtGewinn: (equity - CAPITAL) + openPnl,
     hasOpen:      !!openTrade,
     equityCurve,
@@ -464,7 +468,8 @@ function OverviewApp() {
       trades:       withKpis.reduce((s, x) => s + x.kpis.nTrades + (x.openTrade ? 1 : 0), 0) + openOnly.length,
       totalPnl:     withKpis.reduce((s, x) => s + x.kpis.totalPnl + (x.openTrade?.pnl ?? 0), 0)
                     + openOnly.reduce((s, x) => s + x.openTrade.pnl, 0),
-      avgWinPerTrade: (() => { const tw = withKpis.reduce((s,x)=>s+x.kpis.nWins,0); const gp = withKpis.reduce((s,x)=>s+(x.kpis.grossProfit??0),0); return tw > 0 ? gp/tw : 0; })(),
+      avgWinPerTrade:    (() => { const tw = withKpis.reduce((s,x)=>s+x.kpis.nWins,0); const gp = withKpis.reduce((s,x)=>s+(x.kpis.grossProfit??0),0); return tw > 0 ? gp/tw : 0; })(),
+      avgWinPerTradePct: (() => { const tw = withKpis.reduce((s,x)=>s+x.kpis.nWins,0); const sp = withKpis.reduce((s,x)=>s+x.kpis.nWins*(x.kpis.avgWinPct??0),0); return tw > 0 ? sp/tw : 0; })(),
       avgWr:        (() => { const tw = withKpis.reduce((s,x)=>s+x.kpis.nWins,0); const tt = withKpis.reduce((s,x)=>s+x.kpis.nTrades,0); return tt > 0 ? tw/tt*100 : 0; })(),
       winners:      withKpis.filter(x => x.kpis.totalPnl > 0).length,
       profitFactor: gl < 0 ? Math.abs(gp / gl) : null,
@@ -528,7 +533,7 @@ function OverviewApp() {
             ['Gesamt P&L',         fmt(summary.totalPnl, 0) + '€', summary.totalPnl],
             ['Profit Faktor',      summary.profitFactor != null ? summary.profitFactor.toFixed(2) : '–', summary.profitFactor != null ? summary.profitFactor - 1.5 : 0],
             ['Ø Max Drawdown',     summary.avgMaxDD > 0 ? `-${summary.avgMaxDD.toFixed(1)}%` : '–', -summary.avgMaxDD],
-            ['Ø Win pro Trade',    '+' + fmtK(summary.avgWinPerTrade) + '€', summary.avgWinPerTrade],
+            ['Ø Win pro Trade',    '+' + fmtK(summary.avgWinPerTrade) + '€ (+' + summary.avgWinPerTradePct.toFixed(1) + '%)', summary.avgWinPerTrade],
             ['Win Rate (Trades)',   summary.avgWr.toFixed(1) + '%', summary.avgWr - 50],
           ].map(([label, val, col]) => (
             <div key={label} style={{ background: '#0d1526', border: '1px solid #1e293b', borderRadius: 8,
