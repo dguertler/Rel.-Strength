@@ -435,6 +435,7 @@ def process_json(json_path, source_label, prev_states, today_str):
     with open(json_path) as f:
         data = json.load(f)
 
+    top20_set  = set(data.get('top20', []))
     new_states = {}
     alerts     = []
 
@@ -454,8 +455,8 @@ def process_json(json_path, source_label, prev_states, today_str):
         prev = prev_states.get(ticker, {})
         prev_points = prev.get('points', 0)
 
-        # Auslöser: genau 2 → 3
-        if prev_points == 2 and info['points'] == 3:
+        # Auslöser: genau 2 → 3, nur für Top-20-Aktien des Index
+        if prev_points == 2 and info['points'] == 3 and ticker in top20_set:
             print(f'  ALERT: {ticker} ({source_label})  {prev_points} → {info["points"]} Punkte')
 
             # Welcher Punkt ist neu hinzugekommen?
