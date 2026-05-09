@@ -5,6 +5,11 @@ on:
     # Di–Sa 06:00 UTC – nachdem RS-Updates gelaufen sind (Mo–Fr)
     - cron: '0 6 * * 2-6'
   workflow_dispatch:
+    inputs:
+      test_date:
+        description: 'Test-Datum (YYYY-MM-DD) – leer = gestern'
+        required: false
+        default: ''
 
 jobs:
   check-earnings:
@@ -31,4 +36,5 @@ jobs:
           SMTP_USER:      ${{ secrets.SMTP_USER }}
           SMTP_PASS:      ${{ secrets.SMTP_PASS }}
           ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          TEST_DATE:      ${{ github.event.inputs.test_date }}
         run: python check_earnings.py

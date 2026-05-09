@@ -192,7 +192,7 @@ def get_gws_price(ohlcv, window=2):
     closes = [c['c'] for c in ohlcv]
     swing_highs, swing_lows = _find_swing_points(highs, lows, n, window)
     candidates = []
-    for j in range(1, len(swing_lows)):
+    for j in range(1, len(swing_lows)):        
         if swing_lows[j]['price'] < swing_lows[j-1]['price']:
             hochs = [h for h in swing_highs
                      if swing_lows[j-1]['idx'] < h['idx'] < swing_lows[j]['idx']]
@@ -343,17 +343,21 @@ def main():
         print('FEHLER: Bitte SMTP_HOST, SMTP_USER, SMTP_PASS und ALERT_EMAIL_TO setzen.')
         sys.exit(1)
 
-    # Gestern bestimmen (Börsenschluss-Datum)
-    today     = date.today()
-    yesterday = today - timedelta(days=1)
-    # Wochenende überspringen: bei Mo → Fr nehmen
-    if yesterday.weekday() == 6:   # Sonntag
-        yesterday = yesterday - timedelta(days=2)
-    elif yesterday.weekday() == 5: # Samstag
-        yesterday = yesterday - timedelta(days=1)
-    yesterday_str = yesterday.strftime('%Y-%m-%d')
-
-    print(f'check_earnings.py – Prüfe Earnings vom {yesterday_str}')
+    # Datum bestimmen: TEST_DATE überschreibt "gestern"
+    test_date = os.environ.get('TEST_DATE', '').strip()
+    if test_date:
+        yesterday_str = test_date
+        print(f'check_earnings.py – TEST-MODUS, Datum: {yesterday_str}')
+    else:
+        today     = date.today()
+        yesterday = today - timedelta(days=1)
+        # Wochenende überspringen: bei Mo → Fr nehmen
+        if yesterday.weekday() == 6:   # Sonntag
+            yesterday = yesterday - timedelta(days=2)
+        elif yesterday.weekday() == 5: # Samstag
+            yesterday = yesterday - timedelta(days=1)
+        yesterday_str = yesterday.strftime('%Y-%m-%d')
+        print(f'check_earnings.py – Prüfe Earnings vom {yesterday_str}')
 
     all_alerts = []
 
