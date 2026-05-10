@@ -3,6 +3,7 @@ name: S&P 500 Daten aktualisieren
 on:
   schedule:
     - cron: '15 21 * * 1-5'  # Mo-Fr 23:15 Uhr DE (21:15 UTC) – 15 Min nach NASDAQ
+    - cron: '15 1 * * 2-6'   # Di-Sa 03:15 Uhr DE (01:15 UTC) – 15 Min nach NASDAQ
     - cron: '15 4 * * 2-6'   # Di-Sa 06:15 Uhr DE (4:15 UTC)  – 15 Min nach NASDAQ
     - cron: '45 8 * * 2-6'   # Di-Sa 10:45 Uhr DE (8:45 UTC)  – 15 Min nach NASDAQ
   workflow_dispatch:
