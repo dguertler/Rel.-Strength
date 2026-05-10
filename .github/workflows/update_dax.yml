@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '0 17 * * 1-5'   # Mo-Fr 19:00 Uhr DE (17 UTC) – nach DAX-Handelsschluss
     - cron: '30 17 * * 1-5'  # Mo-Fr 19:30 Uhr DE (17:30 UTC) – Nachlauf-Daten
+    - cron: '30 1 * * 2-6'   # Di-Sa 03:30 Uhr DE (01:30 UTC) – für Earnings-Alert (03:00 UTC)
   workflow_dispatch:
   push:
     branches: [main]
