@@ -2,8 +2,8 @@ name: Earnings-Überraschung (≥5% Kurssprung + ≥10% EPS-Beat)
 
 on:
   schedule:
-    # Di–Sa 06:00 UTC – nachdem RS-Updates gelaufen sind (Mo–Fr)
-    - cron: '0 6 * * 2-6'
+    # Di–Sa 01:00 UTC (03:00 MESZ) – nach RS-Updates (21:00/21:15 UTC) und vor Breakout-Alert (02:00 UTC)
+    - cron: '0 1 * * 2-6'
   workflow_dispatch:
     inputs:
       test_date:
