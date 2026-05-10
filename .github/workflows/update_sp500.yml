@@ -2,9 +2,7 @@ name: S&P 500 Daten aktualisieren
 
 on:
   schedule:
-    - cron: '15 1 * * 2-6'   # Di-Sa 03:15 Uhr DE (01:15 UTC) – 15 Min nach NASDAQ
-    - cron: '15 4 * * 2-6'   # Di-Sa 06:15 Uhr DE (4:15 UTC)  – 15 Min nach NASDAQ
-    - cron: '45 8 * * 2-6'   # Di-Sa 10:45 Uhr DE (8:45 UTC)  – 15 Min nach NASDAQ
+    - cron: '15 1 * * 2-6'   # Di-Sa 03:15 MESZ (01:15 UTC) – 15 Min nach NASDAQ
   workflow_dispatch:
   push:
     branches: [main]
@@ -43,3 +41,15 @@ jobs:
           git add rs_sp500.json
           git diff --staged --quiet || git commit -m "S&P 500 Daten aktualisiert"
           git push origin main
+
+      - name: Fehler-Mail senden
+        if: failure()
+        env:
+          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+          SMTP_USER:      ${{ secrets.SMTP_USER }}
+          SMTP_PASS:      ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          JOB_NAME:       "S&P-500-Update (update_sp500.yml)"
+          RUN_URL:        "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        run: python notify_failure.py
