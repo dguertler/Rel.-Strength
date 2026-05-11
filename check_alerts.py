@@ -21,7 +21,7 @@ import matplotlib.patches as mpatches
 
 # ── News-Abruf ────────────────────────────────────────────
 
-def fetch_news(ticker, max_items=4):
+def fetch_news(ticker, max_items=5):
     """Holt aktuelle News via yfinance, übersetzt Titel ins Deutsche."""
     try:
         raw = yf.Ticker(ticker).news or []
