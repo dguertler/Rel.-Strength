@@ -12,10 +12,42 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
+import yfinance as yf
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+
+# ── News-Abruf ────────────────────────────────────────────
+
+def fetch_news(ticker, max_items=4):
+    """Holt aktuelle News via yfinance. Gibt Liste von {title, url, publisher, date_str} zurück."""
+    try:
+        raw = yf.Ticker(ticker).news or []
+        result = []
+        for item in raw[:max_items]:
+            content = item.get('content', {})
+            title = content.get('title') or item.get('title', '')
+            url = (content.get('canonicalUrl', {}) or {}).get('url') or \
+                  (content.get('clickThroughUrl', {}) or {}).get('url') or \
+                  item.get('link', '')
+            publisher = content.get('provider', {}).get('displayName') or item.get('publisher', '')
+            pub_time = content.get('pubDate') or ''
+            if pub_time:
+                try:
+                    date_str = pub_time[:10]
+                except Exception:
+                    date_str = ''
+            else:
+                ts = item.get('providerPublishTime', 0)
+                date_str = datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d') if ts else ''
+            if title and url:
+                result.append({'title': title, 'url': url, 'publisher': publisher, 'date_str': date_str})
+        return result
+    except Exception as e:
+        print(f'  News-Abruf für {ticker} fehlgeschlagen: {e}')
+        return []
+
 
 # ── GWS-Analyse (Python-Port der JavaScript-Logik) ──────────────────────────
 # Exakte Portierung der analyzeStructure / analyzeWeeklyStructure / analyze4HStructure
@@ -180,7 +212,7 @@ def count_points(entry):
     }
 
 
-# ── Chart-Rendering (matplotlib) ────────────────────────────────────────────
+# ── Chart-Rendering (matplotlib) ────────────────────────────────────────
 
 BG_DARK   = '#07090f'
 BG_PANEL  = '#0a0f1e'
@@ -261,7 +293,7 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40):
     return base64.b64encode(buf.read()).decode('utf-8')
 
 
-# ── E-Mail versenden ─────────────────────────────────────────────────────────
+# ── E-Mail versenden ──────────────────────────────────────────────
 
 def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr,
                      subject_override=None):
@@ -359,6 +391,21 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
                     f'margin:6px 0;border-radius:6px">\n'
                 )
 
+        news_items = alert.get('news', [])
+        if news_items:
+            html_parts.append('    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #1e293b">\n')
+            html_parts.append('      <div style="font-size:10px;color:#64748b;margin-bottom:5px;letter-spacing:1px">AKTUELLE NEWS</div>\n')
+            for n in news_items:
+                date_label = f'<span style="color:#475569">{n["date_str"]}</span>&nbsp;&middot;&nbsp;' if n['date_str'] else ''
+                publisher_label = f'<span style="color:#475569">{n["publisher"]}</span>&nbsp;&mdash;&nbsp;' if n['publisher'] else ''
+                html_parts.append(
+                    f'      <div style="margin-bottom:5px;font-size:11px;line-height:1.4">'
+                    f'{date_label}{publisher_label}'
+                    f'<a href="{n["url"]}" style="color:#93c5fd;text-decoration:none">{n["title"]}</a>'
+                    f'</div>\n'
+                )
+            html_parts.append('    </div>\n')
+
         html_parts.append('  </div>\n')
 
     html_parts.append("""
@@ -389,7 +436,7 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
     print(f'E-Mail gesendet an {to_addr}')
 
 
-# ── Zustandsdatei ────────────────────────────────────────────────────────────
+# ── Zustandsdatei ───────────────────────────────────────────────
 
 STATE_FILE = 'alerts_state.json'
 
@@ -421,7 +468,7 @@ def save_signals(signals):
         json.dump(signals, f, indent=2)
 
 
-# ── Hauptprogramm ────────────────────────────────────────────────────────────
+# ── Hauptprogramm ───────────────────────────────────────────────
 
 def process_json(json_path, source_label, prev_states, today_str):
     """
@@ -484,6 +531,7 @@ def process_json(json_path, source_label, prev_states, today_str):
             if d_b64:  charts.append((d_b64,  'Daily'))
             if h4_b64: charts.append((h4_b64, '4H'))
 
+            news = fetch_news(ticker)
             alerts.append({
                 'ticker':          ticker,
                 'score':           score,
@@ -496,6 +544,7 @@ def process_json(json_path, source_label, prev_states, today_str):
                 'weekly_bar_date': _breakout_date(entry.get('ohlcv_w',   []), info['struct_w']),
                 'daily_bar_date':  _breakout_date(entry.get('ohlcv',     []), info['struct_d']),
                 'h4_bar_date':     _breakout_date(entry.get('ohlcv_4h',  []), info['struct_4h']),
+                'news':            news,
             })
 
     return new_states, alerts
@@ -564,6 +613,7 @@ def run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
         'new_weekly': False,
         'new_daily':  False,
         'new_h4':     True,   # Im Test: 4H als neu/gelb markieren
+        'news':       fetch_news(ticker),
     }]
 
     # Subject als Test kennzeichnen
