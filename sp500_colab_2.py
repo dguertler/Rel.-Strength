@@ -178,7 +178,9 @@ try:
     bench_s = d_close[benchmark]
     avail   = [t for t in all_tickers_list if t in d_close.columns]
     daily_scores_by_date = {}
+    prev_week_scores = {}
     n = len(d_close)
+    prev_week_i = max(0, n - 6)
     for i in range(n):
         date_str = d_close.index[i].strftime("%Y-%m-%d")
         b_now = bench_s.iloc[i]
@@ -202,9 +204,13 @@ try:
         if len(scores) >= 5:
             scores.sort(key=lambda x: x[1], reverse=True)
             daily_scores_by_date[date_str] = [[t, round(s, 2)] for t, s in scores[:50]]
+            if i == prev_week_i:
+                prev_week_scores = {t: round(s, 2) for t, s in scores}
+                print(f"  Vorwoche-Scores (Teil 2): {len(prev_week_scores)} Ticker (Stand: {date_str})")
     print(f"  {len(daily_scores_by_date)} Tage berechnet")
 except Exception as e:
     daily_scores_by_date = {}
+    prev_week_scores = {}
     print(f"  ⚠️ Fehler: {e}")
 
 print("\nJSON zusammenbauen...")
@@ -217,12 +223,13 @@ for r in all_results:
                  "ohlcv_4h": ohlcv_4h_map.get(t, [])})
 
 output = {
-    "timestamp":          datetime.now().strftime("%Y-%m-%d %H:%M"),
-    "benchmark":          "SPX",
-    "data":               data,
+    "timestamp":            datetime.now().strftime("%Y-%m-%d %H:%M"),
+    "benchmark":            "SPX",
+    "data":                 data,
     "daily_scores_by_date": daily_scores_by_date,
-    "benchmark_ohlcv_w":  extract_ohlcv(benchmark, raw_weekly, 104),
-    "benchmark_ohlcv":    extract_ohlcv(benchmark, raw_daily, 520),
+    "prev_week_scores":     prev_week_scores,
+    "benchmark_ohlcv_w":    extract_ohlcv(benchmark, raw_weekly, 104),
+    "benchmark_ohlcv":      extract_ohlcv(benchmark, raw_daily, 520),
 }
 with open(OUTPUT_FILE, "w") as f:
     json.dump(sanitize_nan(output), f)
