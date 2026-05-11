@@ -1,5 +1,5 @@
 import subprocess
-subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "-q"])
+subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "deep-translator", "-q"])
 
 import json
 import os
@@ -13,6 +13,7 @@ from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
 import yfinance as yf
+from deep_translator import GoogleTranslator
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -21,7 +22,7 @@ import matplotlib.patches as mpatches
 # ── News-Abruf ────────────────────────────────────────────
 
 def fetch_news(ticker, max_items=4):
-    """Holt aktuelle News via yfinance. Gibt Liste von {title, url, publisher, date_str} zurück."""
+    """Holt aktuelle News via yfinance, übersetzt Titel ins Deutsche."""
     try:
         raw = yf.Ticker(ticker).news or []
         result = []
@@ -42,6 +43,10 @@ def fetch_news(ticker, max_items=4):
                 ts = item.get('providerPublishTime', 0)
                 date_str = datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d') if ts else ''
             if title and url:
+                try:
+                    title = GoogleTranslator(source='auto', target='de').translate(title)
+                except Exception:
+                    pass
                 result.append({'title': title, 'url': url, 'publisher': publisher, 'date_str': date_str})
         return result
     except Exception as e:
