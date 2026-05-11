@@ -2,7 +2,7 @@ name: NASDAQ100 Daten aktualisieren
 
 on:
   schedule:
-    - cron: '0 1 * * 1-6'    # Mo-Sa 03:00 MESZ (01:00 UTC)
+    - cron: '0 1 * * 2-6'    # Di-Sa 03:00 MESZ (01:00 UTC)
   workflow_dispatch:
   push:
     branches: [main]
