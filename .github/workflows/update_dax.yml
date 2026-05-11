@@ -2,7 +2,7 @@ name: DAX Daten aktualisieren
 
 on:
   schedule:
-    - cron: '30 1 * * 2-6'   # Di-Sa 03:30 MESZ (01:30 UTC) – für Earnings-Alert
+    - cron: '30 1 * * 1-6'   # Mo-Sa 03:30 MESZ (01:30 UTC) – für Earnings-Alert
   workflow_dispatch:
   push:
     branches: [main]
