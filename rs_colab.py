@@ -216,7 +216,9 @@ try:
     bench_s = d_close[benchmark]
     avail   = [t for t in all_tickers_list if t in d_close.columns]
     top20_history = {}
+    prev_rank_map = {}
     n = len(d_close)
+    prev_week_i = max(0, n - 6)
     for i in range(n):
         date_str = d_close.index[i].strftime("%Y-%m-%d")
         b_now = bench_s.iloc[i]
@@ -240,9 +242,13 @@ try:
         if len(scores) >= 20:
             scores.sort(key=lambda x: x[1], reverse=True)
             top20_history[date_str] = [t for t, _ in scores[:20]]
+            if i == prev_week_i:
+                prev_rank_map = {t: r + 1 for r, (t, _) in enumerate(scores)}
+                print(f"  Vorwoche-Ranking: {len(prev_rank_map)} Ticker (Stand: {date_str})")
     print(f"  {len(top20_history)} Tage berechnet")
 except Exception as e:
     top20_history = {}
+    prev_rank_map = {}
     print(f"  ⚠️ Fehler: {e}")
 
 # ── Schritt 6: Ausgabe zusammenbauen ──────────────────────────────────────────
@@ -254,12 +260,13 @@ for r in all_results:
     ohlcv_d = extract_ohlcv_daily(ticker, raw_daily)
     ohlcv4h = ohlcv_4h_map.get(ticker, [])
     data.append({
-        "ticker":   ticker,
-        "score":    r["score"],
-        "windows":  r["windows"],
-        "ohlcv_w":  ohlcv_w,
-        "ohlcv":    ohlcv_d,
-        "ohlcv_4h": ohlcv4h
+        "ticker":    ticker,
+        "score":     r["score"],
+        "windows":   r["windows"],
+        "prev_rank": prev_rank_map.get(ticker),
+        "ohlcv_w":   ohlcv_w,
+        "ohlcv":     ohlcv_d,
+        "ohlcv_4h":  ohlcv4h
     })
 
 # Benchmark (QQQ) OHLCV für Index-Overlay in Charts
