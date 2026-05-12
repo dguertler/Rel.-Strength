@@ -424,24 +424,33 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
         specific_news = news.get('specific', []) if isinstance(news, dict) else []
         general_news  = news.get('general',  []) if isinstance(news, dict) else []
 
-        def news_block(items, label):
+        def news_block(items, label, accent_color, bg_color, icon):
             if not items:
                 return
-            html_parts.append(f'    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #1e293b">\n')
-            html_parts.append(f'      <div style="font-size:10px;color:#64748b;margin-bottom:5px;letter-spacing:1px">{label}</div>\n')
+            html_parts.append(
+                f'    <div style="margin-top:12px;padding:10px 12px;'
+                f'background:{bg_color};border-left:3px solid {accent_color};border-radius:4px">\n'
+            )
+            html_parts.append(
+                f'      <div style="font-size:10px;color:{accent_color};'
+                f'margin-bottom:7px;letter-spacing:1px;font-weight:bold">'
+                f'{icon}&nbsp;{label}</div>\n'
+            )
             for n in items:
                 date_label      = f'<span style="color:#475569">{n["date_str"]}</span>&nbsp;&middot;&nbsp;' if n['date_str'] else ''
                 publisher_label = f'<span style="color:#475569">{n["publisher"]}</span>&nbsp;&mdash;&nbsp;' if n['publisher'] else ''
                 html_parts.append(
-                    f'      <div style="margin-bottom:5px;font-size:11px;line-height:1.4">'
+                    f'      <div style="margin-bottom:6px;font-size:11px;line-height:1.4">'
                     f'{date_label}{publisher_label}'
                     f'<a href="{n["url"]}" style="color:#93c5fd;text-decoration:none">{n["title"]}</a>'
                     f'</div>\n'
                 )
             html_parts.append('    </div>\n')
 
-        news_block(specific_news, f'NEWS – {display_ticker}')
-        news_block(general_news,  'BRANCHE / MARKT')
+        news_block(specific_news, f'NEWS – {display_ticker}',
+                   accent_color='#3b82f6', bg_color='#0c1929', icon='&#9679;')
+        news_block(general_news,  'BRANCHE / MARKT',
+                   accent_color='#94a3b8', bg_color='#0f172a', icon='&#9675;')
 
         html_parts.append('  </div>\n')
 
