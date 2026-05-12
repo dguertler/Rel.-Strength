@@ -1,0 +1,85 @@
+name: Fix Rating Column (i-Button)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Typ "yes" um die Spalte zu fixen'
+        required: true
+        default: 'no'
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'yes'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply i-column changes
+        run: |
+          python3 << 'PYEOF'
+          files = {
+              'index.html': False,
+              'dax.html': True,
+              'sp500.html': False,
+          }
+
+          for fname, is_dax in files.items():
+              with open(fname) as f:
+                  c = f.read()
+
+              # 1. Grid template: insert 18px after 58px (ticker col)
+              c = c.replace(
+                  '"22px 36px 58px 56px 18px 18px 18px repeat(5,1fr)"',
+                  '"22px 36px 58px 18px 56px 18px 18px 18px repeat(5,1fr)"'
+              )
+
+              # 2. Header: add empty span after Ticker
+              c = c.replace(
+                  '            <span>Ticker</span>\n            <span>Score</span>',
+                  '            <span>Ticker</span>\n            <span></span>\n            <span>Score</span>'
+              )
+
+              # 3. Remove rating button from inside ticker span
+              rating_block = (
+                  '\n                  {rating && (\n'
+                  '                    <span onClick={e => { e.stopPropagation(); setRatingModal(item.t); }}\n'
+                  '                      title={`Bewertung · ${rating.verdict} · Score ${rating.score}`}\n'
+                  '                      style={{fontSize:8,background:"#0d1f3c",color:"#60a5fa",padding:"1px 4px",borderRadius:3,marginLeft:3,cursor:"pointer",border:"1px solid #1e3a5f",lineHeight:1.5,flexShrink:0}}>★</span>\n'
+                  '                  )}'
+              )
+              c = c.replace(rating_block, '', 1)
+
+              # 4. Add new column cell after ticker span
+              old_end = (
+                  '                  {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}\n'
+                  '                </span>\n'
+                  '                <span style={{fontFamily:"monospace"'
+              )
+              new_end = (
+                  '                  {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}\n'
+                  '                </span>\n'
+                  '                <span style={{display:"flex",alignItems:"center",justifyContent:"center"}}>\n'
+                  '                  {rating && (\n'
+                  '                    <span onClick={e => { e.stopPropagation(); setRatingModal(item.t); }}\n'
+                  '                      title={`Bewertung · ${rating.verdict} · Score ${rating.score}`}\n'
+                  '                      style={{fontSize:11,color:"#60a5fa",cursor:"pointer",lineHeight:1,userSelect:"none"}}>ⓘ</span>\n'
+                  '                  )}\n'
+                  '                </span>\n'
+                  '                <span style={{fontFamily:"monospace"'
+              )
+              c = c.replace(old_end, new_end, 1)
+
+              with open(fname, 'w') as f:
+                  f.write(c)
+              print(f'OK {fname}')
+          PYEOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html dax.html sp500.html
+          git diff --staged --stat
+          git commit -m "Rating-Button: eigene i-Spalte nach Ticker (QQQ, DAX, SPX)"
+          git push origin main
