@@ -1211,7 +1211,7 @@ function App() {
           {/* Header-Zeile */}
           <div style={{
             display:"grid",
-            gridTemplateColumns:"22px 36px 58px 56px 18px 18px 18px repeat(5,1fr)",
+            gridTemplateColumns:"22px 36px 58px 18px 56px 18px 18px 18px repeat(5,1fr)",
             padding:"6px 10px", background:"#1e293b", gap:2,
             fontSize:9, color:"#475569", textTransform:"uppercase", letterSpacing:0.5,
             alignItems:"center"
@@ -1219,6 +1219,7 @@ function App() {
             <span>#</span>
             <span style={{textAlign:"center",color:"#334155"}}>Δ</span>
             <span>Ticker</span>
+            <span></span>
             <span>Score</span>
             <span style={{textAlign:"center",color:"#f59e0b"}}>W</span>
             <span style={{textAlign:"center",color:"#ef4444"}}>D</span>
@@ -1239,7 +1240,7 @@ function App() {
                 onClick={() => hasChart && handleSelect(item.t)}
                 style={{
                   display:"grid",
-                  gridTemplateColumns:"22px 36px 58px 56px 18px 18px 18px repeat(5,1fr)",
+                  gridTemplateColumns:"22px 36px 58px 18px 56px 18px 18px 18px repeat(5,1fr)",
                   padding:"6px 10px", gap:2,
                   borderTop:`1px solid ${isBOC?"#ef444422":"#0a0f1e"}`,
                   background: isBOC
@@ -1277,10 +1278,12 @@ function App() {
                   {isBOC && <span className="flame-anim" style={{fontSize:11}}>🔥</span>}
                   {item.t}
                   {hasChart && <span style={{fontSize:8,color:"#334155",marginLeft:2}}>▸</span>}
+                </span>
+                <span style={{display:"flex",alignItems:"center",justifyContent:"center"}}>
                   {rating && (
                     <span onClick={e => { e.stopPropagation(); setRatingModal(item.t); }}
                       title={`Bewertung · ${rating.verdict} · Score ${rating.score}`}
-                      style={{fontSize:8,background:"#0d1f3c",color:"#60a5fa",padding:"1px 4px",borderRadius:3,marginLeft:3,cursor:"pointer",border:"1px solid #1e3a5f",lineHeight:1.5,flexShrink:0}}>★</span>
+                      style={{fontSize:11,color:"#60a5fa",cursor:"pointer",lineHeight:1,userSelect:"none"}}>ⓘ</span>
                   )}
                 </span>
                 <span style={{fontFamily:"monospace",fontSize:11,fontWeight:600,color:item.s>0?"#4ade80":"#f87171"}}>
