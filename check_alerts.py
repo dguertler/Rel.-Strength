@@ -27,15 +27,15 @@ def fetch_news(ticker, max_specific=5, max_general=5):
     Gibt {'specific': [...], 'general': [...]} zurück.
     specific  = Artikel wo ticker primär getaggt ist (stockTickers ≤ 3)
     general   = Branchen-/Markt-News aus dem gleichen Feed
-    Fallback: wenn keine spezifischen gefunden, erste 5 aus dem Feed verwenden.
+    Fallback: wenn keine spezifischen gefunden, erste 5 / nächste 5 aus dem Feed.
     """
     try:
         raw = yf.Ticker(ticker).news or []
-        specific, general = [], []
         ticker_upper = ticker.upper().replace('.DE', '')
+        all_parsed = []
 
         for item in raw:
-            if len(specific) >= max_specific and len(general) >= max_general:
+            if len(all_parsed) >= max_specific + max_general:
                 break
             content = item.get('content', {}) or {}
             title = content.get('title') or item.get('title', '')
@@ -64,17 +64,25 @@ def fetch_news(ticker, max_specific=5, max_general=5):
             except Exception:
                 pass
 
-            entry = {'title': title, 'url': url, 'publisher': publisher, 'date_str': date_str}
-            if is_specific and len(specific) < max_specific:
-                specific.append(entry)
-            elif not is_specific and len(general) < max_general:
-                general.append(entry)
+            all_parsed.append({
+                'entry': {'title': title, 'url': url, 'publisher': publisher, 'date_str': date_str},
+                'is_specific': is_specific,
+            })
+
+        # Tag-basierter Split
+        specific, general = [], []
+        for p in all_parsed:
+            if p['is_specific'] and len(specific) < max_specific:
+                specific.append(p['entry'])
+            elif not p['is_specific'] and len(general) < max_general:
+                general.append(p['entry'])
 
         # Fallback: wenn kein einziger aktienspezifischer Artikel gefunden wurde,
-        # die ersten Artikel aus general nehmen (yfinance-Feed ist bereits tickerbezogen)
-        if not specific and general:
-            specific = general[:max_specific]
-            general  = general[max_specific:]
+        # erste 5 Artikel als specific, nächste 5 als general verwenden
+        if not specific:
+            flat = [p['entry'] for p in all_parsed]
+            specific = flat[:max_specific]
+            general  = flat[max_specific:max_specific + max_general]
 
         return {'specific': specific, 'general': general}
     except Exception as e:
