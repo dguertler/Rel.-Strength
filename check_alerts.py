@@ -27,6 +27,7 @@ def fetch_news(ticker, max_specific=5, max_general=5):
     Gibt {'specific': [...], 'general': [...]} zurück.
     specific  = Artikel wo ticker primär getaggt ist (stockTickers ≤ 3)
     general   = Branchen-/Markt-News aus dem gleichen Feed
+    Fallback: wenn keine spezifischen gefunden, erste 5 aus dem Feed verwenden.
     """
     try:
         raw = yf.Ticker(ticker).news or []
@@ -68,6 +69,12 @@ def fetch_news(ticker, max_specific=5, max_general=5):
                 specific.append(entry)
             elif not is_specific and len(general) < max_general:
                 general.append(entry)
+
+        # Fallback: wenn kein einziger aktienspezifischer Artikel gefunden wurde,
+        # die ersten Artikel aus general nehmen (yfinance-Feed ist bereits tickerbezogen)
+        if not specific and general:
+            specific = general[:max_specific]
+            general  = general[max_specific:]
 
         return {'specific': specific, 'general': general}
     except Exception as e:
