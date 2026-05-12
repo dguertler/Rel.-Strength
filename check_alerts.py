@@ -21,37 +21,58 @@ import matplotlib.patches as mpatches
 
 # ── News-Abruf ────────────────────────────────────────────
 
-def fetch_news(ticker, max_items=5):
-    """Holt aktuelle News via yfinance, übersetzt Titel ins Deutsche."""
+def fetch_news(ticker, max_specific=5, max_general=5):
+    """
+    Holt News via yfinance, übersetzt ins Deutsche.
+    Gibt {'specific': [...], 'general': [...]} zurück.
+    specific  = Artikel wo ticker primär getaggt ist (stockTickers ≤ 3)
+    general   = Branchen-/Markt-News aus dem gleichen Feed
+    """
     try:
         raw = yf.Ticker(ticker).news or []
-        result = []
-        for item in raw[:max_items]:
-            content = item.get('content', {})
+        specific, general = [], []
+        ticker_upper = ticker.upper().replace('.DE', '')
+
+        for item in raw:
+            if len(specific) >= max_specific and len(general) >= max_general:
+                break
+            content = item.get('content', {}) or {}
             title = content.get('title') or item.get('title', '')
             url = (content.get('canonicalUrl', {}) or {}).get('url') or \
                   (content.get('clickThroughUrl', {}) or {}).get('url') or \
                   item.get('link', '')
-            publisher = content.get('provider', {}).get('displayName') or item.get('publisher', '')
+            if not title or not url:
+                continue
+            publisher = (content.get('provider') or {}).get('displayName') or item.get('publisher', '')
             pub_time = content.get('pubDate') or ''
             if pub_time:
-                try:
-                    date_str = pub_time[:10]
-                except Exception:
-                    date_str = ''
+                date_str = pub_time[:10]
             else:
                 ts = item.get('providerPublishTime', 0)
                 date_str = datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d') if ts else ''
-            if title and url:
-                try:
-                    title = GoogleTranslator(source='auto', target='de').translate(title)
-                except Exception:
-                    pass
-                result.append({'title': title, 'url': url, 'publisher': publisher, 'date_str': date_str})
-        return result
+
+            tagged = [t.get('symbol', '').upper() for t in
+                      (content.get('finance') or {}).get('stockTickers', [])]
+            if not tagged:
+                tagged = [t.upper() for t in item.get('relatedTickers', [])]
+
+            is_specific = ticker_upper in tagged and len(tagged) <= 3
+
+            try:
+                title = GoogleTranslator(source='auto', target='de').translate(title)
+            except Exception:
+                pass
+
+            entry = {'title': title, 'url': url, 'publisher': publisher, 'date_str': date_str}
+            if is_specific and len(specific) < max_specific:
+                specific.append(entry)
+            elif not is_specific and len(general) < max_general:
+                general.append(entry)
+
+        return {'specific': specific, 'general': general}
     except Exception as e:
         print(f'  News-Abruf für {ticker} fehlgeschlagen: {e}')
-        return []
+        return {'specific': [], 'general': []}
 
 
 # ── GWS-Analyse (Python-Port der JavaScript-Logik) ──────────────────────────
@@ -350,6 +371,9 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
         w_dot  = dot_html(info['weekly'], alert.get('new_weekly', False))
         d_dot  = dot_html(info['daily'],  alert.get('new_daily',  False))
         h4_dot = dot_html(info['h4'],     alert.get('new_h4',     False))
+        top20_badge = ('<span style="background:#1e3a5f;color:#60a5fa;padding:2px 7px;'
+                       'border-radius:10px;font-size:10px;font-weight:bold">TOP&nbsp;20</span>&nbsp;'
+                       if alert.get('in_top20') else '')
 
         if source == 'DAX':
             dashboard_url   = 'https://dguertler.github.io/Rel.-Strength/dax.html'
@@ -369,8 +393,8 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
       <span style="font-size:18px">&#128293;</span>
       <span style="font-size:16px;font-weight:bold;color:#fca5a5">{display_ticker}</span>
       <span style="font-size:11px;color:#64748b">({source})</span>
-      <span style="margin-left:auto;font-size:11px;color:#94a3b8">
-        RS-Score:&nbsp;<strong style="color:#f1f5f9">{score:.1f}</strong>
+      <span style="margin-left:auto;font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:6px">
+        {top20_badge}RS-Score:&nbsp;<strong style="color:#f1f5f9">{score:.1f}</strong>
       </span>
     </div>
     <div style="font-size:12px;margin-bottom:10px;letter-spacing:1px">
@@ -396,12 +420,17 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
                     f'margin:6px 0;border-radius:6px">\n'
                 )
 
-        news_items = alert.get('news', [])
-        if news_items:
-            html_parts.append('    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #1e293b">\n')
-            html_parts.append('      <div style="font-size:10px;color:#64748b;margin-bottom:5px;letter-spacing:1px">AKTUELLE NEWS</div>\n')
-            for n in news_items:
-                date_label = f'<span style="color:#475569">{n["date_str"]}</span>&nbsp;&middot;&nbsp;' if n['date_str'] else ''
+        news = alert.get('news', {})
+        specific_news = news.get('specific', []) if isinstance(news, dict) else []
+        general_news  = news.get('general',  []) if isinstance(news, dict) else []
+
+        def news_block(items, label):
+            if not items:
+                return
+            html_parts.append(f'    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #1e293b">\n')
+            html_parts.append(f'      <div style="font-size:10px;color:#64748b;margin-bottom:5px;letter-spacing:1px">{label}</div>\n')
+            for n in items:
+                date_label      = f'<span style="color:#475569">{n["date_str"]}</span>&nbsp;&middot;&nbsp;' if n['date_str'] else ''
                 publisher_label = f'<span style="color:#475569">{n["publisher"]}</span>&nbsp;&mdash;&nbsp;' if n['publisher'] else ''
                 html_parts.append(
                     f'      <div style="margin-bottom:5px;font-size:11px;line-height:1.4">'
@@ -410,6 +439,9 @@ def send_alert_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr
                     f'</div>\n'
                 )
             html_parts.append('    </div>\n')
+
+        news_block(specific_news, f'NEWS – {display_ticker}')
+        news_block(general_news,  'BRANCHE / MARKT')
 
         html_parts.append('  </div>\n')
 
@@ -518,13 +550,14 @@ def process_json(json_path, source_label, prev_states, today_str):
 
             # Charts: Weekly → Daily → 4H
             w_b64  = render_chart(
-                entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
+                entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 60 Kerzen)',
                 gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
-                n_candles=30
+                n_candles=60
             )
             d_b64  = render_chart(
-                entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
-                gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None
+                entry.get('ohlcv', []), ticker, 'Daily (letzten 60 Kerzen)',
+                gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None,
+                n_candles=60
             )
             h4_b64 = render_chart(
                 entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
@@ -550,6 +583,7 @@ def process_json(json_path, source_label, prev_states, today_str):
                 'daily_bar_date':  _breakout_date(entry.get('ohlcv',     []), info['struct_d']),
                 'h4_bar_date':     _breakout_date(entry.get('ohlcv_4h',  []), info['struct_4h']),
                 'news':            news,
+                'in_top20':        ticker in top20_set,
             })
 
     return new_states, alerts
@@ -591,13 +625,14 @@ def run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
 
     # Charts: Weekly → Daily → 4H
     w_b64  = render_chart(
-        entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 30 Kerzen)',
+        entry.get('ohlcv_w', []), ticker, 'Weekly (letzten 60 Kerzen)',
         gws_price=info['struct_w']['gws_price'] if info['struct_w'] else None,
-        n_candles=30,
+        n_candles=60,
     )
     d_b64  = render_chart(
-        entry.get('ohlcv', []), ticker, 'Daily (letzten 40 Kerzen)',
+        entry.get('ohlcv', []), ticker, 'Daily (letzten 60 Kerzen)',
         gws_price=info['struct_d']['gws_price'] if info['struct_d'] else None,
+        n_candles=60,
     )
     h4_b64 = render_chart(
         entry.get('ohlcv_4h', []), ticker, '4H (letzten 60 Kerzen)',
@@ -619,6 +654,7 @@ def run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
         'new_daily':  False,
         'new_h4':     True,   # Im Test: 4H als neu/gelb markieren
         'news':       fetch_news(ticker),
+        'in_top20':   True,
     }]
 
     # Subject als Test kennzeichnen
@@ -628,8 +664,6 @@ def run_test_mode(smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
     msg['From']    = smtp_user
     msg['To']      = to_addr
 
-    # HTML über send_alert_email-Hilfsfunktion bauen
-    # (wir rufen direkt send_alert_email auf, Subject wird überschrieben)
     send_alert_email(test_alert, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr,
                      subject_override=f'[TEST] Breakout-Alarm {today_str} – '
                                       f'Mail-Versand funktioniert!')
