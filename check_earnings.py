@@ -152,19 +152,36 @@ def get_earnings_surprise(ticker, target_date_str):
 
         # YoY-Umsatzvergleich: letztes Quartal vs. Vorjahresquartal
         revenue_growth_yoy = None
+        _rev_labels = ('Total Revenue', 'Revenue', 'Operating Revenue',
+                       'Total Revenues', 'Revenues', 'Net Revenue')
         try:
+            def _find_rev_row(df):
+                for lbl in _rev_labels:
+                    if lbl in df.index:
+                        return df.loc[lbl]
+                return None
+
+            # Primär: Quartalsdaten (mindestens 5 Quartale = echtes YoY)
             fins = tk.quarterly_financials
             if fins is not None and not fins.empty:
-                rev_row = None
-                for label in ('Total Revenue', 'Revenue'):
-                    if label in fins.index:
-                        rev_row = fins.loc[label]
-                        break
+                rev_row = _find_rev_row(fins)
                 if rev_row is not None and len(rev_row) >= 5:
-                    rev_latest = rev_row.iloc[0]
-                    rev_yoy    = rev_row.iloc[4]
-                    if pd.notna(rev_latest) and pd.notna(rev_yoy) and rev_yoy != 0:
-                        revenue_growth_yoy = float((rev_latest - rev_yoy) / abs(rev_yoy))
+                    r0, r1 = rev_row.iloc[0], rev_row.iloc[4]
+                    if pd.notna(r0) and pd.notna(r1) and r1 != 0:
+                        revenue_growth_yoy = float((r0 - r1) / abs(r1))
+
+            # Fallback: Jahresdaten (fast immer 4 Jahre verfügbar)
+            if revenue_growth_yoy is None:
+                for ann_attr in ('income_stmt', 'financials'):
+                    ann = getattr(tk, ann_attr, None)
+                    if ann is not None and not ann.empty:
+                        rev_row = _find_rev_row(ann)
+                        if rev_row is not None and len(rev_row) >= 2:
+                            r0, r1 = rev_row.iloc[0], rev_row.iloc[1]
+                            if pd.notna(r0) and pd.notna(r1) and r1 != 0:
+                                revenue_growth_yoy = float((r0 - r1) / abs(r1))
+                        break
+
         except Exception as re:
             print(f'  revenue-Fehler {ticker}: {re}')
 
