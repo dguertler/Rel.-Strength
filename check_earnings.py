@@ -19,7 +19,7 @@ import matplotlib.patches as mpatches
 import yfinance as yf
 import pandas as pd
 
-# ── Konfiguration ─────────────────────────────────────────────────────────────
+# ── Konfiguration ───────────────────────────────────────────────────────────────
 
 MIN_PRICE_JUMP   = 0.05   # ≥5 % Close-zu-Close
 MIN_EPS_SURPRISE = 10.0   # ≥10 % EPS-Surprise
@@ -97,7 +97,7 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40):
     return base64.b64encode(buf.read()).decode('utf-8')
 
 
-# ── Kurssprung ermitteln ──────────────────────────────────────────────────────
+# ── Kurssprung ermitteln ──────────────────────────────────────────────────
 
 def get_price_jump(ohlcv, target_date_str):
     """
@@ -118,7 +118,7 @@ def get_price_jump(ohlcv, target_date_str):
     return None, None, None
 
 
-# ── Earnings-Daten via yfinance ───────────────────────────────────────────────
+# ── Earnings-Daten via yfinance ────────────────────────────────────────────────
 
 def get_earnings_surprise(ticker, target_date_str):
     """
@@ -127,7 +127,11 @@ def get_earnings_surprise(ticker, target_date_str):
     """
     try:
         tk = yf.Ticker(ticker)
-        ed = tk.earnings_dates
+        # limit=40 deckt ~10 Quartale ab; Standard (12) reicht für historische Tests nicht
+        try:
+            ed = tk.get_earnings_dates(limit=40)
+        except Exception:
+            ed = tk.earnings_dates
         if ed is None or ed.empty:
             return None
 
@@ -170,7 +174,7 @@ def get_earnings_surprise(ticker, target_date_str):
         return None
 
 
-# ── GWS-Analyse (minimaler Port für Score-Anzeige) ───────────────────────────
+# ── GWS-Analyse (minimaler Port für Score-Anzeige) ──────────────────────────
 
 def _find_swing_points(highs, lows, n, window=2):
     swing_highs, swing_lows = [], []
@@ -201,7 +205,7 @@ def get_gws_price(ohlcv, window=2):
     return candidates[-1]['price'] if candidates else None
 
 
-# ── E-Mail versenden ──────────────────────────────────────────────────────────
+# ── E-Mail versenden ───────────────────────────────────────────────────────────────
 
 def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
     today_str = datetime.now().strftime('%d.%m.%Y')
@@ -323,7 +327,7 @@ def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_a
     print(f'Earnings-Mail gesendet an {to_addr}')
 
 
-# ── Hauptprogramm ─────────────────────────────────────────────────────────────
+# ── Hauptprogramm ───────────────────────────────────────────────────────────────────
 
 SOURCES = [
     ('rs_full.json',  'QQQ'),
