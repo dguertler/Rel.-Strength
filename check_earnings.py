@@ -19,12 +19,12 @@ import matplotlib.patches as mpatches
 import yfinance as yf
 import pandas as pd
 
-# ── Konfiguration ───────────────────────────────────────────────────────────────
+# ── Konfiguration ─────────────────────────────────────────────────────────────
 
 MIN_PRICE_JUMP   = 0.05   # ≥5 % Close-zu-Close
 MIN_EPS_SURPRISE = 10.0   # ≥10 % EPS-Surprise
 
-# ── Chart-Rendering (aus check_alerts.py übernommen) ─────────────────────────
+# ── Chart-Rendering ───────────────────────────────────────────────────────────
 
 BG_DARK  = '#07090f'
 BG_PANEL = '#0a0f1e'
@@ -97,34 +97,23 @@ def render_chart(ohlcv, ticker, timeframe, gws_price=None, n_candles=40):
     return base64.b64encode(buf.read()).decode('utf-8')
 
 
-# ── Kurssprung ermitteln ──────────────────────────────────────────────────
+# ── Kurssprung ermitteln ──────────────────────────────────────────────────────
 
 def get_price_jump(ohlcv, target_date_str):
-    """
-    Gibt den Close-zu-Close-Sprung zurück für target_date_str (YYYY-MM-DD).
-    Vergleicht Close[target_date] / Close[vortag] - 1.
-    """
     closes = [(c['d'][:10], c['c']) for c in ohlcv if c.get('c')]
     if len(closes) < 2:
         return None, None, None
-
     for i in range(len(closes) - 1, 0, -1):
         day, close = closes[i]
         if day == target_date_str:
             prev_close = closes[i - 1][1]
-            jump = close / prev_close - 1
-            return jump, close, prev_close
-
+            return close / prev_close - 1, close, prev_close
     return None, None, None
 
 
-# ── Earnings-Daten via yfinance ────────────────────────────────────────────────
+# ── Earnings-Daten via yfinance ───────────────────────────────────────────────
 
 def get_earnings_surprise(ticker, target_date_str):
-    """
-    Prüft ob für ticker am target_date_str Earnings vorlagen und wie hoch
-    die EPS-Surprise war. Gibt dict zurück oder None.
-    """
     try:
         tk = yf.Ticker(ticker)
         # limit=40 deckt ~10 Quartale ab; Standard (12) reicht für historische Tests nicht
@@ -136,12 +125,12 @@ def get_earnings_surprise(ticker, target_date_str):
             return None
 
         ed = ed.copy()
-        ed.index = pd.to_datetime(ed.index).normalize()
+        # Timezone entfernen bevor mit naivem Timestamp verglichen wird
+        ed.index = pd.to_datetime(ed.index).normalize().tz_localize(None)
 
         target_dt = pd.Timestamp(target_date_str)
 
-        # Suche Earnings ±1 Handelstag um target_date (Meldungen kommen oft
-        # nach Börsenschluss des Vortages, werden dann am nächsten Tag gehandelt)
+        # ±1 Handelstag: AMC-Meldungen am Vortag wirken sich am target_date aus
         window = [target_dt - pd.Timedelta(days=1), target_dt]
         mask = (ed.index >= window[0]) & (ed.index <= window[1])
         hits = ed[mask]
@@ -154,7 +143,6 @@ def get_earnings_surprise(ticker, target_date_str):
         eps_actual = row.get('Reported EPS')
         surprise   = row.get('Surprise(%)')
 
-        # Surprise aus rohen Werten berechnen falls Spalte fehlt
         if pd.isna(surprise) and not pd.isna(eps_est) and not pd.isna(eps_actual) \
                 and eps_est != 0:
             surprise = (eps_actual - eps_est) / abs(eps_est) * 100
@@ -163,7 +151,7 @@ def get_earnings_surprise(ticker, target_date_str):
             return None
 
         return {
-            'date':        str(hits.index[0].date()),
+            'date':         str(hits.index[0].date()),
             'eps_estimate': float(eps_est)    if not pd.isna(eps_est)    else None,
             'eps_actual':   float(eps_actual) if not pd.isna(eps_actual) else None,
             'surprise_pct': float(surprise),
@@ -174,7 +162,7 @@ def get_earnings_surprise(ticker, target_date_str):
         return None
 
 
-# ── GWS-Analyse (minimaler Port für Score-Anzeige) ──────────────────────────
+# ── GWS-Analyse ───────────────────────────────────────────────────────────────
 
 def _find_swing_points(highs, lows, n, window=2):
     swing_highs, swing_lows = [], []
@@ -187,16 +175,14 @@ def _find_swing_points(highs, lows, n, window=2):
 
 
 def get_gws_price(ohlcv, window=2):
-    """Gibt den aktuellen GWS-Preis (Daily) zurück oder None."""
     if not ohlcv or len(ohlcv) < 10:
         return None
-    n      = len(ohlcv)
+    n = len(ohlcv)
     highs  = [c['h'] for c in ohlcv]
     lows   = [c['l'] for c in ohlcv]
-    closes = [c['c'] for c in ohlcv]
     swing_highs, swing_lows = _find_swing_points(highs, lows, n, window)
     candidates = []
-    for j in range(1, len(swing_lows)):        
+    for j in range(1, len(swing_lows)):
         if swing_lows[j]['price'] < swing_lows[j-1]['price']:
             hochs = [h for h in swing_highs
                      if swing_lows[j-1]['idx'] < h['idx'] < swing_lows[j]['idx']]
@@ -205,7 +191,7 @@ def get_gws_price(ohlcv, window=2):
     return candidates[-1]['price'] if candidates else None
 
 
-# ── E-Mail versenden ───────────────────────────────────────────────────────────────
+# ── E-Mail versenden ──────────────────────────────────────────────────────────
 
 def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_addr):
     today_str = datetime.now().strftime('%d.%m.%Y')
@@ -233,24 +219,21 @@ def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_a
     inline_imgs = []
 
     for a in alerts:
-        ticker    = a['ticker']
-        display   = ticker.replace('.DE', '') if ticker.endswith('.DE') else ticker
-        source    = a['source']
-        score     = a['score']
-        jump_pct  = a['jump_pct'] * 100
-        surprise  = a['surprise_pct']
-        eps_est   = a['eps_estimate']
-        eps_act   = a['eps_actual']
+        ticker   = a['ticker']
+        display  = ticker.replace('.DE', '') if ticker.endswith('.DE') else ticker
+        source   = a['source']
+        score    = a['score']
+        jump_pct = a['jump_pct'] * 100
+        surprise = a['surprise_pct']
+        eps_est  = a['eps_estimate']
+        eps_act  = a['eps_actual']
 
         if source == 'DAX':
-            dash_url   = 'https://dguertler.github.io/Rel.-Strength/dax.html'
-            dash_label = 'DAX-Dashboard'
+            dash_url, dash_label = 'https://dguertler.github.io/Rel.-Strength/dax.html', 'DAX-Dashboard'
         elif source == 'SPX':
-            dash_url   = 'https://dguertler.github.io/Rel.-Strength/sp500.html'
-            dash_label = 'S&P 500-Dashboard'
+            dash_url, dash_label = 'https://dguertler.github.io/Rel.-Strength/sp500.html', 'S&P 500-Dashboard'
         else:
-            dash_url   = 'https://dguertler.github.io/Rel.-Strength/'
-            dash_label = 'Nasdaq-Dashboard'
+            dash_url, dash_label = 'https://dguertler.github.io/Rel.-Strength/', 'Nasdaq-Dashboard'
 
         eps_est_str = f'{eps_est:.2f}' if eps_est is not None else '–'
         eps_act_str = f'{eps_act:.2f}' if eps_act is not None else '–'
@@ -268,14 +251,10 @@ def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_a
       </span>
     </div>
     <div style="font-size:12px;margin-bottom:8px;display:flex;gap:24px">
-      <span>
-        <span style="color:#64748b">Kurssprung:</span>&nbsp;
-        <strong style="color:#4ade80">+{jump_pct:.1f}&nbsp;%</strong>
-      </span>
-      <span>
-        <span style="color:#64748b">EPS-Surprise:</span>&nbsp;
-        <strong style="color:#fbbf24">+{surprise:.1f}&nbsp;%</strong>
-      </span>
+      <span><span style="color:#64748b">Kurssprung:</span>&nbsp;
+        <strong style="color:#4ade80">+{jump_pct:.1f}&nbsp;%</strong></span>
+      <span><span style="color:#64748b">EPS-Surprise:</span>&nbsp;
+        <strong style="color:#fbbf24">+{surprise:.1f}&nbsp;%</strong></span>
     </div>
     <div style="font-size:11px;margin-bottom:10px;color:#94a3b8">
       EPS Schätzung:&nbsp;<strong>{eps_est_str}</strong>
@@ -296,7 +275,6 @@ def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_a
                     f'style="width:100%;max-width:720px;display:block;'
                     f'margin:6px 0;border-radius:6px">\n'
                 )
-
         html_parts.append('  </div>\n')
 
     html_parts.append("""
@@ -306,7 +284,6 @@ def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_a
 </body></html>""")
 
     html_body = ''.join(html_parts)
-
     msg_alt = MIMEMultipart('alternative')
     msg_alt.attach(MIMEText(html_body, 'html', 'utf-8'))
     msg.attach(msg_alt)
@@ -327,7 +304,7 @@ def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_a
     print(f'Earnings-Mail gesendet an {to_addr}')
 
 
-# ── Hauptprogramm ───────────────────────────────────────────────────────────────────
+# ── Hauptprogramm ─────────────────────────────────────────────────────────────
 
 SOURCES = [
     ('rs_full.json',  'QQQ'),
@@ -347,7 +324,6 @@ def main():
         print('FEHLER: Bitte SMTP_HOST, SMTP_USER, SMTP_PASS und ALERT_EMAIL_TO setzen.')
         sys.exit(1)
 
-    # Datum bestimmen: TEST_DATE überschreibt "gestern"
     test_date = os.environ.get('TEST_DATE', '').strip()
     if test_date:
         yesterday_str = test_date
@@ -355,10 +331,9 @@ def main():
     else:
         today     = date.today()
         yesterday = today - timedelta(days=1)
-        # Wochenende überspringen: bei Mo → Fr nehmen
-        if yesterday.weekday() == 6:   # Sonntag
+        if yesterday.weekday() == 6:
             yesterday = yesterday - timedelta(days=2)
-        elif yesterday.weekday() == 5: # Samstag
+        elif yesterday.weekday() == 5:
             yesterday = yesterday - timedelta(days=1)
         yesterday_str = yesterday.strftime('%Y-%m-%d')
         print(f'check_earnings.py – Prüfe Earnings vom {yesterday_str}')
@@ -381,14 +356,12 @@ def main():
             score  = entry.get('score', 0)
             ohlcv  = entry.get('ohlcv', [])
 
-            # 1. Kurssprung ≥5% Close-zu-Close gestern prüfen
             jump, close_y, close_prev = get_price_jump(ohlcv, yesterday_str)
             if jump is None or jump < MIN_PRICE_JUMP:
                 continue
 
             print(f'  Kurssprung {ticker}: +{jump*100:.1f}% – prüfe Earnings …')
 
-            # 2. Earnings-Surprise prüfen
             earnings = get_earnings_surprise(ticker, yesterday_str)
             if earnings is None:
                 print(f'    → keine Earnings gefunden')
@@ -403,7 +376,6 @@ def main():
 
             print(f'  ✓ ALERT: {ticker} ({source_label})  Sprung={jump*100:.1f}%  Surprise={surprise:.1f}%')
 
-            # 3. Charts generieren
             gws_d  = get_gws_price(ohlcv)
             gws_w  = get_gws_price(entry.get('ohlcv_w', []), window=1)
             gws_4h = get_gws_price(entry.get('ohlcv_4h', []))
@@ -431,9 +403,7 @@ def main():
                 'charts':       charts,
             })
 
-    # Nach RS-Score absteigend sortieren
     all_alerts.sort(key=lambda a: a['score'], reverse=True)
-
     print(f'\nEarnings-Alerts gesamt: {len(all_alerts)}')
 
     if all_alerts:
