@@ -1,5 +1,5 @@
 import subprocess
-subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "-q"])
+subprocess.run(["pip", "install", "yfinance", "pandas", "matplotlib", "lxml", "-q"])
 
 import json
 import os

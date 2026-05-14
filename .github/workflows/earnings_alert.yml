@@ -27,7 +27,7 @@ jobs:
           python-version: '3.11'
 
       - name: Abhängigkeiten installieren
-        run: pip install yfinance pandas matplotlib
+        run: pip install yfinance pandas matplotlib lxml
 
       - name: Earnings-Skript ausführen
         env:
