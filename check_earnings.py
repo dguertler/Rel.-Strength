@@ -150,11 +150,30 @@ def get_earnings_surprise(ticker, target_date_str):
         if pd.isna(surprise):
             return None
 
+        # YoY-Umsatzvergleich: letztes Quartal vs. Vorjahresquartal
+        revenue_growth_yoy = None
+        try:
+            fins = tk.quarterly_financials
+            if fins is not None and not fins.empty:
+                rev_row = None
+                for label in ('Total Revenue', 'Revenue'):
+                    if label in fins.index:
+                        rev_row = fins.loc[label]
+                        break
+                if rev_row is not None and len(rev_row) >= 5:
+                    rev_latest = rev_row.iloc[0]
+                    rev_yoy    = rev_row.iloc[4]
+                    if pd.notna(rev_latest) and pd.notna(rev_yoy) and rev_yoy != 0:
+                        revenue_growth_yoy = float((rev_latest - rev_yoy) / abs(rev_yoy))
+        except Exception as re:
+            print(f'  revenue-Fehler {ticker}: {re}')
+
         return {
-            'date':         str(hits.index[0].date()),
-            'eps_estimate': float(eps_est)    if not pd.isna(eps_est)    else None,
-            'eps_actual':   float(eps_actual) if not pd.isna(eps_actual) else None,
-            'surprise_pct': float(surprise),
+            'date':               str(hits.index[0].date()),
+            'eps_estimate':       float(eps_est)    if not pd.isna(eps_est)    else None,
+            'eps_actual':         float(eps_actual) if not pd.isna(eps_actual) else None,
+            'surprise_pct':       float(surprise),
+            'revenue_growth_yoy': revenue_growth_yoy,
         }
 
     except Exception as e:
@@ -237,6 +256,13 @@ def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_a
 
         eps_est_str = f'{eps_est:.2f}' if eps_est is not None else '–'
         eps_act_str = f'{eps_act:.2f}' if eps_act is not None else '–'
+        rev_yoy     = a.get('revenue_growth_yoy')
+        if rev_yoy is not None:
+            rev_sign    = '+' if rev_yoy >= 0 else ''
+            rev_clr     = '#4ade80' if rev_yoy >= 0 else '#f87171'
+            rev_str     = f'<span><span style="color:#64748b">Umsatz YoY:</span>&nbsp;<strong style="color:{rev_clr}">{rev_sign}{rev_yoy*100:.1f}&nbsp;%</strong></span>'
+        else:
+            rev_str     = '<span style="color:#64748b">Umsatz YoY: n/a</span>'
 
         html_parts.append(f"""
   <div style="margin:0 0 28px;padding:16px;
@@ -255,6 +281,7 @@ def send_earnings_email(alerts, smtp_host, smtp_port, smtp_user, smtp_pass, to_a
         <strong style="color:#4ade80">+{jump_pct:.1f}&nbsp;%</strong></span>
       <span><span style="color:#64748b">EPS-Surprise:</span>&nbsp;
         <strong style="color:#fbbf24">+{surprise:.1f}&nbsp;%</strong></span>
+      {rev_str}
     </div>
     <div style="font-size:11px;margin-bottom:10px;color:#94a3b8">
       EPS Schätzung:&nbsp;<strong>{eps_est_str}</strong>
@@ -368,10 +395,15 @@ def main():
                 continue
 
             surprise = earnings['surprise_pct']
-            print(f'    → Surprise: {surprise:.1f}%')
+            rev_yoy  = earnings.get('revenue_growth_yoy')
+            print(f'    → Surprise: {surprise:.1f}%  |  Revenue YoY: {rev_yoy*100:.1f}%' if rev_yoy is not None else f'    → Surprise: {surprise:.1f}%  |  Revenue YoY: n/a')
 
             if surprise < MIN_EPS_SURPRISE:
-                print(f'    → unter Schwelle ({MIN_EPS_SURPRISE}%) – übersprungen')
+                print(f'    → unter EPS-Schwelle ({MIN_EPS_SURPRISE}%) – übersprungen')
+                continue
+
+            if rev_yoy is not None and rev_yoy < 0:
+                print(f'    → Umsatz YoY negativ ({rev_yoy*100:.1f}%) – übersprungen')
                 continue
 
             print(f'  ✓ ALERT: {ticker} ({source_label})  Sprung={jump*100:.1f}%  Surprise={surprise:.1f}%')
@@ -393,14 +425,15 @@ def main():
             if h4_b64: charts.append((h4_b64, '4H'))
 
             all_alerts.append({
-                'ticker':       ticker,
-                'score':        score,
-                'source':       source_label,
-                'jump_pct':     jump,
-                'surprise_pct': surprise,
-                'eps_estimate': earnings['eps_estimate'],
-                'eps_actual':   earnings['eps_actual'],
-                'charts':       charts,
+                'ticker':             ticker,
+                'score':              score,
+                'source':             source_label,
+                'jump_pct':           jump,
+                'surprise_pct':       surprise,
+                'eps_estimate':       earnings['eps_estimate'],
+                'eps_actual':         earnings['eps_actual'],
+                'revenue_growth_yoy': rev_yoy,
+                'charts':             charts,
             })
 
     all_alerts.sort(key=lambda a: a['score'], reverse=True)
